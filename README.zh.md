@@ -1,13 +1,7 @@
 <p align="center">
-  <img alt="AcouScope" src="docs/images/acouscope-icon.png" width="96">
-</p>
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/jinyun-logo-dark.svg" width="190">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/jinyun-logo-light.svg" width="190">
-    <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo-light.svg" width="190">
-  </picture>
+  <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo.png" height="72">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img alt="AcouScope" src="docs/images/acouscope-icon.png" height="72">
 </p>
 
 <h1 align="center">AcouScope · 音析</h1>
