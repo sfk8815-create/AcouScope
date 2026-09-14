@@ -1,0 +1,22 @@
+<!-- SPDX-License-Identifier: ISC -->
+<!-- Source: Lucide icon layers, https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/layers.svg -->
+<!-- License: ISC (c) Lucide Icons and Contributors; Feather-derived glyphs additionally MIT (c) Cole Bemis -->
+<!-- Derived: scripts/derive_icon_styles.py (style=win; stroke-width=2.25; linecap=butt; linejoin=miter; miterlimit=10; scale=1.02) -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2.25"
+  stroke-linecap="butt"
+  stroke-linejoin="miter"
+  stroke-miterlimit="10"
+>
+  <g transform="translate(12 12) scale(1.02) translate(-12 -12)">
+    <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+    <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+    <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
+  </g>
+</svg>

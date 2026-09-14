@@ -1,0 +1,47 @@
+[tool.poetry]
+name = "acouscope"
+version = "0.99.20260904"
+description = "AcouScope - 面向音乐与数字人文领域研究的跨平台音频分析软件"
+authors = ["Fengkai Shi <sfklc@hotmail.com>"]
+license = "GPL-3.0-only"
+readme = "README.md"
+classifiers = ["License :: OSI Approved :: GNU General Public License v3 (GPLv3)"]
+packages = [{include = "acouscope", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+numpy = "^1.24.0"
+soundfile = "^0.12.0"
+PyQt6 = "^6.6.0"
+pyqtgraph = "^0.13.0"
+matplotlib = "^3.7.0"
+Pillow = "^10.0.0"
+certifi = ">=2023.0"
+onnxruntime = ">=1.16.0"  # SOTA pitch backends (CPU-only)
+
+# 可选增强（缺失时自动回退，核心功能不受影响）
+pyaudio = {version = "^0.2.13", optional = true}
+samplerate = {version = "^0.1.0", optional = true}
+scipy = {version = "^1.10.0", optional = true}
+
+[tool.poetry.extras]
+enhanced = ["pyaudio", "samplerate", "scipy"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"
+pytest-qt = "^4.2"
+
+[tool.poetry.scripts]
+acouscope = "acouscope.__main__:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310']

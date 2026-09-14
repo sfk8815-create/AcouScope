@@ -1,0 +1,16 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Source: AcouScope 自有图元常量（derive_icon_styles.MISSING_GENERIC_PRIMITIVES），非系统官方资产 -->
+<!-- License: GPL-3.0-only (c) AcouScope contributors -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <g><path d="M5 9v6h3l4 3.5V5.5L8 9H5z" /><path d="M21 4L4 21" /></g>
+</svg>

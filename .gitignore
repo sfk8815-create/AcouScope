@@ -1,0 +1,19 @@
+# AcouScope — 公开面 .gitignore
+.venv/
+dist/
+build/
+dist-nuitka/
+__pycache__/
+*.pyc
+.runs/
+*.log
+.DS_Store
+.acouscope_local/
+
+# 大体积二进制：ffmpeg（改用 fetch_ffmpeg.sh 下载，见 README）
+src/acouscope/resources/bin/ffmpeg
+
+# 模型权重 / ollama 资产（运行时下载）
+src/acouscope/resources/models/*
+!src/acouscope/resources/models/.gitkeep
+src/acouscope/resources/bin/ollama/

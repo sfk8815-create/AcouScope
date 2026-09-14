@@ -1,0 +1,19 @@
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<!-- Source: AcouScope 自有图元常量（derive_icon_styles.MISSING_GENERIC_PRIMITIVES），非系统官方资产 -->
+<!-- License: GPL-3.0-only (c) AcouScope contributors -->
+<!-- Derived: scripts/derive_icon_styles.py (style=macos; stroke-width=1.75; linecap=round; linejoin=round; miterlimit=default; scale=0.95) -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.75"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+>
+  <g transform="translate(12 12) scale(0.95) translate(-12 -12)">
+    <rect x="6" y="6" width="12" height="12" />
+  </g>
+</svg>

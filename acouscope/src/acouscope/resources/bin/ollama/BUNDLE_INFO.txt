@@ -1,0 +1,22 @@
+AcouScope 内置 Ollama 引擎资产（T-317 落位 · 裁决 B：不入 git）
+================================================================
+
+版本：        ollama v0.33.3（官方 release，macOS universal2，arm64 可用）
+来源：        https://github.com/ollama/ollama/releases/download/v0.33.3/ollama-darwin.tgz
+tgz sha256：  342db03df80bb9db84ff64246031bd5f70c09b59ff52fa5cc9aaae3476cc4a9d
+              （与官方 releases/download/v0.33.3/sha256sum.txt 同源比对一致）
+下载日期：    2026-09-09
+落位方式：    scripts/fetch_ollama.sh darwin-arm64（下载 + sha256 硬校验 + 解压落位，可复用）
+入库方式：    本目录整套不入 git（.gitignore；仅本登记文件例外入库）
+
+⚠ 整套同目录铁律：ollama serve 按 @loader_path 相对路径在同目录查找
+  llama-server / libllama* / libggml* / libmtmd* / mlx_metal_v3 / mlx_metal_v4。
+  禁止单独替换或删除其中任何一个文件——整套同目录才可 serve。
+  升级/回滚必须整套替换（bundled 为出厂只读基准，版本随 AcouScope 发版焊死；
+  用户级引擎升级/回滚属后续独立任务 T-319）。
+
+关键内容清单（tar 原样，保持执行位与 symlink）：
+  ollama / llama-server / llama-quantize（可执行）
+  libllama* / libggml* / libmtmd* dylib（含版本号实体 + 多级 symlink）
+  mlx_metal_v3/ 与 mlx_metal_v4/（各含 mlx.metallib + libmlx/libjaccl/libollama_xgrammar）
+  GO_LICENSE / LLAMA_CPP_LICENSE / MLX_LICENSE / XGRAMMAR_LICENSE 等全套许可文本

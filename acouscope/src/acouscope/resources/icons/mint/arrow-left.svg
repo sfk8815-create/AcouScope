@@ -1,0 +1,21 @@
+<!-- SPDX-License-Identifier: ISC -->
+<!-- Source: Lucide icon arrow-left, https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/arrow-left.svg -->
+<!-- License: ISC (c) Lucide Icons and Contributors; Feather-derived glyphs additionally MIT (c) Cole Bemis -->
+<!-- Derived: scripts/derive_icon_styles.py (style=mint; stroke-width=2; linecap=round; linejoin=round; miterlimit=6; scale=0.985) -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  stroke-miterlimit="6"
+>
+  <g transform="translate(12 12) scale(0.985) translate(-12 -12)">
+    <path d="m12 19-7-7 7-7" />
+    <path d="M19 12H5" />
+  </g>
+</svg>
