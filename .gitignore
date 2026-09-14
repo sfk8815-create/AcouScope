@@ -17,3 +17,6 @@ src/acouscope/resources/bin/ffmpeg
 src/acouscope/resources/models/*
 !src/acouscope/resources/models/.gitkeep
 src/acouscope/resources/bin/ollama/
+
+# 内部面：任何层级的 .pi（含 acouscope/.pi）
+.pi/

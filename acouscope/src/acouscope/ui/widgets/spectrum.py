@@ -1897,41 +1897,53 @@ class SpectrumWidget(QWidget):
         WHITE_HEIGHT = 4.0
         BLACK_HEIGHT = 2.2
         BLACK_BOTTOM = WHITE_HEIGHT - BLACK_HEIGHT
-        BLACK_WIDTH = 0.58
+        BLACK_WIDTH = 0.60  # 黑键沿 MIDI 的宽度；/ 白键宽 1.0 = 0.60 ∈ [0.58, 0.60]（与竖排同规）
 
-        # 键面令牌（T-1032 · 裁定 F‴）：白键/黑键/键框/中央 C 一律取主题色，
-        # 源码不散落 hex；中央 C 强调走语义 warning。
-        kc = theme.colors()
-        key_white = pg.mkBrush(kc["bg1"])
-        # T-1038 M5（d5 修正）：黑键取 bg0 → 明/暗两骨架下均「白键明度 > 黑键明度」
-        key_black = pg.mkBrush(kc["bg0"])
-        key_edge = pg.mkPen(kc["border"], width=0.5)
-        center_brush = pg.mkBrush(kc["bg3"])
-        center_pen = pg.mkPen(theme.TOKENS["semantic"]["warning"], width=2.2)
+        # 键面令牌（T-1042）：白键/黑键/键带底/白键缝一律取 TOKENS["keys"]（物理面），
+        # 源码不散落 hex、不再用任何语义反馈色（去金色）。分层 + 去强描边 + 黑键圆角，横竖同套。
+        faces = theme.key_faces()
+        strip_brush = pg.mkBrush(faces["strip"])
+        key_white = pg.mkBrush(faces["white"])
+        # 白键间分隔：keys.white_seam（比白键暗），禁 border（壳色会亮于键面 → 「格子纸」）
+        seam_pen = pg.mkPen(faces["white_seam"], width=0.15)
+        key_black = pg.mkBrush(faces["black"])
+        no_pen = pg.mkPen(None)
 
-        # 白键
+        # 键带底：铺满本段键盘（gutter，比黑键更暗让键「浮」出来），先于白键层。
+        if midi_end >= midi_start:
+            strip = pg.QtWidgets.QGraphicsRectItem(
+                midi_start - 0.5, 0, (midi_end - midi_start) + 1.0, WHITE_HEIGHT
+            )
+            strip.setBrush(strip_brush)
+            strip.setPen(no_pen)
+            strip.setZValue(-20)
+            self.keyboard_widget.addItem(strip)
+            self._keyboard_items.append(strip)
+
+        # 白键（直角；真实白键为直角不加圆角）
         for midi in range(midi_start, midi_end + 1):
             if midi_is_white_key(midi):
                 rect = pg.QtWidgets.QGraphicsRectItem(midi - 0.5, 0, 1.0, WHITE_HEIGHT)
                 rect.setBrush(key_white)
-                rect.setPen(key_edge)
+                rect.setPen(seam_pen)
                 self.keyboard_widget.addItem(rect)
                 self._keyboard_items.append(rect)
-                if midi == 60:  # 中央 C 强调
-                    rect.setBrush(center_brush)
-                    rect.setPen(center_pen)
 
-        # 黑键
+        # 黑键（居中偏右语义等价、较窄、顶层、圆角、无描边）
+        radius = BLACK_WIDTH * 0.17  # 圆角 ≈ 黑键窄向 17%（ARCH §五c 建议 15–20%），与竖排同规
         for midi in range(midi_start, midi_end + 1):
             if midi_is_black_key(midi):
-                rect = pg.QtWidgets.QGraphicsRectItem(
-                    midi - BLACK_WIDTH / 2, BLACK_BOTTOM, BLACK_WIDTH, BLACK_HEIGHT
+                path = pg.QtGui.QPainterPath()
+                path.addRoundedRect(
+                    midi - BLACK_WIDTH / 2, BLACK_BOTTOM, BLACK_WIDTH, BLACK_HEIGHT,
+                    radius, radius,
                 )
-                rect.setBrush(key_black)
-                rect.setPen(key_edge)
-                rect.setZValue(20)
-                self.keyboard_widget.addItem(rect)
-                self._keyboard_items.append(rect)
+                item = pg.QtWidgets.QGraphicsPathItem(path)
+                item.setBrush(key_black)
+                item.setPen(no_pen)
+                item.setZValue(20)
+                self.keyboard_widget.addItem(item)
+                self._keyboard_items.append(item)
 
         self.keyboard_widget.setYRange(0, WHITE_HEIGHT, padding=0)
 

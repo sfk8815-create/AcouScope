@@ -185,14 +185,18 @@ def build_freq_unit_combo(parent=None) -> QComboBox:
 class PianoKeyboardStrip(pg.PlotWidget):
     """竖排钢琴键盘条（Y=MIDI 坐标，供 Y 轴频率窗口的钢琴卷帘模式显示）。
 
-    与 FFT 频谱窗口的横排键盘同款样式（白键全宽、黑键贴右半、
-    C4 中央 C 金色高亮、左轴 C 音名刻度），键位静态绘制全音域
+    与 FFT 频谱窗口的横排键盘同款样式（白键全宽、黑键居中偏左、
+    C4 中央 C 音名文字加粗、左轴 C 音名刻度），键位静态绘制全音域
     (MIDI 0~127)，由 Y 轴联动裁剪到当前视图。
     """
 
     WHITE_W = 4.0   # 白键横向宽度（本条内部 X 坐标）
-    BLACK_W = 2.3   # 黑键横向宽度
-    BLACK_X0 = 1.7  # 黑键起点（贴右侧，模拟竖排琴键的黑键位置）
+    # T-1042：黑键宽 2.36 = WHITE_W × 0.59（真实钢琴黑键宽 ∈ [0.58, 0.60] 白键宽）
+    BLACK_W = 2.36  # 黑键横向宽度
+    # T-1042：黑键居中偏左 —— (WHITE_W − BLACK_W)/2 = 0.82 为居中位，再略左移 0.12
+    # 表达真实钢琴黑键偏左（ARCH §五c-3：约 5–10%）；原 1.7 贴右侧是「歪」因。
+    BLACK_X0 = 0.70  # 黑键起点（居中偏左）
+    BLACK_H = 0.58   # 黑键纵向高（半音 × 0.58 ∈ [0.58, 0.62]）
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -223,54 +227,83 @@ class PianoKeyboardStrip(pg.PlotWidget):
             ticks.append((float(midi), label))
         self.getAxis("left").setTicks([ticks])
 
+        # 中央 C 文字强调（T-1042）：原「金色描边框」已废除（违 §2.1-3 反馈色当装饰），
+        # 改为在中央 C 键上叠一个**加粗**音名标签（复用 note_name_ticks 文案），不用任何语义色。
+        from PyQt6.QtGui import QFont
+
+        cfont = QFont()
+        cfont.setBold(True)
+        self._center_c_label = pg.TextItem(
+            "C4(中央C)", color=theme.colors()["text_sub"],
+            anchor=(1.0, 0.5), border=None, fill=None,
+        )
+        self._center_c_label.textItem.setFont(cfont)
+        self._center_c_label.setPos(self.WHITE_W, 60.0)
+        self.addItem(self._center_c_label)
+
         theme.on_theme_change(self._on_canvas_theme)
         self._on_canvas_theme()
 
     def _on_canvas_theme(self) -> None:
         """主题切换：重设键盘带底色/轴色并重建键面（键色随主题令牌）。"""
         _apply_canvas_theme(self, "bg2")
+        self._center_c_label.setColor(theme.colors()["text_sub"])
         self._build_keys()
 
     def _build_keys(self) -> None:
-        """按当前主题令牌重建 128 键键面（白键/黑键/键框/中央 C 强调）。"""
+        """按当前主题令牌重建 128 键键面（T-1042：分层明度 + 去强描边 + 去金色 + 黑键圆角）。
+
+        分层顺序：先铺整条键带底（keys.strip，比黑键更暗让键「浮」出），
+        再叠白键面（keys.white + keys.white_seam 极细分隔，禁亮于键面的描边），
+        再叠黑键（keys.black，圆角、无描边）。中央 C 与其它白键同色（去金色）。
+        """
         from acouscope.dsp.units import midi_is_black_key, midi_is_white_key
 
         for item in self._key_items:
             self.removeItem(item)
         self._key_items = []
 
-        c = theme.colors()
-        white_brush = pg.mkBrush(c["bg1"])
-        # T-1038 M5（d5 修正）：黑键取 bg0 → 明/暗两骨架下均「白键明度 > 黑键明度」
-        black_brush = pg.mkBrush(c["bg0"])
-        key_edge = pg.mkPen(c["border"], width=0.5)
-        center_brush = pg.mkBrush(c["bg3"])
-        center_pen = pg.mkPen(theme.TOKENS["semantic"]["warning"], width=2.2)
+        faces = theme.key_faces()
+        strip_brush = pg.mkBrush(faces["strip"])
+        white_brush = pg.mkBrush(faces["white"])
+        # 白键间分隔：用 keys.white_seam（比白键暗），禁 border（壳色，会亮于键面 → 「格子纸」）
+        seam_pen = pg.mkPen(faces["white_seam"], width=0.15)
+        black_brush = pg.mkBrush(faces["black"])
+        no_pen = pg.mkPen(None)
 
-        # 白键（全宽）
+        # ① 键带底：铺满整条的底（gutter），比黑键更暗
+        strip = pg.QtWidgets.QGraphicsRectItem(0, -0.5, self.WHITE_W, 128.0)
+        strip.setBrush(strip_brush)
+        strip.setPen(no_pen)
+        strip.setZValue(-20)
+        self.addItem(strip)
+        self._key_items.append(strip)
+
+        # ② 白键（全宽、直角；真实白键为直角不加圆角）
         for midi in range(128):
             if midi_is_white_key(midi):
                 rect = pg.QtWidgets.QGraphicsRectItem(0, midi - 0.5, self.WHITE_W, 1.0)
-                if midi == 60:  # 中央 C 强调
-                    rect.setBrush(center_brush)
-                    rect.setPen(center_pen)
-                else:
-                    rect.setBrush(white_brush)
-                    rect.setPen(key_edge)
+                rect.setBrush(white_brush)
+                rect.setPen(seam_pen)
                 self.addItem(rect)
                 self._key_items.append(rect)
 
-        # 黑键（贴右半、较窄、高层级）
+        # ③ 黑键（居中偏左、较窄、顶层、圆角、无描边）
+        radius = self.BLACK_W * 0.17  # 圆角 ≈ 黑键宽 17%（ARCH §五c 建议 15–20%）
         for midi in range(128):
             if midi_is_black_key(midi):
-                rect = pg.QtWidgets.QGraphicsRectItem(
-                    self.BLACK_X0, midi - 0.29, self.BLACK_W, 0.58
+                path = pg.QtGui.QPainterPath()
+                half = self.BLACK_H / 2.0
+                path.addRoundedRect(
+                    self.BLACK_X0, midi - half, self.BLACK_W, self.BLACK_H,
+                    radius, radius,
                 )
-                rect.setBrush(black_brush)
-                rect.setPen(key_edge)
-                rect.setZValue(20)
-                self.addItem(rect)
-                self._key_items.append(rect)
+                item = pg.QtWidgets.QGraphicsPathItem(path)
+                item.setBrush(black_brush)
+                item.setPen(no_pen)
+                item.setZValue(20)
+                self.addItem(item)
+                self._key_items.append(item)
 
     def follow(self, host_plot_widget) -> None:
         """让键盘条精确跟随宿主图的 Y 轴范围。

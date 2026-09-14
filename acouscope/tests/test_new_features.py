@@ -226,13 +226,19 @@ def _piano_index(combo):
 
 class TestPianoKeyboardStrip:
     def test_keys_drawn_full_range(self, qapp):
-        from PyQt6.QtWidgets import QGraphicsRectItem
+        """T-1042 归因：黑键由直角矩形改走**圆角路径**（QGraphicsPathItem），
+        故键数口径改为「白键矩形 + 黑键圆角路径 + 键带底」合计 ≥100，仍覆盖全音域约 128 键，
+        守卫意图（全音域键面完整绘制）不变、强度不降。"""
+        from PyQt6.QtWidgets import QGraphicsPathItem, QGraphicsRectItem
 
         from acouscope.ui.widgets.freq_axis import PianoKeyboardStrip
 
         kb = PianoKeyboardStrip()
-        rects = [it for it in kb.getPlotItem().items if isinstance(it, QGraphicsRectItem)]
-        assert len(rects) >= 100, f"应绘制约 128 键，实际 {len(rects)}"
+        items = [
+            it for it in kb.getPlotItem().items
+            if isinstance(it, (QGraphicsRectItem, QGraphicsPathItem))
+        ]
+        assert len(items) >= 100, f"应绘制约 128 键（含圆角黑键），实际 {len(items)}"
 
     @pytest.mark.parametrize("make", [
         lambda qapp: _pitch_widget(qapp),

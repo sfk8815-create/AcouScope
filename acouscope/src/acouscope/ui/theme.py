@@ -58,6 +58,19 @@ _LIGHT_DATA: dict[str, str] = {
     "trace": "#16588F", "trace_alt": "#A85A12", "cursor": "#0B0E12",
     "marker": "#7A3FA8", "ref_line": "#5A6570", "tint": "#E8EEF4",
 }
+# 键面（钢琴键）物理内容色阶（T-1042）：钢琴键是「物理约定面」（ARCH §2.1-5），
+# 白键恒亮、黑键恒暗，**明度不随主题骨架反转**（物理面铁律 §2.1-5/§六-10）。
+# hex 唯一数据源在本文件（禁散落到 theme.py 之外）。四角色：
+#   strip       键带底 / gutter —— 比黑键更暗，让键「浮」出来
+#   white       白键面 —— 显著亮于 black（非纯白防刺眼）
+#   black       黑键面 —— 必须与 strip 可分辨（不得同色）
+#   white_seam  白键之间极细分隔 —— 比 white 暗一档；禁 border（那是壳色，会亮于键面）
+_DARK_KEYS: dict[str, str] = {
+    "strip": "#101215", "white": "#D9DBDF", "black": "#1A1C1F", "white_seam": "#C6C9CE",
+}
+_LIGHT_KEYS: dict[str, str] = {
+    "strip": "#F5F6F7", "white": "#FFFFFF", "black": "#23262A", "white_seam": "#E4E6E8",
+}
 # 旧键 → 新中性阶键（别名映射；TOKENS["neutral"]["alias"] 为同一份）
 NEUTRAL_ALIAS: dict[str, str] = {
     "window": "bg0", "panel": "bg1", "input": "bg2", "btn": "bg2",
@@ -135,6 +148,12 @@ TOKENS: dict = {
     "data": {
         "roles": ["trace", "trace_alt", "cursor", "marker", "ref_line", "tint"],
         "dark": _DARK_DATA, "light": _LIGHT_DATA,
+    },
+    # 键面（钢琴键）物理内容色阶角色表（T-1042）：白键恒亮/黑键恒暗，明度不随骨架反转；
+    # hex 唯一源为上方 _DARK_KEYS / _LIGHT_KEYS，此处只做骨架索引。
+    "keys": {
+        "roles": ["strip", "white", "black", "white_seam"],
+        "dark": _DARK_KEYS, "light": _LIGHT_KEYS,
     },
 }
 
@@ -412,6 +431,25 @@ def data_ink(role: str, colors_dict: dict | None = None) -> str:
     if role not in palette:
         raise KeyError(f"未知数据墨色角色：{role}")
     return str(palette[role])
+
+
+def key_faces(colors_dict: dict | None = None) -> dict[str, str]:
+    """键面（钢琴键）四角色色值：按当前骨架取回（T-1042，物理面不随骨架反转明度关系）。
+
+    角色：strip（键带底）/ white（白键面）/ black（黑键面）/ white_seam（白键间分隔）。
+    pyqtgraph 键面绘制与守卫测试共用此入口，键面色唯一源在 theme.py。
+    """
+    group = TOKENS["keys"]
+    palette = group[skeleton_of(colors_dict)]
+    return {role: str(palette[role]) for role in group["roles"]}
+
+
+def key_face(role: str, colors_dict: dict | None = None) -> str:
+    """键面单角色色值（T-1042 取色入口）。"""
+    faces = key_faces(colors_dict)
+    if role not in faces:
+        raise KeyError(f"未知键面角色：{role}")
+    return faces[role]
 
 
 # ----------------------------------------------------------------------

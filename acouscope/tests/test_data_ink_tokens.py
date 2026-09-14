@@ -182,18 +182,32 @@ def test_ink_refresh_is_live_and_roundtrips(qapp, ink_probe):
 # ----------------------------------------------------------------------
 
 def test_m5_white_key_brighter_than_black_key_all_skeletons():
+    # T-1042 归因：钢琴键盘改走 TOKENS["keys"] 后，本断言仍在验证「中性阶 bg1 恒亮于 bg0」
+    # （中性骨架关系不变），键面自身的明度分层改由 test_piano_key_face.py 用 keys.token 覆盖。
     for tid, c in theme.THEMES.items():
         white, black = _luminance(c["bg1"]), _luminance(c["bg0"])
         assert white > black, f"{tid} 白键({c['bg1']}) 未亮于黑键({c['bg0']})"
 
 
-def test_m5_key_source_uses_bg0_and_center_c_keeps_bg3():
+def test_m5_key_source_uses_keys_token_no_semantic_center():
+    """T-1042 归因：原断言「键面取 bg0 / 中央 C 取 bg3」随键面重设计作废。
+
+    新键面取色改走 `theme.key_faces()` 的 `TOKENS["keys"]`（物理面色阶，白恒亮/黑恒暗），
+    中央 C 用**文字加粗**强调（不再取 bg3 强调；`freq_axis` 已叠 `_center_c_label`）。
+    T-1038 → T-1042 守卫强度只增不降：新增断言两文件内**不得出现任何 `TOKENS["semantic"]`**。
+    """
     freq_axis = _src("freq_axis.py")
-    assert 'black_brush = pg.mkBrush(c["bg0"])' in freq_axis
-    assert 'center_brush = pg.mkBrush(c["bg3"])' in freq_axis
     spectrum = _src("spectrum.py")
-    assert 'key_black = pg.mkBrush(kc["bg0"])' in spectrum
-    assert 'center_brush = pg.mkBrush(kc["bg3"])' in spectrum
+    assert 'black_brush = pg.mkBrush(faces["black"])' in freq_axis
+    assert 'key_black = pg.mkBrush(faces["black"])' in spectrum
+    assert 'faces["strip"]' in freq_axis and 'faces["strip"]' in spectrum
+    assert 'faces["white_seam"]' in freq_axis and 'faces["white_seam"]' in spectrum
+    # 去金色：两文件内不再出现任何语义反馈色取值
+    assert "TOKENS[\"semantic\"]" not in freq_axis, "freq_axis.py 残留语义色（中央 C 应去金色）"
+    assert "TOKENS[\"semantic\"]" not in spectrum, "spectrum.py 残留语义色（中央 C 应去金色）"
+    # 中央 C 文字强调（freq_axis 专用加粗标签）
+    assert "_center_c_label" in freq_axis
+    assert 'cfont.setBold(True)' in freq_axis
 
 
 # ----------------------------------------------------------------------
