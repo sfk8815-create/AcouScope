@@ -1,151 +1,228 @@
-# AcouScope · 音析
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg" width="150">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg" width="150">
+    <img alt="AcouScope" src="docs/images/logo-light.svg" width="150">
+  </picture>
+</p>
 
-**版本：0.98_20160830 (Beta)**
+<h1 align="center">AcouScope · 音析</h1>
 
-面向音乐与数字人文领域研究的跨平台音频分析软件。
+<p align="center"><b>Audio analysis for musicology and the digital humanities</b><br>
+From import to publication-grade figures — with every core analysis algorithm implemented in pure NumPy.</p>
 
-## 项目简介
+<p align="center">
+  <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License: GPL-3.0-only">
+  <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform">
+  <img src="https://img.shields.io/badge/status-beta-orange" alt="Beta">
+</p>
 
-AcouScope（音析）是一款专业的音频分析桌面软件，专为音乐与数字人文领域研究设计，覆盖音乐学、民族音乐学、音乐心理学、声景研究与乐器声学等方向。它提供从音频导入、信号分析到学术级出图的一站式工作流。全部核心分析算法以纯 numpy 自主实现，不依赖 librosa / scipy 等第三方科学计算库，从底层保障研究结果的自主可控与可复现性。
+<p align="center">
+  <a href="https://acouscope.vercel.app">Website</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#modules">Modules</a> ·
+  <a href="#requirements">Requirements</a> ·
+  <a href="#project-structure">Project structure</a> ·
+  <a href="#tech-stack">Tech stack</a> ·
+  <a href="#roadmap">Roadmap</a> ·
+  <a href="#acknowledgments">Acknowledgments</a> ·
+  <a href="#license">License</a>
+</p>
 
-## 核心特性
+<p align="center">
+  <b>English</b> ·
+  <a href="README.zh.md">简体中文</a>
+</p>
 
-- **纯 numpy 自研算法**：FFT / STFT / 音高追踪 / 共振峰 / 音色特征等核心分析引擎全部自主实现，无第三方算法库依赖
-- **出版级出图**：图表所见即所得导出（跟随当前轴单位、缩放范围与标记），支持 SVG / PDF / PNG 等格式，DPI 可调
-- **三语界面**：简体中文 / 繁体中文 / English 全量覆盖（含所有右键菜单与对话框）
-- **跨平台**：Windows、macOS、Linux
-- **主题系统**：跟随系统深浅色 + 9 套完整配色，切换即时生效（图表画布保持学术白底）
-- **多维频率轴**：Hz / kHz / MIDI / 钢琴卷帘 / 音分 / Mel 一键切换，钢琴卷帘模式显示竖排钢琴键盘标尺
+---
 
-## 功能模块
+<p align="center">
+  <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope — FFT spectrum with harmonic markers" width="820">
+</p>
 
-### 时域分析
-- 波形与包络显示、选区测量、归一化
-- 去除开头静默（RMS 自适应阈值，支持另存新文件或修改源文件+自动备份）
-- RMS 能量、过零率、峰值等信号特征
+AcouScope (音析) is a cross-platform desktop audio analysis application built for research in
+musicology, ethnomusicology, music psychology, soundscape studies and musical acoustics. It covers
+one continuous workflow: import audio → run signal analysis → export academic-grade figures.
 
-### 频域分析
-- FFT 频谱（窗函数 / FFT 大小可调）
-- 谐波标记：默认标记基频，自动检测前 6 个分音；支持手动增删（±100 音分吸附）
-- 峰值保持、预设频段快捷切换
+Every core analysis algorithm — FFT / STFT / pitch tracking / formant extraction / timbre features —
+is implemented directly on top of NumPy, with no dependency on third-party DSP or scientific
+libraries such as librosa or scipy. The analysis chain therefore stays inspectable end to end and
+reproducible on any machine given the same input.
 
-### 时频分析
-- STFT 语谱图（纯 numpy 实现）
-- 7 组色板、动态范围 / 对比度调节、对数频率轴
-- 峰值追踪曲线、矩形测量工具
-- 3D 频谱图（瀑布式三维渲染，14 组学术色板，视角 / 边距参数面板实时调节）
+## Features
 
-### 音高分析
-- 基频（F0）追踪
-- A4 参考频率可调、参考线开关
-- SOTA 深度后端：RMVPE / SwiftF0（ONNX，离线推理）。**首次使用 RMVPE / SwiftF0 会按需下载权重**
-  （RMVPE ≈ 345MB，SwiftF0 ≈ 390KB，下载到用户数据目录；详见 `THIRD-PARTY-NOTICES.md` §3.6）
+- **Pure-NumPy analysis engines** — FFT, STFT, pitch tracking, formants and timbre descriptors are
+  self-implemented; no third-party algorithm libraries in the core analysis path.
+- **Publication-grade figures** — WYSIWYG export that follows the current axis units, zoom range and
+  markers; SVG / PDF / PNG output with adjustable DPI.
+- **Trilingual interface** — Simplified Chinese, Traditional Chinese and English, covering every
+  context menu and dialog.
+- **Cross-platform** — Windows, macOS and Linux.
+- **Theme system** — follows the OS light/dark setting plus 9 complete colour schemes, applied
+  immediately (the chart canvas always stays academic white).
+- **Multi-dimensional frequency axis** — switch between Hz / kHz / MIDI / piano roll / cents / Mel in
+  one click; piano-roll mode draws a vertical piano keyboard ruler.
 
-### 共振峰分析
-- LPC 法 F1–F4 共振峰提取与轨迹显示
+## Modules
 
-### 音色特征
-- MFCC 系数、谐波噪声比（HNR）
-- 频谱质心 / 带宽 / 衰减 / 滚降
+### Time domain
+- Waveform and envelope display, selection measurement, normalization
+- Silence trimming at both ends (RMS adaptive threshold; save as a new file, or modify in place with
+  automatic backup)
+- Signal descriptors: RMS energy, zero-crossing rate, peak values
 
-### 实时与房间声学
-- 实时特征面板：频段能量滚动线、实时对数频谱、频段能量条、场景可视化四窗口联动（● LIVE 录入模式，CSV 导出）
-- 房间模态分析：房间共振频率计算
+### Frequency domain
+- FFT spectrum with adjustable window function and FFT size
+- Harmonic markers: marks the fundamental by default, auto-detects the first 6 partials, and supports
+  manual add/remove with ±100 cent snapping
+- Peak hold, quick switching between preset frequency bands
 
-### 辅助能力
-- AI 释图：AI 以音乐声学审稿人视角解读分析结果（付费功能）
-- 音频编辑：波形窗口选区编辑
-- 169 条轮换提示（操作技巧 + 科研幽默）
+### Time–frequency
+- STFT spectrogram (pure NumPy)
+- 7 colour palettes, dynamic range / contrast control, logarithmic frequency axis
+- Peak-tracking curve, rectangular measurement tool
+- 3D spectrogram (waterfall rendering, 14 academic palettes, live view/margin parameter panel)
 
-## 安装
+### Pitch
+- Fundamental frequency (F0) tracking
+- Adjustable A4 reference frequency, reference-line toggle
+- SOTA deep-learning backends: RMVPE / SwiftF0 (ONNX, offline inference). **The RMVPE / SwiftF0
+  weights are downloaded on first use** (RMVPE ≈ 345 MB, SwiftF0 ≈ 390 KB, into the user data
+  directory; see `THIRD-PARTY-NOTICES.md` §3.6)
 
-### 从源码运行
+### Formants
+- LPC-based F1–F4 formant extraction with trajectory display
+
+### Timbre
+- MFCC coefficients, harmonic-to-noise ratio (HNR)
+- Spectral centroid / bandwidth / rolloff
+
+### Real-time and room acoustics
+- Real-time feature panel: band-energy rolling traces, live log spectrum, band-energy bars, and a
+  scene visualisation — four synchronised windows (● LIVE capture mode, CSV export)
+- Room mode analysis: room resonance frequency calculation
+
+### Assistive features
+- AI chart interpretation: reviews analysis results from a musical-acoustics reviewer's perspective
+  (paid feature)
+- Audio editing: selection editing in the waveform window
+- 169 rotating tips (operation hints plus research humour)
+
+## Install
+
+### From source
 
 ```bash
-# 方式一：poetry
-git clone <repository-url>
-cd acouscope
+# Option 1: Poetry
+git clone https://github.com/sfk8815-create/AcouScope.git
+cd AcouScope/acouscope
 poetry install
 poetry run acouscope
 
-# 方式二：pip（构建包方式）
+# Option 2: pip (virtual environment)
 python3.10 -m venv .venv
 . .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 PYTHONPATH=src python -m acouscope   # Windows: set PYTHONPATH=src
 ```
 
-支持格式：WAV / MP3 / FLAC / AIFF 等（soundfile 0.12+）。
+Supported formats: WAV / MP3 / FLAC / AIFF and more (via soundfile 0.12+).
 
-### 安装包
+> **FFmpeg** — this repository does **not** bundle an ffmpeg binary (size reasons). Playing or
+> exporting non-lossless formats such as `.mp3` / `.m4a` requires a local ffmpeg: run
+> `bash scripts/fetch_ffmpeg.sh` (downloads the macOS arm64 static build with a sha256 check), or
+> install it with `brew install ffmpeg`.
 
-- **Windows 10 (x64)**：`AcouScope-0.98.20160830-setup-x64.exe`（Inno Setup 安装程序，支持简中/英文安装界面与文件关联）——需 VC++ 2015–2022 运行库
-- **macOS 12+ (Intel x86_64)**：`AcouScope-0.98.20160830-macOS-x86_64.dmg`（Apple Silicon 需 Rosetta）——首次打开若提示"已损坏"，执行 `xattr -dr com.apple.quarantine /Applications/AcouScope.app`
-- **Linux**：Ubuntu AppImage / Arch 系 pacman 包（构建向导见各构建包文件夹）
+### Installers
 
-### 开发环境
+Prebuilt installers for Windows 10 (x64), macOS 12+ (Intel x86_64) and Linux (Ubuntu AppImage /
+Arch pacman) exist in the release pipeline. Signed, notarised packages for all four targets are
+scheduled for the v0.99 release (see [Roadmap](#roadmap)); until then please run from source.
+
+### Development
 
 ```bash
 poetry install --with dev
 
-# 运行测试（403 项回归）
-poetry run pytest
+# Regression suite (pytest)
+poetry run pytest --ignore tests/test_realtime_panel.py
 ```
 
-## 项目结构
+## Requirements
+
+- Python 3.10+
+- PyQt6 + pyqtgraph
+- matplotlib
+- soundfile (playback through QtMultimedia; pyaudio is an optional fallback)
+
+Optional enhancements, with automatic fallback when absent — the core functionality is unaffected:
+pyaudio, pydub, samplerate, scipy.
+
+## Project structure
 
 ```
-acouscope/
-├── src/acouscope/          # 主包
-│   ├── ai/                 # AI 释图（提示词、许可门控）
-│   ├── analysis/           # 分析服务（音高、共振峰、音色、静默检测等）
-│   ├── annotation/         # 标注
-│   ├── app/                # 应用层（控制器、项目、偏好）
-│   ├── audio/              # 音频 I/O（读写、播放、录音、编辑）
-│   ├── dsp/                # DSP 引擎（FFT、STFT、窗函数、单位换算）
-│   ├── i18n/               # 国际化（zh_CN / zh_TW / en_US）
-│   ├── plugins/            # 插件（预留）
-│   ├── resources/          # 资源文件（LOGO 等）
-│   ├── ui/                 # GUI 层（主窗口、主题、控件、对话框）
-│   ├── utils/              # 工具函数（配置）
-│   └── visualization/      # 可视化与出图
-├── tests/                  # 单元测试（24 个文件，403 项）
-├── scripts/                # 构建脚本
-└── AcouScope.spec          # PyInstaller 打包配置
+AcouScope/
+├── acouscope/                  # Application source tree
+│   ├── src/acouscope/
+│   │   ├── ai/                 # AI chart interpretation (prompts, licence gating)
+│   │   ├── analysis/           # Analysis services (pitch, formants, timbre, silence detection)
+│   │   ├── annotation/         # Annotation
+│   │   ├── app/                # Application layer (controller, project, preferences)
+│   │   ├── audio/              # Audio I/O (read/write, playback, recording, editing)
+│   │   ├── dsp/                # DSP engine (FFT, STFT, windows, unit conversion)
+│   │   ├── i18n/               # Internationalisation (zh_CN / zh_TW / en_US)
+│   │   ├── plugins/            # Plugins (reserved)
+│   │   ├── resources/          # Resources (logo, icons, bundled runtimes)
+│   │   ├── ui/                 # GUI layer (main window, theme, widgets, dialogs)
+│   │   ├── utils/              # Utilities (configuration)
+│   │   └── visualization/      # Visualisation and figure export
+│   ├── tests/                  # Regression suite (pytest)
+│   ├── scripts/                # Build scripts
+│   └── AcouScope.spec          # PyInstaller build configuration
+├── scripts/                    # Repository-level helper scripts (e.g. fetch_ffmpeg.sh)
+├── docs/images/                # Images used by this README
+└── THIRD-PARTY-NOTICES.md
 ```
 
-## 技术栈
+## Tech stack
 
-| 类别 | 技术 |
-|------|------|
-| 语言 | Python 3.10+ |
+| Area | Technology |
+|------|------------|
+| Language | Python 3.10+ |
 | GUI | PyQt6 + pyqtgraph |
-| 音频分析 | numpy（纯自研算法） |
-| 音频 I/O | soundfile（播放经 QtMultimedia，pyaudio 为可选后备） |
-| 出版级出图 | matplotlib |
-| 测试 | pytest / pytest-qt |
+| Audio analysis | NumPy (self-implemented algorithms) |
+| Audio I/O | soundfile (playback via QtMultimedia, pyaudio optional) |
+| Figure export | matplotlib |
+| Tests | pytest / pytest-qt |
 
-可选增强（缺失时自动回退，核心功能不受影响）：pyaudio、pydub、samplerate、scipy。
+## Roadmap
 
-## 路线图
+- **v0.98 (Beta, current)** — nine analysis engines, trilingual interface, theme system,
+  publication-grade export
+- **v0.99** — official installer releases for four targets, code signing (Windows Authenticode /
+  Apple notarisation)
+- **v1.0** — batch processing, plugin mechanism, constant-Q transform / wavelet transform, general
+  availability
 
-- **v0.98 (Beta，当前)**：九大分析引擎 + 三语界面 + 主题系统 + 出版级导出
-- **v0.99**：四平台安装包正式发行、代码签名（Windows Authenticode / Apple 公证）
-- **v1.0**：批处理、插件机制、常 Q 变换 / 小波变换，正式发布
+## Acknowledgments
 
-## 许可证
+- [PyQt](https://www.qt.io/qt-for-python) — Python bindings for Qt
+- [pyqtgraph](https://pyqtgraph.readthedocs.io/) — high-performance real-time plotting
+- [matplotlib](https://matplotlib.org/) — publication-grade figures
+- [Sonic Visualiser](https://www.sonicvisualiser.org/) — design inspiration
 
-GPL-3.0-only
+### Special thanks
 
-本项目因依赖 **PyQt6（GPL-3.0-only）**，整体以 **GPL-3.0-only** 分发；第三方组件许可见 `THIRD-PARTY-NOTICES.md`。
+This software is dedicated to **Professor Han Baoqiang** — a leading scholar in musical acoustics
+and a recipient of the Special Government Allowance of the State Council of the People's Republic of
+China.
 
-## 致谢
+## License
 
-- [PyQt](https://www.qt.io/qt-for-python) - Python Qt 绑定
-- [pyqtgraph](https://pyqtgraph.readthedocs.io/) - 高性能实时绘图
-- [matplotlib](https://matplotlib.org/) - 出版级出图
-- [Sonic Visualiser](https://www.sonicvisualiser.org/) - 设计灵感来源
+**GPL-3.0-only**
 
-## 特别鸣谢
-
-谨以此软件特别鸣谢并献予**韩宝强教授**——音乐声学领军学者，中华人民共和国国务院特殊津贴专家。
+Because AcouScope depends on **PyQt6 (GPL-3.0-only)**, the whole application is distributed under
+**GPL-3.0-only**. Third-party component licences are listed in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
