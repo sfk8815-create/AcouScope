@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="许可证：GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="平台">
-  <img src="https://img.shields.io/badge/status-beta-orange" alt="Beta">
+  <img src="https://img.shields.io/badge/version-0.99.20260904_Beta-orange" alt="版本 0.99.20260904（Beta）">
 </p>
 
 <p align="center">
@@ -189,8 +189,7 @@ AcouScope/
 
 ## 路线图
 
-- **v0.98（Beta，当前）** —— 九大分析引擎 + 三语界面 + 主题系统 + 出版级导出
-- **v0.99** —— 四平台安装包正式发行、代码签名（Windows Authenticode / Apple 公证）
+- **v0.99.20260904（Beta，当前）** —— 九大分析引擎 + 三语界面 + 主题系统 + 出版级导出；四平台安装包正式发行与代码签名（Windows Authenticode / Apple 公证）进行中
 - **v1.0** —— 批处理、插件机制、常 Q 变换 / 小波变换，正式发布
 
 ## 致谢

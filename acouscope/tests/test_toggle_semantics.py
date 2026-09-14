@@ -38,9 +38,10 @@ _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 # 入口 → 所驱抽屉的实例属性名（N2；同一抽屉实例的入口互斥勾选）
 # T-1054 批3：action_room_modes / action_room_acoustics 已改走中央全铺页（非抽屉），
 # 从抽屉宿主表移除（扩面②）；房间入口语义改由 workspace 开关组测试覆盖。
+# T-1054 批4b：帮助族（action_quickstart / action_manual / ribbon_btn_help）已退役
+# 改走左栏页；本表仅剩唯一仍登记的抽屉型入口 = 图表设计器（守卫新宿主）。
 _DRAWER_ATTR = {
-    "action_quickstart": "_info_drawer",
-    "action_manual": "_info_drawer",
+    "action_chart_designer": "_chart_designer_drawer",
 }
 
 # 命令型入口（N6：一次性动作，禁做成开关）
@@ -95,7 +96,7 @@ def test_switch_entries_are_checkable(window):
         assert getattr(window, name).isCheckable() is True, name
     assert window.transport_bar.btn_record.isCheckable() is True   # 录音设置入口
     assert window.ribbon_btn_settings.isCheckable() is True
-    assert window.ribbon_btn_help.isCheckable() is True            # 走抽屉 → 按 N2
+    assert window.ribbon_btn_help.isCheckable() is True            # 帮助族入口（走左栏页，开关）
 
 
 def test_command_entries_stay_uncheckable(window):
@@ -136,19 +137,36 @@ def test_record_entry_second_toggle_closes_settings_drawer(window):
 
 
 def test_shared_drawer_entries_mutually_exclusive(window):
-    """③+⑨ 共用同一抽屉的两个入口（菜单快速入门 / ribbon ?）互斥勾选。"""
+    """③+⑨ 帮助族左栏页入口组：快速入门(1)/帮助?(1)/用户手册(2) 同组互斥、同 index 同勾选。
+
+    T-1054 批4b：三条帮助族入口改走左栏页（唯一槽 _on_left_page_toggled）。
+    """
+    # 快速入门（菜单 action, index1）→ 展开左栏并切快速入门页
     window.action_quickstart.trigger()
+    assert window.left_panel.is_collapsed() is False
+    assert window.left_content.currentIndex() == 1
     assert window.action_quickstart.isChecked() is True
-    window.ribbon_btn_help.click()
+    # 同 index 入口同勾选（设计）：ribbon 帮助? + 面板头快速入门钮
     assert window.ribbon_btn_help.isChecked() is True
-    assert window.action_quickstart.isChecked() is False
-    assert window._info_drawer.is_open() is True
-    # 换入口切到「用户手册」→ 两个快速入门入口均取消勾选
+    assert window.btn_header_quickstart.isChecked() is True
+    # 异 index 入口未勾选：用户手册
+    assert window.action_manual.isChecked() is False
+    assert window.btn_header_manual.isChecked() is False
+    # 帮助族已退役：_info_drawer 属性不存在
+    assert not hasattr(window, "_info_drawer")
+    # 换入口切到「用户手册」（index2）→ 所有 index1 入口取消勾选
     window.action_manual.trigger()
     assert window.action_manual.isChecked() is True
+    assert window.left_content.currentIndex() == 2
     assert window.action_quickstart.isChecked() is False
     assert window.ribbon_btn_help.isChecked() is False
-    assert window._info_drawer.is_open() is True
+    assert window.btn_header_quickstart.isChecked() is False
+    # 从 index2 切回 index1（ribbon 帮助?）→ 同 index 同勾选、异 index 复位
+    window.ribbon_btn_help.click()
+    assert window.left_content.currentIndex() == 1
+    assert window.ribbon_btn_help.isChecked() is True
+    assert window.action_quickstart.isChecked() is True
+    assert window.action_manual.isChecked() is False
 
 
 # ----------------------------------------------------------------------
@@ -158,32 +176,32 @@ def test_shared_drawer_entries_mutually_exclusive(window):
 
 def test_close_drawer_unchecks_entry(window):
     """④ 抽屉 close_drawer() → 对应入口 isChecked() 为假（反同步，无回环）。"""
-    # 宿主 = 抽屉型入口 action_manual + _info_drawer（T-1054 批3 扩面③：
-    # 房间入口已改走全铺页，语义由 workspace 开关组测试覆盖；抽屉语义以本宿主保持）
-    window.action_manual.trigger()
-    drawer = window._info_drawer
-    assert window.action_manual.isChecked() is True
+    # 宿主 = 抽屉型入口 action_chart_designer + _chart_designer_drawer（T-1054 批4b：
+    # 帮助族已退役，唯一仍登记的抽屉入口为图表设计器；语义与强度不变）
+    window.action_chart_designer.trigger()
+    drawer = window._chart_designer_drawer
+    assert window.action_chart_designer.isChecked() is True
     drawer.close_drawer()
-    assert window.action_manual.isChecked() is False
+    assert window.action_chart_designer.isChecked() is False
 
 
 def test_explicit_set_checked_opens_drawer(window):
     """⑤ 入口 setChecked(True) → 抽屉为开（状态与可见性同向）。"""
-    window.action_manual.setChecked(True)
-    drawer = window._info_drawer
+    window.action_chart_designer.setChecked(True)
+    drawer = window._chart_designer_drawer
     assert drawer is not None and drawer.is_open() is True
-    assert window.action_manual.isChecked() is True
+    assert window.action_chart_designer.isChecked() is True
 
 
 def test_no_signal_storm_and_no_reopen(window):
     """⑨ 反同步用 blockSignals：无回环、无重复发信、关闭路径不重开。"""
-    # 宿主 = 抽屉型入口 action_manual + _info_drawer（T-1054 批3 扩面③：
-    # 房间入口已改走全铺页，抽屉反同步语义以本宿主保持，强度不变）
-    act = window.action_manual
+    # 宿主 = 抽屉型入口 action_chart_designer + _chart_designer_drawer（T-1054 批4b）：
+    # 抽屉反同步语义以本宿主保持，强度不变）
+    act = window.action_chart_designer
     seen = []
     act.toggled.connect(lambda v: seen.append(v))
     act.trigger()
-    drawer = window._info_drawer
+    drawer = window._chart_designer_drawer
     assert drawer is not None and drawer.is_open() is True
     opens, closes = [], []
     drawer.opened.connect(lambda: opens.append(1))
@@ -202,8 +220,8 @@ def test_no_signal_storm_and_no_reopen(window):
 
 def test_drawer_has_visible_close_button(window):
     """⑥ 抽屉面板头存在可见关闭按钮（objectName=drawerCloseBtn），点击即关。"""
-    window.action_manual.trigger()
-    drawer = window._info_drawer
+    window.action_chart_designer.trigger()
+    drawer = window._chart_designer_drawer
     header = drawer.findChild(QFrame, "drawerHeader")
     assert header is not None
     assert header.height() == TOKENS["control"]["h_lg"]
@@ -213,7 +231,7 @@ def test_drawer_has_visible_close_button(window):
     assert btn.toolTip()
     btn.click()
     assert drawer.is_open() is False
-    assert window.action_manual.isChecked() is False
+    assert window.action_chart_designer.isChecked() is False
 
 
 # ----------------------------------------------------------------------

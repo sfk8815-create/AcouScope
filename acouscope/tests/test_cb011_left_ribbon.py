@@ -134,21 +134,25 @@ def test_ribbon_vertical_stack_site_help_settings_spacer(window):
 
 
 def test_help_icon_opens_quickstart_not_about(qapp, monkeypatch, tmp_path):
-    """T-1013：ribbon 帮助? clicked 接 _on_quickstart（非 _on_about）。"""
+    """T-1054 批4b：ribbon 帮助? 走唯一槽 _on_left_page_toggled(c, 1)（左栏快速入门），非关于。"""
     calls = []
     # 类方法 monkeypatch 必须在 MainWindow 构造前生效：connect 绑定的是
     # 构造当时的 bound method，事后替换实例属性无效
     monkeypatch.setattr(
-        MainWindow, "_on_quickstart", lambda self: calls.append("quickstart")
+        MainWindow,
+        "_on_left_page_toggled",
+        lambda self, checked, index: calls.append((checked, index)),
     )
     monkeypatch.setattr(
-        MainWindow, "_on_about", lambda self: calls.append("about")
+        MainWindow, "_on_about", lambda self: calls.append(("about",))
     )
     monkeypatch.setenv("HOME", str(tmp_path))
     controller = AppController()
     w = MainWindow(controller)
     try:
         w.ribbon_btn_help.click()
-        assert calls == ["quickstart"], f"帮助图标应接快速入门，实得 {calls}"
+        assert calls == [(True, 1)], \
+            f"帮助图标应切到左栏快速入门(index1)，实得 {calls}"
+        assert not any(c == ("about",) for c in calls)
     finally:
         w.close()

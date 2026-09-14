@@ -209,7 +209,9 @@ def test_sidebar_symbols_in_main_window():
     # T-1013：导航器整删（无实例/无接线/无方法）+ 帮助? → 快速入门
     assert "analysis_navigator" not in mw
     assert "AnalysisNavigator" not in mw
-    assert "ribbon_btn_help.clicked.connect(self._on_quickstart)" in mw
+    # T-1054 批4b：帮助? 改 toggled 接唯一槽 _on_left_page_toggled(c, 1)（左栏页）
+    assert "ribbon_btn_help.toggled.connect(" in mw
+    assert "_on_left_page_toggled(c, 1)" in mw
     assert "ribbon_btn_help = _icon_btn(\"help-circle\", tr(\"action.quickstart\"))" in mw
 
 

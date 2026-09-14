@@ -270,7 +270,6 @@ class MainWindow(QMainWindow):
         self._rec_drawer = None             # 录音设置抽屉（与设置抽屉同宽复用）
         self._room_acoustics_panel = None   # 房间声学工具面板（T-504d 抽屉宿主）
         self._room_drawer = None            # 房间声学抽屉（与设置/录音抽屉同宽复用）
-        self._info_drawer = None            # 帮助信息抽屉（快速入门/用户手册/关于，与设置/录音/房间声学同宽 560 复用）
         self._record_timer = QTimer(self)
         self._record_timer.timeout.connect(self._update_record_ui)
         self._record_timer.setInterval(33)  # ~30 FPS 平滑滚动
@@ -776,16 +775,18 @@ class MainWindow(QMainWindow):
         self.action_chart_designer.toggled.connect(self._on_chart_designer)
         self._register_drawer_entry(self.action_chart_designer, "_chart_designer_drawer")
 
-        # 帮助（T-1043：快速入门/用户手册均产生持续态抽屉 → 开关语义）
+        # 帮助族入口（T-1054 批4b：快速入门/用户手册 → 左栏页 index1/2，与页签钮同组互斥）
         self.action_quickstart = QAction(tr("action.quickstart"), self)
         self.action_quickstart.setCheckable(True)
-        self.action_quickstart.toggled.connect(self._on_quickstart)
-        self._register_drawer_entry(self.action_quickstart, "_info_drawer")
+        self.action_quickstart.toggled.connect(
+            lambda c: self._on_left_page_toggled(c, 1)
+        )
 
         self.action_manual = QAction(tr("action.manual"), self)
         self.action_manual.setCheckable(True)
-        self.action_manual.toggled.connect(self._on_manual)
-        self._register_drawer_entry(self.action_manual, "_info_drawer")
+        self.action_manual.toggled.connect(
+            lambda c: self._on_left_page_toggled(c, 2)
+        )
 
         self.action_about = QAction(tr("action.about"), self)
         self.action_about.triggered.connect(self._on_about)
@@ -2151,13 +2152,13 @@ class MainWindow(QMainWindow):
             self.ribbon_btn_site, 0, Qt.AlignmentFlag.AlignHCenter
         )
 
-        # 底部：帮助?（T-1013：clicked 接 _on_quickstart 快速入门，tooltip 同步 i18n）
-        # T-1043：本入口产生持续态抽屉 → 开关语义；clicked(bool) 携带勾选态，
-        # 故既有接线行保持不变（_on_quickstart 按 checked 分流开/关）。
+        # 底部：帮助?（T-1054 批4b：与 ribbon_btn_settings 对称改 toggled，走左栏页 index1）
+        # 勾选 → 展开左栏切快速入门页；再点 → 折叠左栏（唯一槽 _on_left_page_toggled）
         self.ribbon_btn_help = _icon_btn("help-circle", tr("action.quickstart"))
         self.ribbon_btn_help.setCheckable(True)
-        self.ribbon_btn_help.clicked.connect(self._on_quickstart)
-        self._register_drawer_entry(self.ribbon_btn_help, "_info_drawer")
+        self.ribbon_btn_help.toggled.connect(
+            lambda c: self._on_left_page_toggled(c, 1)
+        )
         lay.addWidget(
             self.ribbon_btn_help, 0, Qt.AlignmentFlag.AlignHCenter
         )
@@ -6983,54 +6984,6 @@ class MainWindow(QMainWindow):
 
         open_site(SITE_MAIN_URL)
 
-    def _on_quickstart(self, checked: bool = True):
-        """打开快速入门抽屉（非模态，T-504e 去模态化）。
-
-        每次打开新建面板实例；与设置/录音/房间声学抽屉同宽（560）
-        → 复用同一 DrawerWidget 实例，天然互斥不叠加。
-        T-1043（§五b）：本入口为开关——取消勾选（再点同入口）→ 关闭抽屉；
-        两个入口（菜单 action / ribbon ?）共用同一抽屉 → 勾选态互斥同步。
-        """
-        if not checked:
-            drawer = getattr(self, "_info_drawer", None)
-            if drawer is not None and drawer.is_open():
-                drawer.close_drawer()
-            return
-        from acouscope.ui.widgets.help_dialogs import QuickStartDialog
-        panel = QuickStartDialog(self)
-        panel.cancelled.connect(self._on_info_drawer_cancelled)
-        drawer = open_drawer(self, panel, width=560)
-        if drawer is not self._info_drawer:
-            # 首次绑定：防重复连接（复用实例时 closed 信号不重连）
-            drawer.closed.connect(self._on_info_drawer_cancelled)
-        self._info_drawer = drawer
-        self._bind_drawer_sync(drawer)
-        # 本次触发者：ribbon ? 若处于勾选态即为它，否则为菜单 action
-        btn_help = getattr(self, "ribbon_btn_help", None)
-        opened = btn_help if (btn_help is not None and btn_help.isChecked()) \
-            else self.action_quickstart
-        self._sync_drawer_entry(drawer, opened)
-
-    def _on_manual(self, checked: bool = True):
-        """打开用户手册抽屉（非模态，T-504e 去模态化）。
-
-        T-1043（§五b）：本入口为开关——取消勾选（再点同入口）→ 关闭抽屉。
-        """
-        if not checked:
-            drawer = getattr(self, "_info_drawer", None)
-            if drawer is not None and drawer.is_open():
-                drawer.close_drawer()
-            return
-        from acouscope.ui.widgets.help_dialogs import ManualDialog
-        panel = ManualDialog(self)
-        panel.cancelled.connect(self._on_info_drawer_cancelled)
-        drawer = open_drawer(self, panel, width=560)
-        if drawer is not self._info_drawer:
-            drawer.closed.connect(self._on_info_drawer_cancelled)
-        self._info_drawer = drawer
-        self._bind_drawer_sync(drawer)
-        self._sync_drawer_entry(drawer, self.action_manual)
-
     def _rebuild_shortcuts_overview(self) -> None:
         """T-1002：快捷键总览子菜单（展开时实时重建，零第二份快捷键清单）。
 
@@ -7062,14 +7015,6 @@ class MainWindow(QMainWindow):
         from acouscope.ui.widgets.about_dialog import AboutDialog
 
         AboutDialog(self).exec()
-
-    def _on_info_drawer_cancelled(self):
-        """帮助信息抽屉关闭（面板“关闭”按钮 cancelled / 抽屉 closed 殊途同归）。
-
-        close_drawer 幂等：两路信号均汇于此，重复触发无副作用。
-        """
-        if self._info_drawer is not None:
-            self._info_drawer.close_drawer()
 
     # ------------------------------------------------------------------
     # T-1012：工具栏右栏展开/折叠 toggle（原左侧图标栏开关已删除，ribbon 常驻）
@@ -7201,6 +7146,10 @@ class MainWindow(QMainWindow):
             (getattr(self, "btn_header_record", None), 3),
             (getattr(self, "ribbon_btn_settings", None), 4),
             (getattr(self, "action_settings", None), 4),
+            # T-1054 批4b 帮助族：快速入门/用户手册/帮助? 并入同组（同 index 同勾选、异 index 互斥）
+            (getattr(self, "action_quickstart", None), 1),
+            (getattr(self, "action_manual", None), 2),
+            (getattr(self, "ribbon_btn_help", None), 1),
         )
 
     def _sync_left_ribbon_toggle(self, collapsed: bool | None = None) -> None:

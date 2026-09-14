@@ -217,7 +217,7 @@ def test_ribbon_click_site_is_not_quickstart(window, monkeypatch):
     window.ribbon_btn_site.click()
     assert len(calls) == 1
     assert _as_url_text(calls[0]) == SITE_MAIN_URL
-    assert getattr(window, "_info_drawer", None) is None  # 未触发 _on_quickstart
+    assert getattr(window, "_info_drawer", None) is None  # 帮助族已走左栏页，无抽屉
 
 
 # ---------------------------------------------------------------------------

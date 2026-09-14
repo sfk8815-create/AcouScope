@@ -87,7 +87,11 @@ def test_sources_modal_split():
     assert "QuickStartDialog(self).exec()" not in mw
     assert "ManualDialog(self).exec()" not in mw
     assert "AboutDialog(self).exec()" in mw  # 关于为唯一 exec 例外
-    assert "_on_info_drawer_cancelled" in mw
+    # T-1054 批4b：帮助族退役 —— _info_drawer 及其槽在 main_window 零出现
+    assert "_info_drawer" not in mw
+    assert "def _on_quickstart" not in mw
+    assert "def _on_manual" not in mw
+    assert "_on_info_drawer_cancelled" not in mw
 
 
 def test_manual_dialog_widget(qapp):
