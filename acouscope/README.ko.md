@@ -1,8 +1,12 @@
 <p align="center">
+  <img alt="AcouScope" src="docs/images/acouscope-icon.png" width="96">
+</p>
+
+<p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg" width="150">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg" width="150">
-    <img alt="AcouScope" src="docs/images/logo-light.svg" width="150">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/jinyun-logo-dark.svg" width="190">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/jinyun-logo-light.svg" width="190">
+    <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo-light.svg" width="190">
   </picture>
 </p>
 
@@ -211,7 +215,7 @@ AcouScope/
 ### 특별 감사
 
 이 소프트웨어를 음악음향학 분야의 석학이자 중화인민공화국 국무원 특수수당 전문가인
-**Han Baoqiang(韓宝強) 교수**님께 바칩니다.
+**Han Baoqiang(韓寶強) 교수**님께 바칩니다.
 
 ## 라이선스
 
@@ -225,4 +229,4 @@ AcouScope/
 
 © 서남대학교 음악음향학 실험실 · 서남대학교 예술인류학 연구소 · 서남대학교 중국음악심리건강 연구소
 
-저자: **Fengkai Shi** (石丰恺) — sfklc@hotmail.com
+저자: **Fengkai Shi**（石豐愷）— sfklc@hotmail.com

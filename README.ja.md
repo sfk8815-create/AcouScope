@@ -1,8 +1,12 @@
 <p align="center">
+  <img alt="AcouScope" src="docs/images/acouscope-icon.png" width="96">
+</p>
+
+<p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg" width="150">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg" width="150">
-    <img alt="AcouScope" src="docs/images/logo-light.svg" width="150">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/jinyun-logo-dark.svg" width="190">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/jinyun-logo-light.svg" width="190">
+    <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo-light.svg" width="190">
   </picture>
 </p>
 
@@ -212,7 +216,7 @@ AcouScope/
 ### 特別謝辞
 
 本ソフトウェアを、音楽音響学の第一人者であり中華人民共和国国務院特殊手当の受給者である
-**Han Baoqiang（韓宝強）教授**に捧げます。
+**Han Baoqiang（韓寶強）教授**に捧げます。
 
 ## ライセンス
 
@@ -226,4 +230,4 @@ AcouScope/
 
 © 西南大学 音楽音響学研究室 · 西南大学 芸術人類学研究所 · 西南大学 中国音楽心理健康研究所
 
-著者：**Fengkai Shi**（石丰恺）—— sfklc@hotmail.com
+著者：**Fengkai Shi**（石豐愷）—— sfklc@hotmail.com

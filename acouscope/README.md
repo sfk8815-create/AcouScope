@@ -1,8 +1,12 @@
 <p align="center">
+  <img alt="AcouScope" src="docs/images/acouscope-icon.png" width="96">
+</p>
+
+<p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg" width="150">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg" width="150">
-    <img alt="AcouScope" src="docs/images/logo-light.svg" width="150">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/jinyun-logo-dark.svg" width="190">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/jinyun-logo-light.svg" width="190">
+    <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo-light.svg" width="190">
   </picture>
 </p>
 
@@ -235,4 +239,4 @@ AcouScope depends on **PyQt6 (GPL-3.0-only)** and is therefore distributed as a 
 © Music Acoustics Laboratory, Southwest University · Institute of Artistic Anthropology, Southwest
 University · Institute of Chinese Music and Mental Health, Southwest University
 
-Author: **Fengkai Shi** (石丰恺) — sfklc@hotmail.com
+Author: **Fengkai Shi** — sfklc@hotmail.com

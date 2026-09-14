@@ -1,8 +1,12 @@
 <p align="center">
+  <img alt="AcouScope" src="docs/images/acouscope-icon.png" width="96">
+</p>
+
+<p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.svg" width="150">
-    <source media="(prefers-color-scheme: light)" srcset="docs/images/logo-light.svg" width="150">
-    <img alt="AcouScope" src="docs/images/logo-light.svg" width="150">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/jinyun-logo-dark.svg" width="190">
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/jinyun-logo-light.svg" width="190">
+    <img alt="Jinyun SonicAI" src="docs/images/jinyun-logo-light.svg" width="190">
   </picture>
 </p>
 
@@ -217,4 +221,4 @@ AcouScope/
 
 © 西南大學·音樂聲學實驗室 · 西南大學·藝術人類學研究所 · 西南大學·中國音樂心理健康研究所
 
-作者：**石丰恺**（Fengkai Shi）—— sfklc@hotmail.com
+作者：**石豐愷**（Fengkai Shi）—— sfklc@hotmail.com
