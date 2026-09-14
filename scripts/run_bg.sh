@@ -23,14 +23,32 @@ if [ "$TASK" = "stop" ]; then
   LATEST="$RUN_DIR/$MODE.latest"
   [ -f "$LATEST" ] || { echo "NO_RUN: '$MODE' 无运行记录" >&2; exit 1; }
   RID="$(cat "$LATEST")"; META="$RUN_DIR/$MODE-$RID.meta"
+  [ -f "$META" ] || { echo "NO_META: '$MODE' ($RID) 无元数据" >&2; exit 1; }
   PID="$(awk -F= '/^pid=/{print $2}' "$META" 2>/dev/null || true)"
-  if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
-    kill "$PID" 2>/dev/null || true; sleep 2
-    kill -9 "$PID" 2>/dev/null || true
-    echo "STOPPED rid=$RID pid=$PID"
+  REALPID="$(awk -F= '/^realpid=/{print $2}' "$META" 2>/dev/null || true)"
+  if [ -z "${REALPID}" ]; then REALPID=""; fi
+  if [ -z "${PID}" ]; then PID=""; fi
+  # 先杀真实子进程（本任务精确记录的 PID，严禁任何全局匹配式清理）
+  if [ -n "${REALPID}" ] && kill -0 "${REALPID}" 2>/dev/null; then
+    kill "${REALPID}" 2>/dev/null || true; sleep 2
+    if kill -0 "${REALPID}" 2>/dev/null; then
+      kill -9 "${REALPID}" 2>/dev/null || true
+    fi
   else
-    echo "NOT_RUNNING rid=$RID（进程已不在）"
+    echo "CHILD_NOT_RUNNING rid=${RID} realpid=${REALPID}"
   fi
+  # 再杀 wrapper
+  if [ -n "${PID}" ] && kill -0 "${PID}" 2>/dev/null; then
+    kill "${PID}" 2>/dev/null || true; sleep 1
+    kill -9 "${PID}" 2>/dev/null || true
+  fi
+  # kill -0 复查：子进程必须已消失
+  if [ -n "${REALPID}" ] && kill -0 "${REALPID}" 2>/dev/null; then
+    echo "STOP_FAIL: rid=${RID} realpid=${REALPID} 仍存活" >&2
+    printf 'EXIT=killed\n' > "$RUN_DIR/$MODE-$RID.done"
+    exit 1
+  fi
+  echo "STOPPED rid=${RID} realpid=${REALPID}(child gone) pid=${PID}"
   printf 'EXIT=killed\n' > "$RUN_DIR/$MODE-$RID.done"
   exit 0
 fi
@@ -61,21 +79,34 @@ export LC_ALL="${LC_ALL:-C.UTF-8}"
 
 RID="$(date +%s)-$$"
 LOG="$RUN_DIR/$TASK-$RID.log"; DONE="$RUN_DIR/$TASK-$RID.done"; META="$RUN_DIR/$TASK-$RID.meta"
+REALPID_TMP="$RUN_DIR/$TASK-$RID.realpid"
 printf '%s\n' "$RID" > "$LATEST.tmp.$$"; mv "$LATEST.tmp.$$" "$LATEST"
 
-export LOG DONE
+export LOG DONE REALPID_TMP
 
 T0=$(date +%s)
 nohup bash -c '
   exit_code=78
-  "$@" > "$LOG" 2>&1
+  "$@" > "$LOG" 2>&1 &
+  real=$!
+  printf "%s\n" "$real" > "$REALPID_TMP"
+  wait "$real"
   exit_code=$?
   printf "EXIT=%d\nDURATION=%ds\n" "$exit_code" "$(( $(date +%s) - '"$T0"' ))" > "$DONE.tmp.$$"
   mv "$DONE.tmp.$$" "$DONE"
 ' _ "$@" > /dev/null 2>&1 &
 BG_PID=$!
 
-printf 'cmd=%s\npid=%s\nstarted=%s\n' "$(printf '%q ' "$@")" "$BG_PID" "$(date '+%F %T')" > "$META"
+# 等待真实子 PID 落盘（stop 据此精确终止，先子后 wrapper）
+real=""
+for _i in 1 2 3 4 5; do
+  if [ -f "$REALPID_TMP" ]; then real="$(cat "$REALPID_TMP")"; fi
+  [ -n "$real" ] && break
+  sleep 0.1
+done
+rm -f "$REALPID_TMP"
+
+printf 'cmd=%s\npid=%s\nrealpid=%s\nstarted=%s\n' "$(printf '%q ' "$@")" "$BG_PID" "$real" "$(date '+%F %T')" > "$META"
 
 # 产物保留上限：每任务名留最近 10 次（无匹配时 ls 非0 + pipefail + set -e 会使脚本提前退出，故加 || true 兼容首跑）
 ls -t "$RUN_DIR/$TASK"-*.log 2>/dev/null | tail -n +11 | while read -r f; do

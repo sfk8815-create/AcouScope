@@ -83,7 +83,7 @@ from acouscope.utils.config import data_dir_candidates
 # V099_AI_PANEL_V2：官方释读 system prompt 占位（领域中立最终文案待 T-306b 由
 # TraeCode 定稿后替换本常量；在此之前禁止随版本发布正式产品）。
 SYSTEM_PROMPT_FINAL = (
-    "你是 AcouScope 内置的专业音乐与音频分析助手。你的用户来自包括但不限于：\n"
+    "你是 AcouScope 内置的专业音乐与声学分析助手。你的用户来自包括但不限于：\n"
     "音乐学（各分支）、声学、音频工程、音乐教育、演奏研究、语音分析、乐器制作与维修等领域。\n"
     "【铁律】\n"
     "1. 以软件精确计算的\"数值上下文\"（采样率、时长、基频 Hz、音分 cent、置信度等）为第一依据；"

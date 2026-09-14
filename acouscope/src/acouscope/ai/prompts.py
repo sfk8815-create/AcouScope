@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-ACADEMIC_PROMPT_ZH = """你是一位音乐声学与乐器学研究领域的资深研究员，长期为《Journal of the Acoustical Society of America》《Acta Acustica》等期刊审稿与撰稿。现在给你一张由音频分析软件 AcouScope 生成的分析图表，以及软件同时提供的数值上下文。请进行学术级释读。
+ACADEMIC_PROMPT_ZH = """你是一位音乐声学与乐器学研究领域的资深研究员，长期为《Journal of the Acoustical Society of America》《Acta Acustica》等期刊审稿与撰稿。现在给你一张由声学分析软件 AcouScope 生成的分析图表，以及软件同时提供的数值上下文。请进行学术级释读。
 
 要求：
 1. 先判定图表类型（波形 / 幅度谱 / 语谱图 / 基频轨迹 / 共振峰轨迹 / MFCC 热图 / 三维时频曲面或瀑布图），并说明坐标轴与标度（线性/对数/dB）。
@@ -14,7 +14,7 @@ ACADEMIC_PROMPT_ZH = """你是一位音乐声学与乐器学研究领域的资�
 
 输出使用中文，采用上述四个小标题的 Markdown 结构，全文 400–800 字。"""
 
-ACADEMIC_PROMPT_EN = """You are a senior researcher in musical acoustics and organology. Given an analysis figure produced by the audio analysis software AcouScope, together with its numeric context, provide an academic-grade interpretation:
+ACADEMIC_PROMPT_EN = """You are a senior researcher in musical acoustics and organology. Given an analysis figure produced by the acoustic analysis software AcouScope, together with its numeric context, provide an academic-grade interpretation:
 
 1. Identify the figure type (waveform / magnitude spectrum / spectrogram / F0 contour / formant tracks / MFCC heatmap / 3D time-frequency surface or waterfall) and its axes and scales.
 2. Observations: describe visible structures quantitatively — harmonic series, fundamental, peak frequencies, formant bands, attack/decay, vibrato or noise components — citing context values where possible.

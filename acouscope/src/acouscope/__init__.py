@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """
-AcouScope - 面向音乐与数字人文领域研究的跨平台音频分析软件。
+AcouScope - 面向音乐与数字人文领域研究的跨平台声学分析软件。
 
 模块结构:
     app         - 应用层（控制器、项目管理、偏好设置）

@@ -5,7 +5,7 @@
 - 本模块只做 A4 版式拼装与 PDF 落盘（QPdfWriter + QPainter，免附加依赖）；
 - 图片数据由调用方经**既有渲染管线**（``visualization/FigureExporter`` +
   ``main_window._export_current_view``）产出后以 ``ReportFigure`` 传入，
-  本模块不做任何音频分析计算（禁重复分析）。
+  本模块不做任何声学分析计算（禁重复分析）。
 
 排版尺寸纪律豁免（任务书 T-1003 §1 明文）：报告是 A4 打印品，纸张/页边距/
 行高等口径本身以业界标准计量单位（毫米）定义，故本文件中的 ``_*_MM`` 毫米

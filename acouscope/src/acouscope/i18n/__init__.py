@@ -642,9 +642,9 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "settings.dpi.1200":  {"en_US": "1200 dpi (Ultra)","zh_CN": "1200 dpi（超高）", "zh_TW": "1200 dpi（超高）"},
     # --- 关于对话框 ---
     "about.title":        {"en_US": "About AcouScope", "zh_CN": "关于 AcouScope",  "zh_TW": "關於 AcouScope"},
-    "about.desc":         {"en_US": "Cross-platform audio analysis software for music and digital humanities research",
-                           "zh_CN": "面向音乐与数字人文领域研究的跨平台音频分析软件",
-                           "zh_TW": "面向音樂與數位人文領域研究的跨平台音訊分析軟體"},
+    "about.desc":         {"en_US": "Cross-platform acoustic analysis software for music and digital humanities research",
+                           "zh_CN": "面向音乐与数字人文领域研究的跨平台声学分析软件",
+                           "zh_TW": "面向音樂與數位人文領域研究的跨平台聲學分析軟體"},
     "about.tech":         {"en_US": "Built with Python + PyQt6 + pyqtgraph; core algorithms in pure NumPy",
                            "zh_CN": "基于 Python + PyQt6 + pyqtgraph 开发，核心算法纯 numpy 实现",
                            "zh_TW": "基於 Python + PyQt6 + pyqtgraph 開發，核心演算法純 numpy 實現"},

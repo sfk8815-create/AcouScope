@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""音频标注模块（借鉴 Sonic Visualiser 的层概念）。
+"""音频标注模块（借鉴同类声学可视化软件的层概念）。
 
 提供时间点（instant）和时间段（region）两种标注类型，
 以及统一的标注数据模型，可在波形/语谱图/频谱等多个视图间共享。
@@ -26,7 +26,7 @@ REGION_PALETTE = [
 
 @dataclass
 class TimeInstant:
-    """时间点标注（对应 Sonic Visualiser 的 Instant Layer）。
+    """时间点标注（对应同类软件的 Instant Layer）。
 
     用于标记 onset、节拍、事件发生时刻等。
     """
@@ -42,7 +42,7 @@ class TimeInstant:
 
 @dataclass
 class TimeRegion:
-    """时间段标注（对应 Sonic Visualiser 的 Region Layer）。
+    """时间段标注（对应同类软件的 Region Layer）。
 
     用于标记乐段、音符、感兴趣区间等，支持循环播放。
     """

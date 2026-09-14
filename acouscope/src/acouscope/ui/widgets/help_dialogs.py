@@ -90,7 +90,7 @@ QUICK_START: dict[str, str] = {
 MANUAL: dict[str, str] = {
     "zh_CN": """
 <h2>用户手册</h2>
-<p>AcouScope 是面向音乐与数字人文领域研究的音频分析软件。核心算法纯 NumPy 实现，界面基于 PyQt6。</p>
+<p>AcouScope 是面向音乐与数字人文领域研究的声学分析软件。核心算法纯 NumPy 实现，界面基于 PyQt6。</p>
 
 <h3>1. 界面概览</h3>
 <ul>
@@ -348,7 +348,7 @@ MANUAL: dict[str, str] = {
 """,
     "zh_TW": """
 <h2>使用者手冊</h2>
-<p>AcouScope 是面向音樂與數位人文領域研究的音訊分析軟體。核心演算法純 NumPy 實現，介面基於 PyQt6。</p>
+<p>AcouScope 是面向音樂與數位人文領域研究的聲學分析軟體。核心演算法純 NumPy 實現，介面基於 PyQt6。</p>
 
 <h3>1. 介面概覽</h3>
 <ul>
@@ -606,7 +606,7 @@ MANUAL: dict[str, str] = {
 """,
     "en_US": """
 <h2>User Manual</h2>
-<p>AcouScope is an audio analysis application for music and digital humanities research. Core algorithms are implemented in pure NumPy; the UI is built with PyQt6.</p>
+<p>AcouScope is an acoustic analysis application for music and digital humanities research. Core algorithms are implemented in pure NumPy; the UI is built with PyQt6.</p>
 
 <h3>1. Interface Overview</h3>
 <ul>
