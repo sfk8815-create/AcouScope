@@ -6,7 +6,7 @@
 
 <h1 align="center">AcouScope · 音析</h1>
 
-<p align="center"><b>面向音樂學與數位人文的音訊分析軟體</b><br>
+<p align="center"><b>面向音樂學與數位人文的聲學分析軟體</b><br>
 從音訊匯入到學術級出圖 —— 全部核心分析演算法以純 NumPy 自主實作。</p>
 
 <p align="center">
@@ -43,7 +43,7 @@
   <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope —— FFT 頻譜與諧波標記" width="820">
 </p>
 
-AcouScope（音析）是一款跨平台桌面音訊分析軟體，面向音樂學、民族音樂學、音樂心理學、聲景研究與
+AcouScope（音析）是一款跨平台桌面聲學分析軟體，面向音樂學、民族音樂學、音樂心理學、聲景研究與
 樂器聲學等研究場景。它涵蓋一條連續的工作流程：音訊匯入 → 訊號分析 → 學術級出圖。
 
 全部核心分析演算法 —— FFT / STFT / 音高追蹤 / 共振峰擷取 / 音色特徵 —— 均直接基於 NumPy 自主
@@ -182,7 +182,7 @@ AcouScope/
 |------|------|
 | 語言 | Python 3.10+ |
 | GUI | PyQt6 + pyqtgraph |
-| 音訊分析 | NumPy（純自研演算法） |
+| 聲學分析 | NumPy（純自研演算法） |
 | 音訊 I/O | soundfile（播放經 QtMultimedia，pyaudio 為可選後備） |
 | 出版級出圖 | matplotlib |
 | 測試 | pytest / pytest-qt |

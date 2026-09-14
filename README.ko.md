@@ -6,7 +6,7 @@
 
 <h1 align="center">AcouScope · 音析</h1>
 
-<p align="center"><b>음악학과 디지털 인문학을 위한 오디오 분석 소프트웨어</b><br>
+<p align="center"><b>음악학과 디지털 인문학을 위한 음향 분석 소프트웨어</b><br>
 오디오 가져오기부터 학술급 도표 출력까지 — 모든 핵심 분석 알고리즘을 순수 NumPy로 자체 구현했습니다.</p>
 
 <p align="center">
@@ -44,7 +44,7 @@
 </p>
 
 AcouScope(音析)는 음악학, 민족음악학, 음악심리학, 음경(soundscape) 연구와 악기 음향학을 위한
-크로스 플랫폼 데스크톱 오디오 분석 애플리케이션입니다. 오디오 가져오기 → 신호 분석 → 학술급 도표
+크로스 플랫폼 데스크톱 음향 분석 애플리케이션입니다. 오디오 가져오기 → 신호 분석 → 학술급 도표
 출력까지 하나의 연속된 작업 흐름을 제공합니다.
 
 FFT / STFT / 피치 추적 / 포먼트 추출 / 음색 특징 등 모든 핵심 분석 알고리즘은 librosa나 scipy 같은
@@ -188,7 +188,7 @@ AcouScope/
 |------|------|
 | 언어 | Python 3.10+ |
 | GUI | PyQt6 + pyqtgraph |
-| 오디오 분석 | NumPy(자체 구현 알고리즘) |
+| 음향 분석 | NumPy(자체 구현 알고리즘) |
 | 오디오 I/O | soundfile(재생은 QtMultimedia, pyaudio 선택) |
 | 도표 내보내기 | matplotlib |
 | 테스트 | pytest / pytest-qt |

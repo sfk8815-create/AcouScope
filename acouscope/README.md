@@ -6,7 +6,7 @@
 
 <h1 align="center">AcouScope · 音析</h1>
 
-<p align="center"><b>Audio analysis for musicology and the digital humanities</b><br>
+<p align="center"><b>Acoustic analysis for musicology and the digital humanities</b><br>
 From import to publication-grade figures — with every core analysis algorithm implemented in pure NumPy.</p>
 
 <p align="center">
@@ -43,7 +43,7 @@ From import to publication-grade figures — with every core analysis algorithm 
   <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope — FFT spectrum with harmonic markers" width="820">
 </p>
 
-AcouScope (音析) is a cross-platform desktop audio analysis application built for research in
+AcouScope (音析) is a cross-platform desktop acoustic analysis application built for research in
 musicology, ethnomusicology, music psychology, soundscape studies and musical acoustics. It covers
 one continuous workflow: import audio → run signal analysis → export academic-grade figures.
 
@@ -193,7 +193,7 @@ AcouScope/
 |------|------------|
 | Language | Python 3.10+ |
 | GUI | PyQt6 + pyqtgraph |
-| Audio analysis | NumPy (self-implemented algorithms) |
+| Acoustic analysis | NumPy (self-implemented algorithms) |
 | Audio I/O | soundfile (playback via QtMultimedia, pyaudio optional) |
 | Figure export | matplotlib |
 | Tests | pytest / pytest-qt |
