@@ -61,27 +61,21 @@
 
 | 项 | 实读值 |
 |---|---|
-| 版本 | `ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers` |
+| 版本 | `ffmpeg version 8.0 Copyright (c) 2000-2025 the FFmpeg developers` |
 | 构建 | `built with Apple clang version 13.1.6 (clang-1316.0.21.2.5)` |
 | 架构 | Mach-O 64-bit executable **arm64**（仅 arm64；x86_64 平台回退系统 ffmpeg，代码内已注明） |
-| 二进制 | `src/acouscope/resources/bin/ffmpeg`，sha256 前缀 `6d175a4743ca50256e89a8cd` |
-| 许可 | FFmpeg 官方口径：LGPL v2.1；**启用 `--enable-gpl` 的构建中 GPL 部分为 "GPL version 2 or later"** → 与本项目 GPL-3.0 兼容 |
+| 二进制 | `src/acouscope/resources/bin/ffmpeg`，sha256 前缀 `77d2c853f431318d55ec0267` |
+| 许可 | 本构建为 **GPL 构建**（`--enable-gpl` + libx264/x265/vpx/aom/vorbis 等）→ 其中 GPL 部分为 “GPL version 2 or later”，与本项目 **GPL-3.0 兼容**；核心库仍为 LGPL v2.1 |
 
 `ffmpeg -version` 的 configure 行（构建指纹，逐字）：
 
 ```
-configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --arch=arm64 --cc=/usr/bin/clang --enable-gpl --enable-libvmaf --enable-libopenjpeg --enable-libopus --enable-libmp3lame --enable-libx264 --enable-libx265 --enable-libvpx --enable-libwebp --enable-libass --enable-libfreetype --enable-fontconfig --enable-libtheora --enable-libvorbis --enable-libsnappy --enable-libaom --enable-libvidstab --enable-libzimg --enable-libsvtav1 --enable-libharfbuzz --enable-libkvazaar --pkg-config-flags=--static --enable-ffplay --enable-postproc --enable-neon --enable-runtime-cpudetect --disable-indev=qtkit --disable-indev=x11grab_xcb
+configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --arch=arm64 --cc=/usr/bin/clang --enable-gpl --enable-libvmaf --enable-libopenjpeg --enable-libopus --enable-libmp3lame --enable-libx264 --enable-libx265 --enable-libvvenc --enable-libvpx --enable-libwebp --enable-libass --enable-libfreetype --enable-fontconfig --enable-libtheora --enable-libvorbis --enable-libsnappy --enable-libaom --enable-libvidstab --enable-libzimg --enable-libsvtav1 --enable-libharfbuzz --enable-libkvazaar --pkg-config-flags=--static --enable-ffplay --enable-neon --enable-runtime-cpudetect --disable-indev=qtkit --disable-indev=x11grab_xcb
 ```
 
 **义务与履行**：
 - 附 GPL-2.0 许可文本 → 见 [`licenses/GPL-2.0.txt`](licenses/GPL-2.0.txt)。
-- **对应源码获取途径**：该二进制为 arm64 **静态构建**（configure 行见上）；**构建来源未记录**，
-  本项目未保留该次构建的构建记录、本地补丁或修改信息（取证：无 quarantine 来源、无下载历史、
-  无构建目录等痕迹）。对应源码 = 上游官方源码包 **<https://ffmpeg.org/releases/ffmpeg-7.1.tar.xz>**
-  （版本与 configure 行一致）。
-  ⚠ **未核实项**：本仓未记录该次构建是否引入本地补丁或修改；发布物含此二进制，应由构建方据实
-  补齐对应的完整源码（含任何补丁）。因无法溯源具体构建方，发布者宜评估改用自建可复现构建，
-  或改用运行时下载 + 上游链接的方式。
+- **对应源码获取途径**：该二进制为 arm64 **静态构建**，由 `scripts/fetch_ffmpeg.sh` 自 **OSXExperts.net** 获取（静态 FFmpeg 8.0 for Apple Silicon；下载源 URL = <https://www.osxexperts.net/ffmpeg80arm.zip>；zip sha256 `0d4efcaf6a098430a708e0af694a84792938921fa126162787ae98c6151d7a95`；二进制 sha256 `77d2c853f431318d55ec02676d9b2f185ebfdddb9f7677a251fbe453affe025a`）。脚本在下载后做 zip 与二进制双层 sha256 校验，校验不符即拒绝安装并清理残留，确保落地的二进制与上列哈希一致。对应上游源码 = **ffmpeg 8.0 官方源码包** <https://ffmpeg.org/releases/ffmpeg-8.0.tar.xz>（版本与 configure 行一致）。
 
 ### 3.3 llama.cpp / ggml
 
@@ -164,8 +158,8 @@ configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --a
    如需 FSF 直连原文核验，请在可联网环境按 §4 的规范 URL 复核。
 2. **模型权重许可**：`rmvpe.onnx` / `swift_f0.onnx` 上游均未提供许可文件 → 再分发依据未核实（见 §3.6）。
    **T-1051 起本仓不再再分发权重**，改为运行时下载 + 仅附上游链接；校验值为本仓首次下载实测（非上游公布）。
-3. **FFmpeg 构建来源与补丁**：`bin/ffmpeg` 构建来源未记录，是否含本地修改/补丁未核实（见 §3.2）。当前发布物
-   **仍随包分发**该 arm64 静态二进制（47MB，未超出 GitHub 100MB 硬限），未走运行时下载。
+3. **FFmpeg 构建来源**：`bin/ffmpeg` 为 arm64 静态构建，由 `scripts/fetch_ffmpeg.sh` 自 OSXExperts.net 获取并做双层 sha256 校验，来源与哈希已据实登记（见 §3.2）。当前发布物
+   已**移出仓库且不再随包分发**，改由脚本按需获取。
 4. **Ollama 个别许可名**：`GO_LICENSE` / `LLAMA_CPP_VENDORS_LICENSE` / `PICOJSON_LICENSE` 为多段原文，
    本文件不臆断其 SPDX 标识，以文件原文为准。
 5. 本文件**不构成法律意见**；发布前如需，应由权利人/法务复核。
