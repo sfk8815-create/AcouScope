@@ -33,7 +33,10 @@
 
 <p align="center">
   <a href="README.md">English</a> ·
-  <b>简体中文</b>
+  <b>简体中文</b> ·
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.ja.md">日本語</a>
 </p>
 
 ---
@@ -209,3 +212,9 @@ AcouScope/
 
 本项目因依赖 **PyQt6（GPL-3.0-only）**，整体以 **GPL-3.0-only** 分发。第三方组件许可见
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)。
+
+### 版权与作者
+
+© 西南大学·音乐声学实验室 · 西南大学·艺术人类学研究所 · 西南大学·中国音乐心理健康研究所
+
+作者：**石丰恺**（Fengkai Shi）—— sfklc@hotmail.com

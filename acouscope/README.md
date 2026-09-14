@@ -33,7 +33,10 @@ From import to publication-grade figures — with every core analysis algorithm 
 
 <p align="center">
   <b>English</b> ·
-  <a href="README.zh.md">简体中文</a>
+  <a href="README.zh.md">简体中文</a> ·
+  <a href="README.zh-TW.md">繁體中文</a> ·
+  <a href="README.ko.md">한국어</a> ·
+  <a href="README.ja.md">日本語</a>
 </p>
 
 ---
@@ -223,6 +226,13 @@ China.
 
 **GPL-3.0-only**
 
-Because AcouScope depends on **PyQt6 (GPL-3.0-only)**, the whole application is distributed under
-**GPL-3.0-only**. Third-party component licences are listed in
+AcouScope depends on **PyQt6 (GPL-3.0-only)** and is therefore distributed as a whole under
+**GPL-3.0-only**. Licences of the third-party components are listed in
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+### Copyright and authorship
+
+© Music Acoustics Laboratory, Southwest University · Institute of Artistic Anthropology, Southwest
+University · Institute of Chinese Music and Mental Health, Southwest University
+
+Author: **Fengkai Shi** (石丰恺) — sfklc@hotmail.com
