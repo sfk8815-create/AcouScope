@@ -204,7 +204,7 @@ AcouScope/
 - [PyQt](https://www.qt.io/qt-for-python) —— Python 向け Qt バインディング
 - [pyqtgraph](https://pyqtgraph.readthedocs.io/) —— 高性能なリアルタイム描画
 - [matplotlib](https://matplotlib.org/) —— 出版水準の図版
-- [Sonic Visualiser](https://www.sonicvisualiser.org/) —— デザインの着想元
+- 同種の音響可視化ソフトウェア —— デザインの着想元
 
 ### 特別謝辞
 

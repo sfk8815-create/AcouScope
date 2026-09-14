@@ -197,7 +197,7 @@ AcouScope/
 - [PyQt](https://www.qt.io/qt-for-python) —— Python Qt 綁定
 - [pyqtgraph](https://pyqtgraph.readthedocs.io/) —— 高效能即時繪圖
 - [matplotlib](https://matplotlib.org/) —— 出版級出圖
-- [Sonic Visualiser](https://www.sonicvisualiser.org/) —— 設計靈感來源
+- 同類聲學視覺化軟體 —— 設計靈感來源
 
 ### 特別鳴謝
 

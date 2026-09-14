@@ -203,7 +203,7 @@ AcouScope/
 - [PyQt](https://www.qt.io/qt-for-python) — Python용 Qt 바인딩
 - [pyqtgraph](https://pyqtgraph.readthedocs.io/) — 고성능 실시간 플로팅
 - [matplotlib](https://matplotlib.org/) — 출판 품질 도표
-- [Sonic Visualiser](https://www.sonicvisualiser.org/) — 디자인 영감의 원천
+- 유사 음향 시각화 소프트웨어 — 디자인 영감의 원천
 
 ### 특별 감사
 

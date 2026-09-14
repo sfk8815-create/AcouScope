@@ -211,7 +211,7 @@ AcouScope/
 - [PyQt](https://www.qt.io/qt-for-python) — Python bindings for Qt
 - [pyqtgraph](https://pyqtgraph.readthedocs.io/) — high-performance real-time plotting
 - [matplotlib](https://matplotlib.org/) — publication-grade figures
-- [Sonic Visualiser](https://www.sonicvisualiser.org/) — design inspiration
+- Similar acoustic-visualisation tools — design inspiration
 
 ### Special thanks
 
