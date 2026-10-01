@@ -380,8 +380,9 @@ class TestCentralWiring:
         a = tmp_path / "a.wav"
         a.write_bytes(b"")
         stack = w.central_stack
-        # central_stack 四页：index0 常规 / index1 批处理 / index2 房间模态 / index3 房间声学（T-1054b3）
-        assert stack.count() == 4
+        # central_stack 五页：index0 常规 / index1 批处理 / index2 房间模态 / index3 房间声学 /
+        # index4 图表设计器（T-1054a）
+        assert stack.count() == 6
         assert stack.currentIndex() == 0
         assert stack.widget(1) is w.batch_workspace
         # 框架级入口：FileBrowser.batchRequested（右键「批处理…」所发）

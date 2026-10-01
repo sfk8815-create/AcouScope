@@ -462,8 +462,10 @@ class TestMainWindowWiring:
                                       str(Path(str(b)).resolve())])
         qapp.processEvents()
         actions = w.file_browser._extra_actions
-        assert len(actions) == 1
+        # T-1026：第二项 = 右键「加入多轨」（D7 多选入口，tr("multitrack.add_action")）
+        assert len(actions) == 2
         assert actions[0].text() == tr("batch.meta.action")
+        assert actions[1].text() == tr("multitrack.add_action")
         # 无参回调（addContextAction 内部已吞掉 Qt checked 入参）
         actions[0].trigger()
         qapp.processEvents()
@@ -493,6 +495,52 @@ class TestMainWindowWiring:
         assert w.central_stack.currentIndex() == 1
         assert w.batch_workspace.included_paths() == [str(a)]
         assert w.batch_workspace.current_module() is None
+
+
+class TestMultitrackContextAction:
+    """T-1026：右键「加入多轨」（D7 多选入口）守卫。
+
+    判据边界（PI-T27 · §二-2-4 注）：
+    本件用例只证"接上了"（action 存在 + 触发走既有 D7 通路），
+    不证"真实右键事件下 Qt 是否同步选区"（静态不可判，AX）。
+    """
+
+    def test_context_action_exists_with_label(self, window, qapp):
+        """用例 1：右键项存在且文案 = tr("multitrack.add_action")。"""
+        w = window
+        actions = w.file_browser._extra_actions
+        texts = [a.text() for a in actions]
+        assert tr("multitrack.add_action") in texts
+
+    def test_trigger_adds_selected_files(self, window, qapp, tmp_path):
+        """用例 2：选中 ≥2 文件后触发 ⇒ 加入多轨（走既有 D7 通路）。"""
+        w = window
+        a = tmp_path / "mt_a.wav"
+        b = tmp_path / "mt_b.wav"
+        _write_wav(a, 8000, 0.3)
+        _write_wav(b, 16000, 0.3)
+        w.file_browser.set_current_file(str(a))
+        w.file_browser._select_paths([str(Path(str(a)).resolve()),
+                                      str(Path(str(b)).resolve())])
+        qapp.processEvents()
+        action = next(x for x in w.file_browser._extra_actions
+                      if x.text() == tr("multitrack.add_action"))
+        before = len(w.multitrack_session)
+        action.trigger()
+        qapp.processEvents()
+        assert len(w.multitrack_session) == before + 2
+
+    def test_empty_selection_gives_toast_not_crash(self, window, qapp):
+        """用例 3：未选中任何文件时触发 ⇒ 给 no_selection 提示且不崩、不加入。"""
+        w = window
+        w.file_browser._select_paths([])
+        qapp.processEvents()
+        action = next(x for x in w.file_browser._extra_actions
+                      if x.text() == tr("multitrack.add_action"))
+        before = len(w.multitrack_session)
+        action.trigger()
+        qapp.processEvents()
+        assert len(w.multitrack_session) == before
 
 
 # ---------------------------------------------------------------------------

@@ -2,13 +2,30 @@
 """T-1017 赞助致谢框（极温和启动问候）测试。
 
 覆盖：
-① 状态模块 acouscope/state.py（first_run 初始化 / 2h 判定 / dismissed 持久化 / 容错）；
+① 状态模块 acouscope/state.py（first_run 初始化 / 启动计数闸判定 / dismissed 持久化 / 容错）；
 ② SponsorDialog 形态（非模态 / 无 exec / 双二维码并排 / 缺失占位 / 两按钮 / Esc 关闭）；
-③ 启动接线（错峰顺序 / 单次启动只弹一次 / dismissed 后不弹）；
+③ 启动接线（错峰顺序 / 同启动内不双弹 / 达标后每次启动均弹 / dismissed 后不弹）；
 ④ 静态纪律（禁词 0 / 无 hex-px / QDialog 白名单登记 / 文案禁改字 / 不构造主窗口顶层显示）。
 
 纪律：全部离屏，不构造主窗口顶层显示（GUI_backlog #6）；数据目录由 conftest
 autouse fixture 统一重定向到 tmp_path。
+
+T-1082 修订（受控设计反转，审计在案·承 T-1017 D1 范式）：
+- 自动弹窗由「满 2h 每启动都弹」→「每安装至多自动弹一次」（旗标
+  ``sponsor_prompt_shown``）；新增帮助菜单常驻入口「支持 AcouScope」；
+- 引入离线**致谢码**（旗标 ``sponsor_acknowledged``，与 dismissed 同为停弹条件，
+  只停弹、不解锁/不门控）；``test_no_countdown_or_code`` 边界重述为
+  「无倒计时/无机器码/无『赞助码』字样——致谢码为可选荣誉确认」，
+  原三项子断言（4 token）全数保留；定稿 heading/body verbatim 基线逐字零动。
+
+T-1110 修订（受控设计反转 #3，审计在案）：
+- 自动弹窗由「每安装至多自动弹一次」→「第 5 次启动起、此后每次启动均弹」
+  （阈值常量 ``SPONSOR_PROMPT_LAUNCH_THRESHOLD`` = 5，计数键 ``launch_count``）；
+- **致谢码全面下架**：常量/UI 行/槽/i18n 4 键/状态字段一并除，交互测整类删；
+- 旧持久旗标 ``sponsor_prompt_shown`` / ``sponsor_acknowledged`` 不再读取、
+  自然失效（反证测 ``test_legacy_flags_no_longer_suppress`` 在案）；
+  2 小时装机延迟（``SPONSOR_REMINDER_DELAY``）整体废除，
+  ``first_run_timestamp`` 转为纯装机记录、不参与判定。
 """
 
 from __future__ import annotations
@@ -57,6 +74,7 @@ _SPONSOR_KEYS = [
     "sponsor.qr_missing",
     "sponsor.continue",
     "sponsor.dismiss",
+    "action.sponsor",
 ]
 
 
@@ -95,16 +113,15 @@ class TestState:
         assert _state.get_first_run_timestamp() == base
         assert _state.state_path() == tmp_path / "app_state.json"
 
-    def test_should_show_before_two_hours_false(self, tmp_path):
-        base = datetime(2026, 1, 1, 9, 0, 0)
-        _state.ensure_first_run(base)
-        assert _state.should_show_sponsor_reminder(base + timedelta(minutes=119)) is False
+    def test_should_show_false_below_threshold(self, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": 4})
+        assert _state.should_show_sponsor_reminder() is False
 
-    def test_should_show_at_and_after_two_hours_true(self, tmp_path):
-        base = datetime(2026, 1, 1, 9, 0, 0)
-        _state.ensure_first_run(base)
-        assert _state.should_show_sponsor_reminder(base + timedelta(hours=2)) is True
-        assert _state.should_show_sponsor_reminder(base + timedelta(hours=26)) is True
+    def test_should_show_true_from_threshold_onward(self, tmp_path):
+        # 边界两侧都测（4 未达标 / 5 起达标），防只测单侧假绿
+        for count in (5, 6, 7):
+            _write_app_state(tmp_path, {"launch_count": count})
+            assert _state.should_show_sponsor_reminder() is True
 
     def test_dismissed_persists_and_suppresses(self, tmp_path):
         base = datetime(2026, 1, 1, 9, 0, 0)
@@ -112,7 +129,7 @@ class TestState:
         assert _state.is_sponsor_reminder_dismissed() is False
         assert _state.set_sponsor_reminder_dismissed(True) is True
         assert _state.is_sponsor_reminder_dismissed() is True
-        assert _state.should_show_sponsor_reminder(base + timedelta(hours=48)) is False
+        assert _state.should_show_sponsor_reminder() is False
         # 跨进程持久化：重新读盘仍为 True
         raw = json.loads((tmp_path / "app_state.json").read_text(encoding="utf-8"))
         assert raw["sponsor_reminder_dismissed"] is True
@@ -145,8 +162,41 @@ class TestState:
         blocker.mkdir()
         assert _state.save_state({"first_run_timestamp": _first_run_ago(3)}) is False
 
-    def test_delay_constant_is_two_hours(self):
-        assert _state.SPONSOR_REMINDER_DELAY == timedelta(hours=2)
+    def test_prompt_threshold_constant_is_five(self):
+        assert _state.SPONSOR_PROMPT_LAUNCH_THRESHOLD == 5
+
+    # ---- T-1110：启动计数闸（第 5 次起每次弹）+ 旧旗标失效 ----
+
+    def test_prompt_repeats_every_launch_after_threshold(self, tmp_path):
+        for _ in range(4):
+            _state.bump_launch_count()
+        assert _state.should_show_sponsor_reminder() is False  # 计数 4：未达标
+        for expected in (5, 6, 7):
+            assert _state.bump_launch_count() == expected
+            assert _state.should_show_sponsor_reminder() is True  # 达标后逐次照弹
+        # 跨进程持久：直接读盘同值
+        raw = json.loads((tmp_path / "app_state.json").read_text(encoding="utf-8"))
+        assert raw["launch_count"] == 7
+
+    def test_dismissed_is_only_stop_path(self, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": 5})
+        assert _state.should_show_sponsor_reminder() is True
+        assert _state.set_sponsor_reminder_dismissed(True) is True
+        assert _state.should_show_sponsor_reminder() is False  # 唯一停弹路径
+        _state.set_sponsor_reminder_dismissed(False)
+        assert _state.should_show_sponsor_reminder() is True  # 复位后照弹
+
+    def test_legacy_flags_no_longer_suppress(self, tmp_path):
+        # 反证（T-1110 R6）：旧残键不读不删、自然失效——计数 5 且无 dismissed 仍须弹
+        _write_app_state(
+            tmp_path,
+            {
+                "launch_count": 5,
+                "sponsor_prompt_shown": True,
+                "sponsor_acknowledged": True,
+            },
+        )
+        assert _state.should_show_sponsor_reminder() is True
 
     def test_state_module_never_touches_license(self, tmp_path):
         # 行为口径：数据目录内的 license.json 不读不写不改，状态只落 app_state.json
@@ -155,6 +205,7 @@ class TestState:
         before = stale.read_text(encoding="utf-8")
         _state.ensure_first_run(datetime(2026, 1, 1, 9, 0, 0))
         _state.set_sponsor_reminder_dismissed(True)
+        _state.bump_launch_count()
         assert stale.read_text(encoding="utf-8") == before
         assert _state.state_path().name == "app_state.json"
         assert (tmp_path / "app_state.json").exists()
@@ -162,6 +213,32 @@ class TestState:
             "app_state.json",
             "license.json",
         ]
+
+
+class TestLaunchCount:
+    """T-1110 启动计数守卫：递增落盘 / 键缺失与非整数容错（绝不抛）。"""
+
+    def test_first_bump_returns_one_and_persists(self, tmp_path):
+        assert _state.get_launch_count() == 0
+        assert _state.bump_launch_count() == 1
+        assert _state.get_launch_count() == 1
+        raw = json.loads((tmp_path / "app_state.json").read_text(encoding="utf-8"))
+        assert raw["launch_count"] == 1
+
+    def test_bump_increments_to_three(self, tmp_path):
+        for expected in (1, 2, 3):
+            assert _state.bump_launch_count() == expected
+        assert _state.get_launch_count() == 3
+        raw = json.loads((tmp_path / "app_state.json").read_text(encoding="utf-8"))
+        assert raw["launch_count"] == 3
+
+    def test_bad_values_tolerated(self, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": "abc"})
+        assert _state.get_launch_count() == 0
+        assert _state.bump_launch_count() == 1  # 非整数按 0 起算，不抛
+        _write_app_state(tmp_path, {"launch_count": -1})
+        assert _state.get_launch_count() == -1  # 原样读出（可预期）
+        assert _state.bump_launch_count() == 0  # -1 + 1，不抛
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +316,9 @@ class TestSponsorDialog:
         assert not dlg.isVisible()
 
     def test_no_countdown_or_code(self):
-        # 无倒计时 / 无赞助码 / 无机器码 / 无 5 秒等待（拼接避免自命中）
+        # T-1082 边界重述（承 §〇-D①）：本框**无倒计时 / 无机器码 / 无「赞助码」字样**；
+        # 「致谢码」为可选荣誉确认——不采集设备标识、不门控功能、只影响停弹。
+        # 原三项子断言全数保留：
         for token in (
             "倒计" + "时",
             "count" + "down",
@@ -269,8 +348,8 @@ def window(qapp, tmp_path):
 
 
 class TestStartupWiring:
-    def test_prompt_after_two_hours(self, window, tmp_path):
-        _write_app_state(tmp_path, {"first_run_timestamp": _first_run_ago(3)})
+    def test_prompt_when_launch_count_reaches_threshold(self, window, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": 5})
         window._maybe_show_sponsor_dialog()
         dlg = getattr(window, "_sponsor_dialog", None)
         assert dlg is not None
@@ -278,14 +357,14 @@ class TestStartupWiring:
         assert dlg.parent() is window
 
     def test_prompt_only_once_per_launch(self, window, tmp_path):
-        _write_app_state(tmp_path, {"first_run_timestamp": _first_run_ago(3)})
+        _write_app_state(tmp_path, {"launch_count": 5})
         window._maybe_show_sponsor_dialog()
         first = window._sponsor_dialog
         window._maybe_show_sponsor_dialog()
         assert window._sponsor_dialog is first
 
-    def test_no_prompt_before_two_hours(self, window, tmp_path):
-        _write_app_state(tmp_path, {"first_run_timestamp": _first_run_ago(0.5)})
+    def test_no_prompt_below_threshold(self, window, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": 4})
         window._maybe_show_sponsor_dialog()
         assert not hasattr(window, "_sponsor_dialog")
 
@@ -296,6 +375,43 @@ class TestStartupWiring:
         )
         window._maybe_show_sponsor_dialog()
         assert not hasattr(window, "_sponsor_dialog")
+
+    # ---- T-1110：达标后每次启动均弹 + dismissed 后帮助菜单仍可打开 ----
+
+    def test_prompt_repeats_after_threshold(self, window, tmp_path):
+        _write_app_state(tmp_path, {"launch_count": 5})
+        window._maybe_show_sponsor_dialog()
+        first = window._sponsor_dialog
+        assert _state.should_show_sponsor_reminder() is True  # 达标后无「已弹过」抑制
+        # 模拟「再启动」：清实例内存标志（仅防同启动内重弹），下次启动照弹新实例
+        window._sponsor_prompt_shown = False
+        window._maybe_show_sponsor_dialog()
+        assert window._sponsor_dialog is not first
+        raw = json.loads((tmp_path / "app_state.json").read_text(encoding="utf-8"))
+        assert raw["launch_count"] == 5
+
+    def test_manual_entry_still_opens_when_dismissed(self, window, tmp_path):
+        _write_app_state(
+            tmp_path, {"launch_count": 9, "sponsor_reminder_dismissed": True}
+        )
+        window._maybe_show_sponsor_dialog()
+        assert not hasattr(window, "_sponsor_dialog")  # dismissed：唯一停弹路径
+        assert _state.should_show_sponsor_reminder() is False
+        window._on_show_sponsor()  # 帮助菜单常驻入口仍可打开同一框（R5）
+        dlg = window._sponsor_dialog
+        assert dlg.isModal() is False
+
+    def test_help_menu_contains_sponsor_entry(self, window):
+        menu_text = tr("menu.help")
+        help_action = next(
+            (a for a in window.menuBar().actions() if a.text() == menu_text), None
+        )
+        assert help_action is not None
+        texts = [a.text() for a in help_action.menu().actions()]
+        assert tr("action.sponsor") in texts
+        # 既有相对序不破：访问网站仍在 关于 之前（T-1015 守卫同口径）
+        assert texts.index(tr("action.visit_site")) < texts.index(tr("action.about"))
+        assert window.action_sponsor.text() == tr("action.sponsor")
 
     def test_trigger_staggered_after_restore_prompt(self):
         restore_at = _MAIN_WINDOW_SRC.index(
@@ -308,6 +424,7 @@ class TestStartupWiring:
 
         assert _SPONSOR_PROMPT_DELAY_MS > 0  # 正延迟：不同帧抢焦点
         assert "ensure_first_run()" in _MAIN_WINDOW_SRC
+        assert "bump_launch_count()" in _MAIN_WINDOW_SRC
 
 
 # ---------------------------------------------------------------------------

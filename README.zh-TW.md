@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="授權條款：GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="平台">
-  <img src="https://img.shields.io/badge/version-0.99.20260904_Beta-orange" alt="版本 0.99.20260904（Beta）">
+  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="版本 0.99.20260925（Beta）">
 </p>
 
 <p align="center">
@@ -189,7 +189,7 @@ AcouScope/
 
 ## 路線圖
 
-- **v0.99.20260904（Beta，當前）** —— 九大分析引擎 + 三語介面 + 主題系統 + 出版級匯出；四平台安裝套件正式發行與程式碼簽章（Windows Authenticode / Apple 公證）進行中
+- **v0.99.20260925（Beta，當前）** —— 九大分析引擎 + 三語介面 + 主題系統 + 出版級匯出；四平台安裝套件正式發行準備中 —— 本內測版**有意未做程式碼簽章/公證**，首啟遇阻請依官網「遇到問題怎麼辦」指引操作
 - **v1.0** —— 批次處理、外掛機制、常 Q 變換 / 小波變換，正式發布
 
 ## 致謝

@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""极温和赞助致谢对话框（开源化后的一次性启动问候，非推广）。
+"""极温和赞助致谢对话框（开源化后的启动问候；第 5 次启动起、此后每次启动均弹，非推广）。
 
-形态（最高指挥定稿）：
+形态（最高指挥定稿；T-1110 反转 #3 后语义）：
 - QDialog **非模态**（``setModal(False)`` + ``show()``，**禁 ``exec()``**），Esc 可关闭；
-- 无强制等待、无门控输入、不采集设备标识；不影响任何功能；
-- 「已支持，不再提醒」只写入 ``app_state.json``（见 :mod:`acouscope.state`），
-  与旧 ``license.json`` 完全切割。
+- 无强制等待、不采集设备标识、不影响任何功能；
+- 自动弹条件 = 第 5 次启动起、此后每次启动均弹（计数依据见 :mod:`acouscope.state`）；
+- 停弹**只**由「已支持，不再提醒」永久生效，只写入 ``app_state.json``
+  （见 :mod:`acouscope.state`），与旧许可状态文件完全切割。
 
 GUI 白名单登记：``.pi/knowledge/GUI_dialog_inventory.md``（本类新增一行）。
 """

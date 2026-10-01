@@ -4,7 +4,6 @@
 import pytest
 
 from acouscope.ui.widgets.time_axis import (
-    TickSet,
     _time_tick_sizes,
     nice_ticks,
 )

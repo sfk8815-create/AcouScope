@@ -5,9 +5,6 @@
 精度阈值来源：2026-09-03 用户确认（.pi/knowledge/PITCH_analysis.md §3.4）。
 """
 
-import json
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -68,16 +65,13 @@ class TestAT01Accuracy:
 
     def test_at01_4_vibrato_report(self):
         """AT-01-4: 合成颤音（440±25cent@5Hz）中位 ≤±30cent。
-        文献参考指标，非硬闸门：只断言 ≤50（报告口径），实测值写入日志。"""
+        文献参考指标，非硬闸门：只断言 ≤50（报告口径），实测值仅内存断言、不落 tracked 盘（AT-1072 卫生）。"""
         dur = 2.0
         t = np.arange(int(SR * dur)) / SR  # 任务文件笔误 /sr → /SR（NameError 修复）
         inst = 440.0 * 2 ** (25.0 / 1200.0 * np.sin(2 * np.pi * 5.0 * t))
         sig = 0.5 * np.sin(2 * np.pi * np.cumsum(inst) / SR)
         tr = detect_pyin(sig, SR)
         med = _median_cent(tr, 440.0)
-        out = Path(".pi/logs/AT-01-4_measured.json")
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps({"vibrato_median_cent": med, "is_measured": True}))
         assert med <= 50.0  # 报告口径；30cent 目标值见验收报告
 
 
@@ -178,3 +172,46 @@ class TestAT07Boundary:
         # 量程可配置：fmax=400 时 440Hz 视为量程外
         tr_cfg = detect_pyin(_sine(440.0, 0.5), SR, fmax=400.0)
         assert not np.isfinite(tr_cfg.f0_hz).any()
+
+
+# ----------------------------------------------------------------------
+# A4-R5：cent_ref 默认值去写死（未传 ⇒ 走当前 A4 参考；显式仍优先）
+# ----------------------------------------------------------------------
+
+
+def test_a4r5_default_cent_ref_follows_global_a4(monkeypatch):
+    """★ 主判据：未传 cent_ref 时 .cents() 走当前 A4 参考（442 下与 units 同口径）。"""
+    from acouscope.analysis.pitch import PitchTrack
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    tr = PitchTrack(times=np.array([0.0]), f0_hz=np.array([442.0]), confidence=np.array([1.0]))
+    assert tr.cent_ref is None
+    assert tr.cents()[0] == pytest.approx(0.0, abs=1e-9)
+    assert tr.cents()[0] == pytest.approx(float(units.hz_to_cents(442.0)), abs=1e-12)
+
+
+def test_a4r5_explicit_cent_ref_wins_and_default_440_bit_identical(monkeypatch):
+    """★ 反向：显式 cent_ref 优先；默认 440 下与旧公式逐位一致（防退化）。"""
+    from acouscope.analysis.pitch import PitchTrack
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 440.0)
+    f = np.array([220.0, 440.0, 880.0])
+    tr_explicit = PitchTrack(
+        times=np.zeros(3), f0_hz=f, confidence=np.ones(3), cent_ref=220.0
+    )
+    assert np.array_equal(tr_explicit.cents(), 1200.0 * np.log2(f / 220.0))
+    tr_default = PitchTrack(times=np.zeros(3), f0_hz=f, confidence=np.ones(3))
+    assert np.array_equal(tr_default.cents(), 1200.0 * np.log2(f / 440.0))
+
+
+def test_a4r5_signatures_default_none():
+    """★ 静态：两个入口的 cent_ref 默认值为 None（防回潮）。"""
+    import inspect
+
+    from acouscope.analysis.pitch import detect_pyin
+    from acouscope.analysis.pitch_stream import stream_pitch
+
+    assert inspect.signature(detect_pyin).parameters["cent_ref"].default is None
+    assert inspect.signature(stream_pitch).parameters["cent_ref"].default is None

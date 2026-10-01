@@ -9,6 +9,12 @@ from typing import Optional
 import numpy as np
 
 
+# T-1045 §八 R2 常量唯一源：AT-01 测量精度闸门（±10c / ±15c）。
+# 值域唯一出处为 PITCH_analysis §3.4；设计器与导出两侧一律引用本常量，严禁内联。
+# 注意：这是**测量精度闸门（报警阈值，非精度承诺）**。
+AT01_GATE_CENTS = (10.0, 15.0)
+
+
 class FigureExporter:
     """图表导出器。
 
@@ -37,6 +43,12 @@ class FigureExporter:
         width: float | None = None,
         height: float | None = None,
         grid: bool = True,
+        at01_gate: bool = False,
+        ref_values: list[float] | None = None,
+        ref_linestyle: str = "--",
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ):
         """初始化导出器。
 
@@ -56,6 +68,12 @@ class FigureExporter:
             width: 画幅宽（英寸；None = 模板值）
             height: 画幅高（英寸；None = 模板值）
             grid: 是否绘制网格（默认 True = 既有行为）
+            at01_gate: 音高图是否绘制 AT-01 精度闸门线（±10/±15 cent，相对当前 A4 参考基准）
+            ref_values: 附加参考线 y 值列表（Hz；默认 None = 不画）
+            ref_linestyle: 参考线线型（"--" / ":"；默认 "--" 虚线）
+            subtitle: 副标题（图内左上；默认 None = 不绘制）
+            source: 来源（图底部左下小字；默认 None = 不绘制）
+            footer: 脚注（图最底部更小字；默认 None = 不绘制）
         """
         self.template = template
         self.language = language
@@ -73,6 +91,12 @@ class FigureExporter:
         self.width = width
         self.height = height
         self.grid = bool(grid)
+        self.at01_gate = bool(at01_gate)
+        self.ref_values = list(ref_values) if ref_values else None
+        self.ref_linestyle = ref_linestyle or "--"
+        self.subtitle = subtitle
+        self.source = source
+        self.footer = footer
         self._style = None
 
     # -- T-1044 取色 / 参数解析 ----------------------------------------
@@ -99,6 +123,77 @@ class FigureExporter:
         if self.grid:
             ax.grid(True, **kwargs)
 
+    # -- T-1045 内容外壳 / 参考线（P2） -------------------------------
+    # 位置遵循学术惯例：标题走既有 ax.set_title（图内正上方）；副标题图内左上小字；
+    # 来源底部左下更小字；脚注最底部最小字。墨色一律走 self.ink（EXPORT_INK /
+    # ref_ink 覆盖口径），禁新增硬编码 hex。
+
+    def _apply_content_shell(
+        self,
+        fig,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
+    ) -> None:
+        """内容外壳绘制入口：副标题上图内左上、来源底部左下、脚注最底。
+
+        - 空值（None/空串）= 不绘制 → **4 项全空时产物逐像素不变**（判据）。
+          标题已由各 `export_*` 经 `ax.set_title` 承担（向后兼容），不入本入口。
+        - 未传时回退构造器字段（main_window 仅经 `_build_chart_exporter` 一次注入）。
+        """
+        subtitle = subtitle if subtitle is not None else self.subtitle
+        source = source if source is not None else self.source
+        footer = footer if footer is not None else self.footer
+        ref = self.ink["ref_line"]
+        # 副标题：图内左上（axes 坐标上方紧贴），8pt
+        if subtitle:
+            ax = fig.axes[0]
+            ax.text(
+                0.0, 1.01, subtitle, transform=ax.transAxes,
+                ha="left", va="bottom", fontsize=8, color=ref,
+            )
+        # 来源：底部左下小字
+        if source:
+            fig.text(0.0, 0.02, source, ha="left", va="bottom", fontsize=7, color=ref)
+        # 脚注：最底部更小字
+        if footer:
+            fig.text(0.0, 0.0, footer, ha="left", va="bottom", fontsize=6, color=ref)
+
+    def _pitch_reference(self, _f0: np.ndarray) -> float | None:
+        """音高参考基准（AT-01 闸门线的基准）：当前会话的 A4 参考频率。
+
+        §八 R1：基准取当前会话 A4 参考（`get_reference_hz()`），而非 f0 中位。
+        常量见模块级 `AT01_GATE_CENTS`（PITCH_analysis §3.4 测量精度闸门）。
+        """
+        from acouscope.dsp.units import get_reference_hz
+
+        return float(get_reference_hz())
+
+    def _draw_reference_lines(
+        self, ax, f0_ref: float | None, at01: bool = False,
+        ref_values: list[float] | None = None, linestyle: str = "--",
+    ) -> None:
+        """参考线/阈值线 + AT-01 精度闸门线（相对 A4 参考基准 f0_ref）。
+
+        AT-01-1/2 闸门：±10 cent / ±15 cent（PITCH_analysis §3.4 唯一值）。
+        cent→Hz 映射：f = f0_ref * 2**(cent/1200)。**位置可数值断言**。
+        标注文案点明这是**测量精度闸门（报警阈值，非精度承诺）**，绝无达标承诺表述。
+        """
+        ref = self.ink["ref_line"]
+        ink = self.ref_linestyle if linestyle == "auto" and linestyle else linestyle or "--"
+        if at01 and f0_ref:
+            for cents in AT01_GATE_CENTS:
+                for sign in (1.0, -1.0):
+                    y = f0_ref * (2.0 ** (sign * cents / 1200.0))
+                    ax.axhline(y, color=ref, linewidth=0.7, linestyle=ink, alpha=0.8)
+            ax.text(
+                1.0, -0.12,
+                f"基准 A4={f0_ref:g} Hz · ±10c / ±15c 测量精度闸门（报警阈值，非精度承诺）",
+                transform=ax.transAxes, ha="right", fontsize=6, color=ref,
+            )
+        for y in (ref_values or []):
+            ax.axhline(float(y), color=ref, linewidth=0.7, linestyle=ink, alpha=0.8)
+
     def _new_figure(self):
         """按模板/字体/画幅建图（预览与导出同源：仅 dpi 与 savefig 行为不同）。"""
         from .mpl_style import create_figure
@@ -119,6 +214,10 @@ class FigureExporter:
         title: str = "",
         xlabel: str = "时间 (s)",
         ylabel: str = "幅度",
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ) -> Path:
         """导出波形图。
 
@@ -131,13 +230,15 @@ class FigureExporter:
             title: 图标题
             xlabel: X 轴标签
             ylabel: Y 轴标签
+            subtitle: 副标题（图内左上小字；None = 不绘制）
+            source: 来源（图底部左下；None = 不绘制）
+            footer: 脚注（图最底部；None = 不绘制）
 
         Returns:
             输出文件路径
         """
         import matplotlib
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
 
         fig, ax = self._new_figure()
 
@@ -151,6 +252,7 @@ class FigureExporter:
         self._apply_grid(ax, alpha=0.3, linewidth=0.5)
         ax.set_xlim(times[0], times[-1])
 
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def export_spectrum(
@@ -167,6 +269,10 @@ class FigureExporter:
         markers: Optional[list] = None,
         xlim: Optional[tuple] = None,
         ylim: Optional[tuple] = None,
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ) -> Path:
         """导出频谱图。
 
@@ -183,6 +289,9 @@ class FigureExporter:
             markers: 谐波标记列表 [(频率, 标签), ...]，导出时绘制竖线与标签
             xlim: X 轴显示范围（与窗口视图一致），None 时自动
             ylim: Y 轴显示范围（与窗口视图一致），None 时自动
+            subtitle: 副标题（None = 不绘制）
+            source: 来源（None = 不绘制）
+            footer: 脚注（None = 不绘制）
 
         Returns:
             输出文件路径
@@ -222,6 +331,7 @@ class FigureExporter:
                         color=self.ink["ref_line"],
                     )
 
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def export_spectrogram(
@@ -238,6 +348,10 @@ class FigureExporter:
         cmap: str = "magma",
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ) -> Path:
         """导出语谱图。
 
@@ -254,6 +368,9 @@ class FigureExporter:
             cmap: 颜色映射
             vmin: 颜色范围最小值
             vmax: 颜色范围最大值
+            subtitle: 副标题（None = 不绘制）
+            source: 来源（None = 不绘制）
+            footer: 脚注（None = 不绘制）
 
         Returns:
             输出文件路径
@@ -272,6 +389,7 @@ class FigureExporter:
         cbar = fig.colorbar(im, ax=ax)
         cbar.ax.tick_params(labelsize=8)
 
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def export_pitch_contour(
@@ -284,6 +402,13 @@ class FigureExporter:
         title: str = "",
         xlabel: str = "时间 (s)",
         ylabel: str = "频率 (Hz)",
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
+        at01_gate: bool = False,
+        ref_values: list[float] | None = None,
+        ref_linestyle: str | None = None,
     ) -> Path:
         """导出音高轨迹图。
 
@@ -296,6 +421,12 @@ class FigureExporter:
             title: 标题
             xlabel: X 轴标签
             ylabel: Y 轴标签
+            subtitle: 副标题（None = 不绘制）
+            source: 来源（None = 不绘制）
+            footer: 脚注（None = 不绘制）
+            at01_gate: 是否绘制 AT-01 ±10/±15 cent 测量精度闸门线（相对当前 A4 参考基准）
+            ref_values: 附加参考线 y 值（Hz；None = 不画）
+            ref_linestyle: 参考线线型（"--" / ":"；None = 构造器默认）
 
         Returns:
             输出文件路径
@@ -316,6 +447,15 @@ class FigureExporter:
         self._apply_grid(ax, alpha=0.3, linewidth=0.5)
         ax.set_xlim(times[0], times[-1])
 
+        f0_ref = self._pitch_reference(f0)
+        ls = ref_linestyle if ref_linestyle is not None else self.ref_linestyle
+        self._draw_reference_lines(
+            ax, f0_ref,
+            at01=bool(at01_gate or self.at01_gate),
+            ref_values=list(ref_values) if ref_values is not None else self.ref_values,
+            linestyle=ls,
+        )
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def export_formants(
@@ -328,6 +468,10 @@ class FigureExporter:
         title: str = "",
         xlabel: str = "时间 (s)",
         ylabel: str = "频率 (Hz)",
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ) -> Path:
         """导出共振峰轨迹图。
 
@@ -340,6 +484,9 @@ class FigureExporter:
             title: 标题
             xlabel: X 轴标签
             ylabel: Y 轴标签
+            subtitle: 副标题（None = 不绘制）
+            source: 来源（None = 不绘制）
+            footer: 脚注（None = 不绘制）
 
         Returns:
             输出文件路径
@@ -371,6 +518,7 @@ class FigureExporter:
         if len(times) > 0:
             ax.set_xlim(times[0], times[-1])
 
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def export_mfcc(
@@ -384,6 +532,10 @@ class FigureExporter:
         xlabel: str = "时间 (s)",
         ylabel: str = "MFCC 系数阶数",
         cmap: str = "viridis",
+        *,
+        subtitle: str | None = None,
+        source: str | None = None,
+        footer: str | None = None,
     ) -> Path:
         """导出 MFCC 热图。
 
@@ -397,6 +549,9 @@ class FigureExporter:
             xlabel: X 轴标签
             ylabel: Y 轴标签
             cmap: 颜色映射
+            subtitle: 副标题（None = 不绘制）
+            source: 来源（None = 不绘制）
+            footer: 脚注（None = 不绘制）
 
         Returns:
             输出文件路径
@@ -417,6 +572,7 @@ class FigureExporter:
         cbar = fig.colorbar(im, ax=ax)
         cbar.ax.tick_params(labelsize=8)
 
+        self._apply_content_shell(fig, subtitle, source, footer)
         return self._save(fig, output_path, fmt, dpi)
 
     def _save(self, fig, output_path: str | Path, fmt: str, dpi: int) -> Path:

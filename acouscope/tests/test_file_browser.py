@@ -10,6 +10,7 @@
   触发 → batchRequested(paths)（T-913 框架级入口）；
 ⑥ remove_file 经菜单触发（伪 manager 验证调用）。
 另：入档 "✓" 标识、refresh 保留选中、空态、禁词 0 命中。
+另（T-1071·IM-26 β）：右键目标 ≡ 扩展点 slot ≡ 批处理目标（三向一致守卫）。
 
 口径：离屏独立构造（qapp fixture），禁 MainWindow.show()；
 右键菜单经 monkeypatch QMenu.exec 捕获（不跑嵌套事件循环）。
@@ -20,7 +21,7 @@ from pathlib import Path
 import pytest
 from PyQt6.QtCore import QEvent, QPoint, Qt
 from PyQt6.QtGui import QColor, QKeyEvent
-from PyQt6.QtWidgets import QMenu
+from PyQt6.QtWidgets import QListWidget, QListWidgetItem, QMenu
 
 from acouscope.i18n import tr
 from acouscope.ui import theme
@@ -108,6 +109,35 @@ def open_menu(browser, index: int, capture_menu) -> QMenu:
 def paths_of(browser) -> list[str]:
     return [browser.list.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(browser.list.count())]
+
+
+def right_click(browser, index: int, capture_menu) -> QMenu:
+    """对第 index 项发右键（**不改选中态**：用于「右键未选中项」构造）。"""
+    item = browser.list.item(index)
+    rect = browser.list.rectForIndex(browser.list.indexFromItem(item))
+    browser._on_context_menu(QPoint(rect.center()))
+    return capture_menu["menu"]
+
+
+def three_way_reads(browser, index: int, capture_menu) -> dict:
+    """右键第 index 项并触发各入口 → 三向读数 builtin/extension/batch（+ selected）。"""
+    opened: list[str] = []
+    slots: list[list[str]] = []
+    batches: list[list[str]] = []
+    browser.fileActivated.connect(opened.append)
+    browser.addContextAction("T-1071 探针",
+                             lambda: slots.append(browser.selected_paths()))
+    browser.batchRequested.connect(lambda p: batches.append(list(p)))
+    menu = right_click(browser, index, capture_menu)
+    next(a for a in menu.actions() if a.text() == tr("file_browser.open")).trigger()
+    next(a for a in menu.actions() if a.text() == "T-1071 探针").trigger()
+    next(a for a in menu.actions() if a.text() == tr("file_browser.batch")).trigger()
+    return {
+        "builtin": opened,           # 「打开」→ fileActivated(paths[0])：内建即时 paths 口径
+        "extension": slots[-1],      # 扩展点 slot 触发时自读 selected_paths()
+        "batch": batches[-1],        # batchRequested(paths)
+        "selected": browser.selected_paths(),
+    }
 
 
 class TestDirectoryRule:
@@ -279,6 +309,49 @@ class TestContextMenu:
         act = next(a for a in menu.actions() if a.text() == "T-914 测试项")
         act.trigger()
         assert calls == ["hit"]
+
+
+class TestContextMenuTargetAlignment:
+    """IM-26（T-1071 β）：右键目标 ≡ 扩展点 slot 目标 ≡ 批处理目标。"""
+
+    def test_right_click_unselected_item_three_way_aligned(self, browser, capture_menu):
+        """核心：多选 {A,B} 下右键**未选中** C → 归一为 [C]，三向逐字相等。"""
+        all_paths = paths_of(browser)
+        browser.list.item(0).setSelected(True)
+        browser.list.item(1).setSelected(True)
+        assert browser.selected_paths() == [all_paths[0], all_paths[1]]  # 前置：旧多选 {A,B}
+        r = three_way_reads(browser, 2, capture_menu)
+        assert r["builtin"] == [all_paths[2]]
+        assert r["extension"] == [all_paths[2]]
+        assert r["batch"] == [all_paths[2]]
+        assert r["selected"] == [all_paths[2]]
+        assert r["builtin"] == r["extension"] == r["batch"]  # 三向一致
+
+    def test_right_click_within_multi_selection_not_degraded(self, browser, capture_menu):
+        """负例：多选 {A,B} 内右键 A（已选中）→ 不归一、保持 [A,B]。"""
+        all_paths = paths_of(browser)
+        browser.list.item(0).setSelected(True)
+        browser.list.item(2).setSelected(True)
+        r = three_way_reads(browser, 0, capture_menu)
+        assert r["selected"] == [all_paths[0], all_paths[2]]
+        assert r["extension"] == [all_paths[0], all_paths[2]]
+        assert r["batch"] == [all_paths[0], all_paths[2]]
+
+    def test_strip_beta_reproduces_mismatch(self, browser, capture_menu, monkeypatch):
+        """反证有牙（仿 T-1069 R-6）：剥 β → 三向错位复现、守卫 1 必 FAIL。"""
+        all_paths = paths_of(browser)
+        browser.list.item(0).setSelected(True)
+        browser.list.item(1).setSelected(True)
+        # 剥 β：归一两步（clearSelection + setSelected）同时失效 ⇒ 选中集与即时 paths 分叉
+        monkeypatch.setattr(QListWidget, "clearSelection", lambda self: None)
+        monkeypatch.setattr(QListWidgetItem, "setSelected", lambda self, sel: None)
+        r = three_way_reads(browser, 2, capture_menu)
+        assert r["builtin"] == [all_paths[2]]                                    # 内建：右键项 C
+        assert r["batch"] == [all_paths[2]]                                      # 批处理：右键项 C
+        assert r["extension"] == [all_paths[0], all_paths[1]]                    # 扩展点：旧多选
+        assert r["selected"] == [all_paths[0], all_paths[1]]
+        with pytest.raises(AssertionError):
+            assert r["builtin"] == r["extension"] == r["batch"]  # 守卫 1 于此必 FAIL
 
 
 class TestInProjectMark:

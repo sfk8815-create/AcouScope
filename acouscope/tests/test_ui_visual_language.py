@@ -11,7 +11,7 @@
 ⑤ 主题集不降：THEME_ORDER ⊇ 原 9 + system（条目零删除）；
 ⑥ 中性阶 + 旧键别名：12 角色齐备、别名映射值恒等（colors() 旧键继续可用）；
 ⑦ 裁定 F′：App 基座（Fusion + 全局字体）只入 `__main__.py`，不进 apply_theme；
-⑧ 裁定 E′：theme.ICONS 30 名（T-1025 授权 +9 图标补齐）、图标状态色角色表不变；
+⑧ 裁定 E′：theme.ICONS 31 名（T-1025 授权 +9、T-1084 音律标尺 +1；计数现由 tests/_pin_baselines 集中把守）、图标状态色角色表不变；
 ⑨ 主题下拉分组：主区 3 项在前 + 「更多配色」次级区，分组标题不可选、条目零丢失。
 
 口径：全离屏；不构造主窗口、不 show、不弹模态。
@@ -31,6 +31,7 @@ pytest.importorskip("PyQt6")
 from PyQt6.QtCore import Qt  # noqa: E402
 
 from acouscope.ui import theme  # noqa: E402
+from tests._pin_baselines import ICONS_LOGICAL_NAME_COUNT  # noqa: E402
 
 _SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "acouscope"
 _THEME_PY = _SRC / "ui" / "theme.py"
@@ -269,7 +270,7 @@ def test_app_base_snippet_effective(qapp):
 # ----------------------------------------------------------------------
 
 def test_icon_layer_frozen():
-    assert len(theme.ICONS) == 30
+    assert len(theme.ICONS) == ICONS_LOGICAL_NAME_COUNT
     assert theme._ICON_STATE_ROLE == {
         "default": "text", "hover": "accent",
         "active": "accent_text", "disabled": "sub",

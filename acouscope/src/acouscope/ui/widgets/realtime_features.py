@@ -42,7 +42,6 @@ from acouscope.ui.theme import (
 )
 from acouscope.analysis.realtime_features import (
     BAND_COLORS,
-    BAND_LABELS,
     BAND_RANGES,
     ENV_ATTACK_TAU,
     ENV_RELEASE_TAU,

@@ -23,6 +23,7 @@ from acouscope.dsp.units import (
     FREQ_UNITS,
     cents_to_hz,
     convert_freq_axis,
+    get_reference_hz,
     hz_to_cents,
     hz_to_mel,
     hz_to_midi,
@@ -55,9 +56,63 @@ FREQ_AXIS_LABELS = {
     "khz": ("频率", "kHz"),
     "midi": ("MIDI 音高", None),
     "piano": ("音高（钢琴卷帘）", None),
-    "cents": ("音分（相对 A4=440Hz）", None),
+    "cents": (f"音分（相对 A4={get_reference_hz():.0f}Hz）", None),
     "mel": ("Mel 频率", None),
 }
+
+
+def rounded_end_rect(x: float, y: float, w: float, h: float, r: float,
+                     end: str = "right") -> pg.QtGui.QPainterPath:
+    """矩形**一端两角圆角**路径（对端直角）：`end` ∈ {"right","left","top","bottom"}。
+
+    T-1042b：参考图黑键「自左缘起算」/白键右端小圆角——`addRoundedRect` 会四角同圆角，
+    圆角端的对端也会被掏空（破坏贴左/贴边/贴缝），故手绘路径。竖横两键盘共用（同一取值来源）。
+    """
+    r = min(float(r), w / 2.0, h / 2.0)
+    path = pg.QtGui.QPainterPath()
+    if end == "right":
+        path.moveTo(x, y)
+        path.lineTo(x + w - r, y)
+        path.quadTo(x + w, y, x + w, y + r)
+        path.lineTo(x + w, y + h - r)
+        path.quadTo(x + w, y + h, x + w - r, y + h)
+        path.lineTo(x, y + h)
+    elif end == "left":
+        path.moveTo(x + w, y)
+        path.lineTo(x + r, y)
+        path.quadTo(x, y, x, y + r)
+        path.lineTo(x, y + h - r)
+        path.quadTo(x, y + h, x + r, y + h)
+        path.lineTo(x + w, y + h)
+    elif end == "top":
+        path.moveTo(x, y + h)
+        path.lineTo(x, y + r)
+        path.quadTo(x, y, x + r, y)
+        path.lineTo(x + w - r, y)
+        path.quadTo(x + w, y, x + w, y + r)
+        path.lineTo(x + w, y + h)
+    else:  # bottom
+        path.moveTo(x, y)
+        path.lineTo(x + w, y)
+        path.lineTo(x + w, y + h - r)
+        path.quadTo(x + w, y + h, x + w - r, y + h)
+        path.lineTo(x + r, y + h)
+        path.quadTo(x, y + h, x, y + h - r)
+        path.lineTo(x, y)
+    path.closeSubpath()
+    return path
+
+
+def make_seam_pen(pen):
+    """白键缝笔 → cosmetic（线宽按设备像素计、不随 ViewBox 缩放）。
+
+    T-1079 ①：0.15 场景单位线宽在缩小视图下不足一个设备像素、被抗锯齿吞没
+    → 白键间几乎无缝。cosmetic 后恒一设备像素，任意缩放缝可见；色值仍取
+    keys.white_seam，不在此派生暗色/回写 theme。竖横两键盘带共用。
+    """
+    pen.setCosmetic(True)
+    pen.setWidth(1)
+    return pen
 
 
 def freq_to_display(freq_hz, unit: str):
@@ -185,28 +240,43 @@ def build_freq_unit_combo(parent=None) -> QComboBox:
 class PianoKeyboardStrip(pg.PlotWidget):
     """竖排钢琴键盘条（Y=MIDI 坐标，供 Y 轴频率窗口的钢琴卷帘模式显示）。
 
-    与 FFT 频谱窗口的横排键盘同款样式（白键全宽、黑键居中偏左、
-    C4 中央 C 音名文字加粗、左轴 C 音名刻度），键位静态绘制全音域
-    (MIDI 0~127)，由 Y 轴联动裁剪到当前视图。
+    与 FFT 频谱窗口的横排键盘同款样式（T-1042b v2 定形：黑键**贴左** + 白键右端
+    **小圆角** + 键面**单套物理色**明暗同款 + 缩放只变键距键长不变）。
+    T-1042c v3：**能渲染**（隐藏音名轴 → ViewBox 占满条宽，键像素 > 0）、
+    **键床连续**（keys.white 连续铺满整条，除 1–2 像素细缝外无背景色像素）、
+    **音名落位键床内**（§2.1-②，文案沿用现有音名形态，色 keys.label）。
+    键位静态绘制全音域 (MIDI 0~127)，由 Y 轴联动裁剪到当前视图。
     """
 
-    WHITE_W = 4.0   # 白键横向宽度（本条内部 X 坐标）
-    # T-1042：黑键宽 2.36 = WHITE_W × 0.59（真实钢琴黑键宽 ∈ [0.58, 0.60] 白键宽）
-    BLACK_W = 2.36  # 黑键横向宽度
-    # T-1042：黑键居中偏左 —— (WHITE_W − BLACK_W)/2 = 0.82 为居中位，再略左移 0.12
-    # 表达真实钢琴黑键偏左（ARCH §五c-3：约 5–10%）；原 1.7 贴右侧是「歪」因。
-    BLACK_X0 = 0.70  # 黑键起点（居中偏左）
-    BLACK_H = 0.58   # 黑键纵向高（半音 × 0.58 ∈ [0.58, 0.62]）
+    WHITE_W = 4.0   # 白键横向满宽（本条内部 X 坐标；参考图 74 像素）
+    # T-1042b v2 定形（按最高指挥参考图）：
+    # 黑键**贴左**（BLACK_X0=0 零内缩）、长 = 白键满宽 × 0.46（参考图 34/74，旧 0.59 作废）、
+    # 高 = 半音 × 0.55（参考图 28/52）、上缘贴所属半音的**键缝**一侧（不再上下留半缝居中）。
+    BLACK_W = WHITE_W * 0.46   # 黑键横向长度（长比 0.46）
+    BLACK_X0 = 0.0             # 黑键起点（贴左，零内缩）
+    BLACK_H = 0.55             # 黑键纵向高（半音 × 0.55）
+    # 圆角（ARCH §五c v1.5）：白键右端 r ≈ 半音高 6–10%（取 8%）；
+    # 黑键右端 r ≈ 黑键高 15–20%（取 17%）。竖横两键盘共用此常量。
+    WHITE_KEY_R = 0.08
+    BLACK_KEY_R = BLACK_H * 0.17
+    # T-1042c：音名内嵌键床时的自由端留白（占键床宽/高的比例，竖横同源）
+    LABEL_INSET = 0.03
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._key_items: list = []
+        self._name_labels: list = []
+        self._center_c_label = None
         self.setMouseEnabled(x=False, y=False)
         self.getPlotItem().setMenuEnabled(False)
         self.setMinimumWidth(46)
         self.setMaximumWidth(62)
         self.hideAxis("right")
         self.hideAxis("top")
+        # ★ T-1042c 缺陷 A：音名轴（自然宽 ≈65 像素）此前把 62 像素条宽的 ViewBox 挤成 8 像素
+        # → 键面被裁到部件外，一个键像素都画不出来。现隐藏音名轴，音名改画进键床内
+        # （§2.1-②，与参考图一致）→ ViewBox 占满条宽，键面真被绘制（实测见报告）。
+        self.hideAxis("left")
         self.setContentsMargins(0, 0, 0, 0)
         self.getAxis("left").setStyle(tickTextOffset=2, tickLength=4)
         self.enableAutoRange(x=False, y=False)
@@ -216,46 +286,42 @@ class PianoKeyboardStrip(pg.PlotWidget):
         self.getAxis("bottom").setStyle(showValues=False)
         self.getAxis("bottom").setTicks([])
 
-        from acouscope.dsp.units import midi_note_name
-
-        # 左轴 C 音名刻度（静态全音域，超出视图自动裁剪）
-        ticks = []
-        for midi in range(0, 128, 12):
-            label = midi_note_name(midi)
-            if midi == 60:
-                label = "C4(中央C)"
-            ticks.append((float(midi), label))
-        self.getAxis("left").setTicks([ticks])
-
-        # 中央 C 文字强调（T-1042）：原「金色描边框」已废除（违 §2.1-3 反馈色当装饰），
-        # 改为在中央 C 键上叠一个**加粗**音名标签（复用 note_name_ticks 文案），不用任何语义色。
-        from PyQt6.QtGui import QFont
-
-        cfont = QFont()
-        cfont.setBold(True)
-        self._center_c_label = pg.TextItem(
-            "C4(中央C)", color=theme.colors()["text_sub"],
-            anchor=(1.0, 0.5), border=None, fill=None,
-        )
-        self._center_c_label.textItem.setFont(cfont)
-        self._center_c_label.setPos(self.WHITE_W, 60.0)
-        self.addItem(self._center_c_label)
-
         theme.on_theme_change(self._on_canvas_theme)
         self._on_canvas_theme()
 
     def _on_canvas_theme(self) -> None:
-        """主题切换：重设键盘带底色/轴色并重建键面（键色随主题令牌）。"""
+        """主题切换：重设键盘带底色/轴色并重建键面（键色单套物理色，不随骨架变）。"""
         _apply_canvas_theme(self, "bg2")
-        self._center_c_label.setColor(theme.colors()["text_sub"])
         self._build_keys()
 
-    def _build_keys(self) -> None:
-        """按当前主题令牌重建 128 键键面（T-1042：分层明度 + 去强描边 + 去金色 + 黑键圆角）。
+    @staticmethod
+    def _name_fonts() -> tuple:
+        """键床内音名文字字体（字号取 typography 令牌，唯一源在 theme.py）。"""
+        from PyQt6.QtGui import QFont
 
-        分层顺序：先铺整条键带底（keys.strip，比黑键更暗让键「浮」出），
-        再叠白键面（keys.white + keys.white_seam 极细分隔，禁亮于键面的描边），
-        再叠黑键（keys.black，圆角、无描边）。中央 C 与其它白键同色（去金色）。
+        base = QFont()
+        base.setPixelSize(theme.TOKENS["typography"]["caption_sm"])
+        bold = QFont(base)
+        bold.setBold(True)
+        return base, bold
+
+    @staticmethod
+    def note_label(midi: int) -> str:
+        """音名文案（沿用现有音名形态；中央 C 仍为「C4(中央C)」）。"""
+        from acouscope.dsp.units import midi_note_name
+
+        return "C4(中央C)" if midi == 60 else midi_note_name(midi)
+
+    def _build_keys(self) -> None:
+        """重建 128 键键面（T-1042c v3：键床连续 + 音名落位键床内）。
+
+        分层顺序（自下而上）：
+        ① 键带底（随骨架 bg2，仅作底板，z=-20）；
+        ② ★ 键床底 keys.white **连续铺满整条**（ARCH §五c v1.6 §3-ter-1，z=-10）
+           ——除白键细缝外键床内不得出现任何背景色像素；
+        ③ 白键面（keys.white + keys.white_seam 1–2 像素细缝，右端小圆角，z=0）；
+        ④ 黑键（keys.black，贴左 x=0、长 0.46、半音向 0.55、右端圆角，无描边，z=20）；
+        ⑤ 音名（keys.label，画进键床内，z=30）：中央 C「C4(中央C)」加粗。
         """
         from acouscope.dsp.units import midi_is_black_key, midi_is_white_key
 
@@ -264,14 +330,16 @@ class PianoKeyboardStrip(pg.PlotWidget):
         self._key_items = []
 
         faces = theme.key_faces()
-        strip_brush = pg.mkBrush(faces["strip"])
+        # 键带底/gutter 随骨架 bg2（ARCH §五c v1.5：仅作底板，不参与视觉分层）
+        strip_brush = pg.mkBrush(theme.colors()["bg2"])
         white_brush = pg.mkBrush(faces["white"])
         # 白键间分隔：用 keys.white_seam（比白键暗），禁 border（壳色，会亮于键面 → 「格子纸」）
-        seam_pen = pg.mkPen(faces["white_seam"], width=0.15)
+        # T-1079 ①：cosmetic 设备像素宽，任意缩放缝可见（0.15 场景单位缩小下被 AA 吞没）
+        seam_pen = make_seam_pen(pg.mkPen(faces["white_seam"], width=0.15))
         black_brush = pg.mkBrush(faces["black"])
         no_pen = pg.mkPen(None)
 
-        # ① 键带底：铺满整条的底（gutter），比黑键更暗
+        # ① 键带底：铺满整条的底（gutter），随骨架 bg2
         strip = pg.QtWidgets.QGraphicsRectItem(0, -0.5, self.WHITE_W, 128.0)
         strip.setBrush(strip_brush)
         strip.setPen(no_pen)
@@ -279,24 +347,32 @@ class PianoKeyboardStrip(pg.PlotWidget):
         self.addItem(strip)
         self._key_items.append(strip)
 
-        # ② 白键（全宽、直角；真实白键为直角不加圆角）
+        # ② 键床底：keys.white 连续铺满整条（T-1042c §3-ter-1）——白键不再画成互不接触的块
+        bed = pg.QtWidgets.QGraphicsRectItem(0, -0.5, self.WHITE_W, 128.0)
+        bed.setBrush(white_brush)
+        bed.setPen(no_pen)
+        bed.setZValue(-10)
+        self.addItem(bed)
+        self._key_items.append(bed)
+
+        # ③ 白键（全宽、右端小圆角 r ≈ 半音高 8%；左端直角贴边；描边即白键间细缝）
         for midi in range(128):
             if midi_is_white_key(midi):
-                rect = pg.QtWidgets.QGraphicsRectItem(0, midi - 0.5, self.WHITE_W, 1.0)
-                rect.setBrush(white_brush)
-                rect.setPen(seam_pen)
-                self.addItem(rect)
-                self._key_items.append(rect)
+                path = rounded_end_rect(
+                    0, midi - 0.5, self.WHITE_W, 1.0, self.WHITE_KEY_R, end="right",
+                )
+                item = pg.QtWidgets.QGraphicsPathItem(path)
+                item.setBrush(white_brush)
+                item.setPen(seam_pen)
+                self.addItem(item)
+                self._key_items.append(item)
 
-        # ③ 黑键（居中偏左、较窄、顶层、圆角、无描边）
-        radius = self.BLACK_W * 0.17  # 圆角 ≈ 黑键宽 17%（ARCH §五c 建议 15–20%）
+        # ④ 黑键（贴左、上缘贴缝、右端圆角、顶层、无描边）
         for midi in range(128):
             if midi_is_black_key(midi):
-                path = pg.QtGui.QPainterPath()
-                half = self.BLACK_H / 2.0
-                path.addRoundedRect(
-                    self.BLACK_X0, midi - half, self.BLACK_W, self.BLACK_H,
-                    radius, radius,
+                path = rounded_end_rect(
+                    self.BLACK_X0, midi + 0.5 - self.BLACK_H,
+                    self.BLACK_W, self.BLACK_H, self.BLACK_KEY_R, end="right",
                 )
                 item = pg.QtWidgets.QGraphicsPathItem(path)
                 item.setBrush(black_brush)
@@ -304,6 +380,24 @@ class PianoKeyboardStrip(pg.PlotWidget):
                 item.setZValue(20)
                 self.addItem(item)
                 self._key_items.append(item)
+
+        # ⑤ 音名画进键床内（T-1042c §2.1-②）：右端对齐键床自由端，色取 keys.label
+        base_font, bold_font = self._name_fonts()
+        self._name_labels = []
+        self._center_c_label = None
+        for midi in range(0, 128, 12):
+            is_center = midi == 60
+            txt = pg.TextItem(
+                self.note_label(midi), color=faces["label"],
+                anchor=(1.0, 0.5), border=None, fill=None,
+            )
+            txt.textItem.setFont(bold_font if is_center else base_font)
+            txt.setPos(self.WHITE_W - self.LABEL_INSET * self.WHITE_W, float(midi))
+            txt.setZValue(30)
+            self.addItem(txt)
+            self._name_labels.append(txt)
+            if is_center:
+                self._center_c_label = txt
 
     def follow(self, host_plot_widget) -> None:
         """让键盘条精确跟随宿主图的 Y 轴范围。

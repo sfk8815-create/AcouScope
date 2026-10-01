@@ -162,6 +162,8 @@ class Settings:
     chart_designer_grid: bool = True  # 图表网格显隐
     chart_designer_figsize_w: float = 0.0  # 画幅宽（英寸）；0.0 = 用期刊模板值
     chart_designer_figsize_h: float = 0.0  # 画幅高（英寸）；0.0 = 用期刊模板值
+    # T-1046 P3：图表样式预设（全局层；键 = 预设名，值 = params() 快照）。缺键兜底空 dict。
+    chart_style_presets: dict[str, dict] = field(default_factory=dict)
     # T-921：A4 参考频率（Hz），影响音分/音名换算；默认 440.0（行为与改动前一致）
     reference_hz: float = 440.0
     # T-1005：多轨差异报警阈值（cents）——轨间差异**报警线**，非测量精度承诺；

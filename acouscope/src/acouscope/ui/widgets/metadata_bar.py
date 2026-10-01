@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 
 def _fmt_size(nbytes: int) -> str:

@@ -23,7 +23,7 @@ import pytest
 
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtWidgets import QApplication, QWidget  # noqa: E402
+from PyQt6.QtWidgets import QWidget  # noqa: E402
 
 from acouscope.ui.widgets.statusbar_segments import StatusBarSegments  # noqa: E402
 
@@ -84,6 +84,109 @@ def test_pitch_overlay_show_and_clear_via_hover(qapp):
     w._hover_clear()
     assert w._hover_overlay.isHidden() is True
     assert got == [None]
+
+
+# ----------------------------------------------------------------------
+# A4-R1：音高视图 A4 口径（参考线 / 标签 / 游标 / 悬停音分读当前 A4）
+# ----------------------------------------------------------------------
+
+def test_pitch_ref_line_and_label_follow_current_a4(qapp, monkeypatch):
+    """A4=442：参考线 y==freq_to_display(442)，标签含 442 且不含 440（反对照）。"""
+    from acouscope.dsp import units
+    from acouscope.ui.widgets.freq_axis import freq_to_display
+    from acouscope.ui.widgets.pitch import PitchContourWidget
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    w = PitchContourWidget()
+    times = np.arange(20, dtype=np.float64) * 0.02
+    f0 = np.zeros(20)
+    f0[5] = 440.0
+    w.set_data(times, f0)
+    assert w.ref_line.value() == pytest.approx(freq_to_display(442.0, "hz"))
+    assert "442" in w.ref_label.toPlainText(), w.ref_label.toPlainText()
+    assert "440" not in w.ref_label.toPlainText(), w.ref_label.toPlainText()  # ★ 仍写死 440 则必红
+
+
+def test_pitch_cursor_and_hover_cents_follow_current_a4(qapp, monkeypatch):
+    """A4=442：游标/悬停音分 == units.hz_to_cents（仍按 440 算则 ≈+8 必红）。"""
+    from acouscope.dsp import units
+    from acouscope.ui.widgets.pitch import PitchContourWidget
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    w = PitchContourWidget()
+    times = np.arange(20, dtype=np.float64) * 0.02
+    f0 = np.zeros(20)
+    f0[6] = 442.0  # t=0.12 唯一 voiced
+    w.set_data(times, f0)
+    w._on_cursor_moved()  # 游标默认在 t=0.2 → 最近 voiced f=442
+    assert w.lbl_cents.text() == "音分: +0 cents", w.lbl_cents.text()  # ★ 反对照
+    text = w.hover_readout_at(0.123, 442.0)
+    assert f"{float(units.hz_to_cents(442.0)):+.1f} cents" in text, text
+    assert "+0.0 cents" in text, text  # ★ 仍按 440 算（+7.8）则必红
+
+
+def test_pitch_default_a4_unchanged(qapp, monkeypatch):
+    """A4=440（默认）：参考线/标签/游标/悬停逐字逐位不变。"""
+    from acouscope.dsp import units
+    from acouscope.ui.widgets.freq_axis import freq_to_display
+    from acouscope.ui.widgets.pitch import PitchContourWidget
+
+    monkeypatch.setattr(units, "_reference_hz", 440.0)
+    w = PitchContourWidget()
+    times = np.arange(20, dtype=np.float64) * 0.02
+    f0 = np.zeros(20)
+    f0[5] = 440.0
+    f0[6] = 442.0
+    w.set_data(times, f0)
+    assert w.ref_line.value() == pytest.approx(freq_to_display(440.0, "hz"))
+    assert w.ref_label.toPlainText() == "A4 (440 Hz)", w.ref_label.toPlainText()  # 逐字不变
+    w._on_cursor_moved()  # 最近 voiced f=442 → +7.85 → "+8"
+    assert w.lbl_cents.text() == "音分: +8 cents", w.lbl_cents.text()
+    text = w.hover_readout_at(0.123, 550.0)
+    cents = 1200.0 * math.log2(550.0 / 440.0)
+    assert f"{cents:+.1f} cents" in text, text  # ≈ +386.3，与既有用例同口径
+
+
+# ----------------------------------------------------------------------
+# A4-R2：共振峰 / 语谱图 悬停音分读当前 A4（照 R1 形态）
+# ----------------------------------------------------------------------
+
+def test_formant_hover_cents_follow_current_a4(qapp, monkeypatch):
+    """A4=442：共振峰悬停音分 == units.hz_to_cents（仍按 440 算则 +386.3 必红）。"""
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    w = _formant_widget(qapp)
+    text = w.hover_readout_at(0.077, 550.0)
+    assert f"{float(units.hz_to_cents(550.0)):+.1f} cents" in text, text
+    assert "+378.5 cents" in text, text  # ★ 反对照：仍按 440 算（+386.3）则必红
+    assert "+386.3 cents" not in text, text
+
+
+def test_spec_hover_cents_follow_current_a4(qapp, monkeypatch):
+    """A4=442：语谱图悬停音分 == units.hz_to_cents（仍按 440 算则 -165.0 必红）。"""
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    w = _spec_widget(qapp)
+    text = w.hover_readout_at(0.03, 400.0)
+    assert f"{float(units.hz_to_cents(400.0)):+.1f} cents" in text, text
+    assert "-172.9 cents" in text, text  # ★ 反对照：仍按 440 算（-165.0）则必红
+    assert "-165.0 cents" not in text, text
+    assert "-12.0 dB" in text, text  # 其余字段不变
+
+
+def test_formant_spec_default_a4_unchanged(qapp, monkeypatch):
+    """A4=440（默认）：共振峰/语谱图悬停读数逐字逐位不变。"""
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 440.0)
+    fm = _formant_widget(qapp)
+    text = fm.hover_readout_at(0.077, 550.0)
+    assert "t=0.077s | 550.0 Hz | +386.3 cents" == text, text  # 与既有用例逐字同
+    sp = _spec_widget(qapp)
+    text = sp.hover_readout_at(0.03, 400.0)
+    assert "t=0.030s | 400.0 Hz | -165.0 cents | -12.0 dB" == text, text
 
 
 def test_pitch_measure_markers_show_and_clear(qapp):
@@ -417,4 +520,96 @@ def test_hover_leave_restores_measure_text(window, monkeypatch):
     window._on_measure_clear()
     window._on_view_hover_readout(None)
     assert _status_text(window) == ""
+
+
+# ----------------------------------------------------------------------
+# A4-R3：频谱「音符」读数统一基准 + 区间统计 cent 均值读当前 A4
+# ----------------------------------------------------------------------
+
+def _spectrum_note_text(qapp, freq_hz):
+    """频谱游标信息栏的「音符:」读数文本（默认 piano 单位：x 即 Hz）。"""
+    from acouscope.ui.widgets.spectrum import SpectrumWidget
+
+    w = SpectrumWidget()
+    try:
+        freqs = np.linspace(0.0, 8000.0, 513)
+        w.set_data(freqs, np.zeros_like(freqs), sample_rate=16000.0)
+        w.v_line.setValue(w._hz_to_display_x(float(freq_hz)))
+        w._on_cursor_moved()
+        return w.lbl_note.text()
+    finally:
+        w.close()
+
+
+def test_spectrum_note_readout_single_reference_at_442(qapp, monkeypatch):
+    """A4=442：550Hz 音符读数音名与音分同基准（音分仍按 440 算则 -14 必红）。"""
+    from acouscope.dsp import units
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    text = _spectrum_note_text(qapp, 550.0)
+    assert "音符: C#5 (-22 音分)" in text, text  # ★ 442 口径（音名 C#5 亦按 442 取整）
+    assert "(-14 音分)" not in text, text  # ★ 反对照：音分仍写死 440 则必红
+    # 动态交叉验证：音分 == 相对"按当前 A4 取整半音"的偏差
+    midi_round = round(float(units.hz_to_midi(550.0)))
+    cents = float(units.hz_to_cents(550.0)) - float(
+        units.hz_to_cents(units.midi_to_hz(midi_round)))
+    assert f"({cents:+.0f} 音分)" in text, text
+
+
+def test_region_cent_mean_follows_current_a4(monkeypatch):
+    """A4=442：pitch_stats.cent_mean == hz_to_cents(550)（写死 440 则 386.31 必红）。"""
+    from acouscope.dsp import units
+    from acouscope.ui.region_stats import pitch_stats
+
+    monkeypatch.setattr(units, "_reference_hz", 442.0)
+    times = np.array([0.0, 0.02, 0.04])
+    f0 = np.array([550.0, 550.0, 0.0])
+    st = pitch_stats(times, f0, 0.0, 0.04)
+    assert st["cent_mean"] == pytest.approx(float(units.hz_to_cents(550.0)))
+    assert st["cent_mean"] == pytest.approx(378.4623, abs=1e-3)  # ★ 442 口径
+    assert abs(st["cent_mean"] - 386.3137) > 0.5  # ★ 反对照：仍写死 440 则必红
+
+
+def test_spectrum_note_and_region_default_a4_unchanged(qapp, monkeypatch):
+    """A4=440（默认）：音符读数与 cent 均值逐字/逐位不变。"""
+    from acouscope.dsp import units
+    from acouscope.ui.region_stats import pitch_stats
+
+    monkeypatch.setattr(units, "_reference_hz", 440.0)
+    assert _spectrum_note_text(qapp, 550.0) == "音符: C#5 (-14 音分)"  # 逐字不变
+    times = np.array([0.0, 0.02])
+    f0 = np.array([550.0, 550.0])
+    st = pitch_stats(times, f0, 0.0, 0.02)
+    assert st["cent_mean"] == pytest.approx(386.3137138648348)  # 逐位不变
+
+
+# ----------------------------------------------------------------------
+# A4-R4：两处文案去写死 440（静态断言 + 反向防退化）
+# ----------------------------------------------------------------------
+
+def test_a4r4_freq_units_cents_tip_and_menu_refline_have_no_440():
+    """★ 静态断言（主判据）：cents 提示与 menu_refline 三语值均不含字面 440。"""
+    from acouscope.dsp.units import FREQ_UNITS
+    from acouscope.i18n import _STRINGS
+
+    cents_tip = next(tip for label, key, tip in FREQ_UNITS if key == "cents")
+    assert "440" not in cents_tip, cents_tip
+    entry = _STRINGS["pitch.menu_refline"]
+    for lang in ("en_US", "zh_CN", "zh_TW"):
+        assert "440" not in entry[lang], (lang, entry[lang])
+
+
+def test_a4r4_reverse_no_structural_regression():
+    """★ 反向（防退化）：FREQ_UNITS 仍含 cents 键且仍 6 项；menu_refline 三语齐、键名未变。"""
+    from acouscope.dsp.units import FREQ_UNITS
+    from acouscope.i18n import _STRINGS
+
+    assert len(FREQ_UNITS) == 6
+    assert any(key == "cents" for _label, key, _tip in FREQ_UNITS)
+    assert "pitch.menu_refline" in _STRINGS
+    entry = _STRINGS["pitch.menu_refline"]
+    assert set(entry) == {"en_US", "zh_CN", "zh_TW"}
+    for lang in ("en_US", "zh_CN", "zh_TW"):
+        assert entry[lang], (lang, entry[lang])
+
 

@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, QRect, QRectF, Qt
+from PyQt6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import QSplitter, QSplitterHandle
 
@@ -133,13 +133,15 @@ class _ToggleHandle(QSplitterHandle):
         if event.button() == Qt.MouseButton.LeftButton:
             self._press_pos = event.position().toPoint()
             self._dragged = False
+            sp = self.splitter()
+            if isinstance(sp, _ToggleSplitter):
+                sp.begin_drag()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802
         if self._press_pos is not None:
             self._dragged = True
         new_y = int(event.position().y())
-        # 重绘最小化：仅悬停且 Y 变化时 update(旧∪新包围盒)，禁整块重绘（§五.3）
         if self._hover and (self._cursor_y is None or new_y != self._cursor_y):
             old = self._grip_rect(self._cursor_y)
             self._cursor_y = new_y
@@ -151,6 +153,17 @@ class _ToggleHandle(QSplitterHandle):
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         self._press_pos = None
         self._dragged = False
+        sp = self.splitter()
+        if isinstance(sp, _ToggleSplitter):
+            sp.end_drag()
+        # IM-29（T-1079 补完）：拖拽期 handle 持隐式 grab，leaveEvent 被抑制 ⇒
+        # 释放后 _hover/_cursor_y 可能残留。释放后 grab 已解除，underMouse() 此时
+        # 可靠反映光标实际位置；光标不在即复位状态源。无论光标在哪都强制全框重绘，
+        # 防止 backing store 残留旧描边像素。
+        if not self.underMouse():
+            self._hover = False
+            self._cursor_y = None
+        self.update(self.rect())
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
@@ -167,16 +180,22 @@ class _ToggleHandle(QSplitterHandle):
     # -- 自绘：1px 居中竖线 + 悬停抓手（描边） --
     def paintEvent(self, event) -> None:  # noqa: N802
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         c = theme.colors()
+        # T-1079 ③：先清底铺满本帧脏区——部分 update（旧∪新包围盒）下不清底，
+        # 会把前次悬停位的描边像素留在 backing store 里 = 残影。底色取窗底 bg0（pane 同色）。
+        painter.fillRect(self.rect(), QColor(c["bg0"]))
         h = self.height()
         cx = self.width() / 2.0
-        # R1：默认只画 1px 居中竖线（border）；未画线区域透明（露出 pane 底色）
+        # R1：默认只画 1px 居中竖线（border）。T-1079 ③：画在像素中心 + 关抗锯齿——
+        # 分数坐标 + AA 会把 1px 摊成两列半覆盖，观感误读为「竖虚线」。
+        lx = float(self.width() // 2) + 0.5
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
         painter.setPen(QPen(QColor(c["border"]), 1.0))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawLine(QPointF(cx, 0.0), QPointF(cx, float(h)))
+        painter.drawLine(QPointF(lx, 0.0), QPointF(lx, float(h)))
         # R6：拖拽中隐藏抓手；R2：悬停时在光标 Y 处浮现（未收到 move 取中线 H/2）
         if self._hover and not self._dragged:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             cy = self._cursor_y if self._cursor_y is not None else h / 2.0
             self._draw_grip(painter, c, cx, self._clamp_y(cy, h))
         painter.end()
@@ -210,11 +229,17 @@ class _ToggleHandle(QSplitterHandle):
 
 
 class _ToggleSplitter(QSplitter):
-    """三栏工作区水平 QSplitter：handle 承载边缘三角（见 _ToggleHandle）。"""
+    """三栏工作区水平 QSplitter：handle 承载边缘三角（见 _ToggleHandle）。
+
+    IM-30 修复：拖拽期间临时把中央 stretch 置 0，使 QSplitter 按光标位直接分配
+    相邻两栏宽度（不被 stretch 拉偏）；释放后恢复 stretch(1,1) 让中央吸收窗口
+    缩放富余。
+    """
 
     def __init__(self, orientation, parent=None):
         super().__init__(orientation, parent)
         self._side_panels: dict[int, PanelContainer] = {}
+        self._dragging = False
 
     def register_side(self, index: int, panel: PanelContainer) -> None:
         """登记 handle index 对应的侧栏面板（0=左栏，1=右栏）。"""
@@ -227,7 +252,6 @@ class _ToggleSplitter(QSplitter):
             return None
         hw = self.handleWidth()
         cx = handle.x() + handle.width() / 2.0
-        # handle0 区间中心 ≈ sizes[0]+hw/2；handle1 ≈ sizes[0]+hw+sizes[1]+hw/2
         tol = max(float(hw), 1.0)
         b0 = sizes[0] + hw / 2.0
         if abs(cx - b0) <= tol:
@@ -242,6 +266,18 @@ class _ToggleSplitter(QSplitter):
         panel = self._side_panels.get(index)
         if panel is not None:
             panel.toggle()
+
+    def begin_drag(self) -> None:
+        """handle 按下时调用：暂停中央 stretch 使拖拽直接跟光标。"""
+        if not self._dragging:
+            self._dragging = True
+            self.setStretchFactor(1, 0)
+
+    def end_drag(self) -> None:
+        """handle 释放时调用：恢复中央 stretch 吸收窗口缩放富余。"""
+        if self._dragging:
+            self._dragging = False
+            self.setStretchFactor(1, 1)
 
     def createHandle(self):  # noqa: N802  (override QSplitter, PyQt6 无参)
         return _ToggleHandle(self)
@@ -342,6 +378,10 @@ def build_workspace_splitter(center_widget) -> dict:
     sp.addWidget(right)
     sp.register_side(0, left)
     sp.register_side(1, right)
+    # T-1093 B-2：中央画布吸收全部富余宽（左右栏 stretch 0）。不设本行时
+    # QSplitter 把窗口增减的宽度按比例摊给三栏，中央画布被侧栏牵动（配合
+    # 全铺页 min 传播即观感为「拖一下整窗抖」）。
+    sp.setStretchFactor(1, 1)
 
     # 未布局时 QSplitter 默认宽 640，setSizes 按当前宽做最小值感知分配；
     # 先按参考总宽（+2×手柄）建立基准宽（测试/恢复口径：resize 基准宽 +
@@ -375,6 +415,24 @@ def fit_panel_width(panel: PanelContainer) -> None:
         _expand_slot(panel)
     except Exception:  # noqa: BLE001 — 布局操作永不抛
         pass
+
+
+def make_layout_save_timer(parent, save_fn, msec: int = 150) -> QTimer:
+    """布局落盘「尾部合并」定时器（T-1093 B-2 次要项·拖拽卡顿）。
+
+    `splitterMoved` 在 opaque 拖拽下逐像素发射，直连 `save_workspace` 即逐像素
+    json.dump（GUI 线程磁盘 IO）。本工厂给出一个单发定时器：接线层把
+    `splitterMoved` 接到 `timer.start()`，一段拖拽停手 msec 后才落盘一次；
+    调用方在退出前 `stop()` + 直接 `save_fn()` 补存，即不丢末次布局。
+
+    定时器以 `parent`（主窗）为父 ⇒ 随窗体析构，无悬垂回调。落盘本体仍是同步
+    的 `save_workspace`（其语义一字未改，PI-T84 N-6）。
+    """
+    timer = QTimer(parent)
+    timer.setSingleShot(True)
+    timer.setInterval(max(1, int(msec)))
+    timer.timeout.connect(save_fn)
+    return timer
 
 
 def save_workspace(ws: dict, path=None) -> None:

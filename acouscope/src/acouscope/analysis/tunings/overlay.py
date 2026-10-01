@@ -12,9 +12,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ...dsp.units import get_reference_hz
+from ...dsp.units import get_reference_hz, hz_to_cents
+from .tuning_system import OCTAVE_CENTS
 
-__all__ = ["OverlayLine", "build_overlay_lines"]
+__all__ = ["OverlayLine", "build_overlay_lines", "build_band_overlay_lines"]
 
 
 @dataclass(frozen=True)
@@ -86,4 +87,81 @@ def build_overlay_lines(
             )
     except Exception:
         return []  # 任何异常口径（未知 tuning/坏 degrees）→ 空列表，绝不外抛
+    return lines
+
+
+def build_band_overlay_lines(
+    tuning,
+    *,
+    min_hz: float,
+    max_hz: float,
+    ref_hz: float | None = None,
+) -> list[OverlayLine]:
+    """按**频带**把律级线逐八度密铺（T-1089 N-D）。
+
+    与 :func:`build_overlay_lines` 的分工：后者只在 1/1 所在的那一个八度内出一线
+    （12TET 12 条、22 shruti 22 条），故 208–237 Hz 这类不含主音八度的可见频带内
+    **一条都没有**；本函数把同一批音级沿八度外推到整个可见频带，供对比呈现画律级格线。
+
+    口径（与 ``TuningSystem`` 既有外推语义逐字一致，不另立算法）：
+    - 逐八度取 ``degree_to_cents(octave * degree_count + index)`` 与 ``degree_to_freq``
+      （即复用 :meth:`TuningSystem.degree_to_cents` 的八度折叠外推，含负音级）；
+    - 同频去重（等八度音律的八度边界 2/1 与下一八度 1/1 同频，只留一条）；
+    - ``min_hz``/``max_hz`` 为闭区间裁剪，结果按频率升序；
+    - 空/未知 tuning、非法频率、非有限值 → 返回空列表，绝不抛异常。
+    """
+    if tuning is None:
+        return []
+    degrees = getattr(tuning, "degrees", None)
+    degree_to_freq = getattr(tuning, "degree_to_freq", None)
+    degree_to_cents = getattr(tuning, "degree_to_cents", None)
+    if not degrees or not callable(degree_to_freq) or not callable(degree_to_cents):
+        return []
+    try:
+        reference = float(get_reference_hz() if ref_hz is None else ref_hz)
+        low = float(min_hz)
+        high = float(max_hz)
+    except (TypeError, ValueError):
+        return []
+    if not all(math.isfinite(value) and value > 0.0
+               for value in (reference, low, high)):
+        return []
+    if high < low:
+        low, high = high, low
+    try:
+        cents_from = float(hz_to_cents(low, ref_freq=reference))
+        cents_to = float(hz_to_cents(high, ref_freq=reference))
+    except (TypeError, ValueError):
+        return []
+    if not (math.isfinite(cents_from) and math.isfinite(cents_to)):
+        return []
+    if cents_to < cents_from:
+        cents_from, cents_to = cents_to, cents_from
+    try:
+        count = len(degrees) - 1                      # 音级数（1/1 之外）
+        first_octave = math.floor(cents_from / OCTAVE_CENTS) - 1
+        last_octave = math.ceil(cents_to / OCTAVE_CENTS) + 1
+        lines: list[OverlayLine] = []
+        seen: set[float] = set()
+        for octave in range(first_octave, last_octave + 1):
+            for index in range(count + 1):
+                degree = octave * max(count, 1) + index
+                cents = float(degree_to_cents(degree))
+                if cents < cents_from - 1e-6 or cents > cents_to + 1e-6:
+                    continue
+                freq_hz = float(degree_to_freq(degree, ref=reference))
+                if not math.isfinite(freq_hz) or freq_hz <= 0.0:
+                    continue
+                if low - 1e-6 > freq_hz or freq_hz > high + 1e-6:
+                    continue
+                key = round(freq_hz, 6)
+                if key in seen:
+                    continue                           # 八度边界同频（2/1 ≡ 下一八度 1/1）
+                seen.add(key)
+                lines.append(
+                    OverlayLine(cents=cents, freq_hz=freq_hz, degree=degree)
+                )
+    except Exception:
+        return []
+    lines.sort(key=lambda line: line.freq_hz)
     return lines

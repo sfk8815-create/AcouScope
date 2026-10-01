@@ -30,6 +30,12 @@ from acouscope.ui.main_window import (
     _header_icon_button,
     _panel_toggle_button,
 )
+from tests._pin_baselines import (
+    ICONS_LOGICAL_NAME_COUNT,
+    MAINWINDOW_QDIALOG_COUNT,
+    MAINWINDOW_QTHREAD_COUNT,
+    MAINWINDOW_QTIMER_COUNT,
+)
 
 _SRC = Path(__file__).resolve().parents[1] / "src" / "acouscope"
 _MW_PY = _SRC / "ui" / "main_window.py"
@@ -205,7 +211,7 @@ def test_left_header_entries_share_ribbon_toggle_group(window):
 def test_sidebar_icons_registered_and_assets_complete(qapp):
     assert theme.ICONS["sidebar_left"] == "generic/sidebar-left.svg"
     assert theme.ICONS["sidebar_right"] == "generic/sidebar-right.svg"
-    assert len(theme.ICONS) == 30
+    assert len(theme.ICONS) == ICONS_LOGICAL_NAME_COUNT
     for style in ("generic", "macos", "win", "mint"):
         for filename in ("sidebar-left.svg", "sidebar-right.svg"):
             assert (_ICON_ROOT / style / filename).exists(), f"{style}/{filename} 缺失"
@@ -235,10 +241,10 @@ def test_new_chrome_segments_have_no_dialog_thread_timer_or_hex_px(window):
         assert "bg0" in inspect.getsource(fn), f"{fn} 未走内凹（bg0）令牌"
 
     src = _MW_PY.read_text(encoding="utf-8")
-    # 基线（T-1048 开工实读）：QDialog( = 0 / QThread( = 0 / QTimer( = 7（均非本任务新增）
-    assert src.count("QDialog(") == 0
-    assert src.count("QThread(") == 0
-    assert src.count("QTimer(") == 7
+    # 基线（T-1048 开工实读·T-1088 同步）：QDialog( = 0 / QThread( = 0 / QTimer( = 8（T-1086 _mt_play_timer +1）
+    assert src.count("QDialog(") == MAINWINDOW_QDIALOG_COUNT
+    assert src.count("QThread(") == MAINWINDOW_QTHREAD_COUNT
+    assert src.count("QTimer(") == MAINWINDOW_QTIMER_COUNT
 
     for method in (MainWindow._create_toolbar, MainWindow._build_side_tabs):
         text = inspect.getsource(method)

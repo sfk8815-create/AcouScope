@@ -15,8 +15,10 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt, QTimer, QObject, QThread, pyqtSignal
-from PyQt6.QtGui import QKeySequence
+from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
 from PyQt6.QtWidgets import (
+    QButtonGroup,
+    QGridLayout,
     QVBoxLayout,
     QHBoxLayout,
     QFormLayout,
@@ -40,6 +42,7 @@ from PyQt6.QtWidgets import (
 
 from acouscope.ai.interpreter import PROVIDERS
 from acouscope.i18n import tr, available_languages
+from acouscope.ui import theme
 from acouscope.ui.widgets.toast import show_toast
 
 # 与 exporters.FigureExporter.SUPPORTED_FORMATS 对齐
@@ -51,6 +54,9 @@ FORMATS = [
 ]
 
 DPI_OPTIONS = [150, 300, 600, 1200]
+
+# T-1047：A4 快捷基准 chip 预设（Hz；数值即载荷 → 无需 i18n 文案）
+_A4_PRESETS = (415.0, 432.0, 440.0, 442.0)
 
 # T-320：云端档厂商（Cherry Studio「模型服务商」范式：预置厂商 + OpenAI 兼容兜底）
 _CLOUD_VENDOR_IDS = ("deepseek", "qwen", "openai", "zhipu", "custom")
@@ -73,6 +79,336 @@ _OLD_CLOUD_PROVIDERS = {
     "qwen", "zhipu", "siliconflow", "openrouter", "groq", "together",
     "xai", "custom",
 }
+
+
+# ----------------------------------------------------------------------
+# T-1047 参数控件规范构件（ARCH §五-7 三段式 / §五-8 范围可见性 /
+# §五-4 状态点 / §六-11 chip 激活态 / §四 数值等宽与数值层级）。
+# 尺寸与透明度唯一源 = theme.TOKENS["param"]；色值一律取 theme.colors() 或
+# theme.TOKENS["semantic"]（本文件内 hex / 字面 px = 0）。
+# 说明：本单授权面未含新源文件，构件落于本文件（主战场），检视器按同套规范复用。
+# ----------------------------------------------------------------------
+
+# 数值与单位之间的窄不换行空格（ARCH §四「单位与数值间」）
+NBSP_THIN = "\u202f"
+
+
+def _param_qss(c: dict) -> str:
+    """参数构件样式：名称（text）/ 单位与说明（text_sub）/ 读数框（等宽 text）。"""
+    ty = theme.TOKENS["typography"]
+    rm = theme.TOKENS["radius"]
+    el = theme.TOKENS["elevation"]
+    prm = theme.TOKENS["param"]
+    return (
+        "QLabel#paramName {"
+        f"  color: {c['text']};"
+        f"  font-size: {ty['body_sm']}px;"
+        "}"
+        "QLabel#paramUnit, QLabel#paramReadoutName {"
+        f"  color: {c['sub']};"
+        f"  font-size: {ty['caption']}px;"
+        "}"
+        "QLabel#paramReadoutValue {"
+        f"  color: {c['text']};"
+        f"  font-family: {ty['mono']};"
+        f"  font-size: {ty['caption']}px;"
+        f"  background: {c['bg2']};"
+        f"  border: {el['border']}px solid {c['border']};"
+        f"  border-radius: {rm['sm']}px;"
+        f"  padding: {prm['box_pad_y']}px {prm['box_pad_x']}px;"
+        "}"
+    )
+
+
+class LedDot(QWidget):
+    """状态点（LED 式 · ARCH §五-4）：小圆点 + 令牌色；禁发光/渐变/动画。"""
+
+    _STATE_ROLE = {
+        "ready": "success", "on": "success", "warn": "warning",
+        "error": "error", "off": "text_faint",
+    }
+
+    def __init__(self, state: str = "off", parent=None):
+        super().__init__(parent)
+        self.setObjectName("paramLedDot")
+        dot = theme.TOKENS["param"]["led_dot"]
+        self.setFixedSize(dot, dot)
+        self._state = state if state in self._STATE_ROLE else "off"
+        self._color = ""      # 由首次 style_when_theme 回调按令牌填色
+        theme.style_when_theme(self, self._on_theme)
+
+    def state(self) -> str:
+        """当前状态名（ready/on/warn/error/off）。"""
+        return self._state
+
+    def role(self) -> str:
+        """当前状态对应的令牌角色名。"""
+        return self._STATE_ROLE[self._state]
+
+    def color(self) -> str:
+        """当前状态点色值（取自令牌，非字面量）。"""
+        return self._color
+
+    def set_state(self, state: str) -> None:
+        self._state = state if state in self._STATE_ROLE else "off"
+        self._on_theme(theme.colors())
+
+    def _on_theme(self, c: dict) -> str:
+        role = self._STATE_ROLE[self._state]
+        self._color = c.get(role) or theme.TOKENS["semantic"][role]
+        self.update()
+        return ""
+
+    def paintEvent(self, event):  # noqa: N802 (Qt 命名)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(self._color))
+        p.drawEllipse(self.rect())
+
+
+class ChipButton(QPushButton):
+    """状态 chip（ARCH §五-6 / §六-11）：激活 = **底色存在**（accent 低 alpha 底 + accent 字）；
+    未激活 = 中性底 + text_sub 字；**禁**描边或纯色文字表达激活。"""
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        self.setObjectName("paramChip")
+        self.setCheckable(True)
+        self.setFlat(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        # 供像素级判据取期望底色（激活/未激活两态）
+        self._qss_active_bg = ""
+        self._qss_idle_bg = ""
+        self._refresh = theme.style_when_theme(self, self._build_qss)
+        self.toggled.connect(lambda _on: self._refresh())
+
+    def active_bg(self) -> str:
+        """激活态底色（accent + 低 alpha，微透明 → 与未激活底色必然不同）。"""
+        return self._qss_active_bg
+
+    def idle_bg(self) -> str:
+        """未激活态底色（中性，无描边）。"""
+        return self._qss_idle_bg
+
+    def _build_qss(self, c: dict) -> str:
+        ty = theme.TOKENS["typography"]
+        rm = theme.TOKENS["radius"]
+        prm = theme.TOKENS["param"]
+        tint = QColor(c["accent"])
+        tint.setAlpha(int(prm["chip_alpha"]))
+        self._qss_active_bg = tint.name(QColor.NameFormat.HexArgb)
+        self._qss_idle_bg = c["bg2"]
+        alpha = tint.alpha()
+        return (
+            "QPushButton#paramChip {"
+            f"  background: {c['bg2']};"
+            f"  color: {c['sub']};"
+            "  border: none;"
+            f"  border-radius: {rm['pill']}px;"
+            f"  padding: {prm['chip_pad_y']}px {prm['chip_pad_x']}px;"
+            f"  font-size: {ty['body_sm']}px;"
+            "}"
+            "QPushButton#paramChip:checked {"
+            f"  background: rgba({tint.red()}, {tint.green()}, {tint.blue()}, {alpha});"
+            f"  color: {c['accent']};"
+            "}"
+        )
+
+
+class ChipGroup(QWidget):
+    """互斥 chip 组（ARCH §五-6：同一应用内只允许一套激活语义）。
+
+    激活态**唯一**；`chipActivated` 带出该 chip 的载荷（载荷为 None 时组内无激活项）。
+    """
+
+    chipActivated = pyqtSignal(object)
+
+    def __init__(self, items, parent=None):
+        """items: 序列，元素 = (文案, 载荷)。"""
+        super().__init__(parent)
+        self.setObjectName("paramChipGroup")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(theme.TOKENS["spacing"]["xs"])
+        self._payloads: dict[ChipButton, object] = {}
+        self.chips: list[ChipButton] = []
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(False)
+        for text, payload in items:
+            chip = ChipButton(text, self)
+            self._payloads[chip] = payload
+            self._group.addButton(chip)
+            self.chips.append(chip)
+            chip.clicked.connect(lambda _c=False, ch=chip: self._on_click(ch))
+            row.addWidget(chip)
+        row.addStretch(1)
+
+    def payload_of(self, chip: ChipButton):
+        """某 chip 的载荷。"""
+        return self._payloads.get(chip)
+
+    def checked_chip(self) -> ChipButton | None:
+        """当前激活 chip（无激活 → None）。"""
+        for chip in self.chips:
+            if chip.isChecked():
+                return chip
+        return None
+
+    def current(self):
+        """当前激活载荷（无激活 → None）。"""
+        chip = self.checked_chip()
+        return None if chip is None else self._payloads.get(chip)
+
+    def set_current(self, payload) -> None:
+        """按载荷置激活项（载荷不匹配 → 全部取消激活）。"""
+        for chip in self.chips:
+            chip.setChecked(self._payloads.get(chip) == payload)
+
+    def _on_click(self, chip: ChipButton) -> None:
+        for other in self.chips:
+            other.setChecked(other is chip)
+        self.chipActivated.emit(self._payloads.get(chip))
+
+
+class RangeHint(QWidget):
+    """参数范围线索（ARCH §五-8 / §六-13）：端点数值标签 + 稀疏刻度。
+
+    `ticks` = ((值, 标签或 None), ...)，须含范围两端点；**只标端点 + 少数关键点**
+    （标签为 None 的刻度只画线不写数 → 非逐刻度标注）。
+    """
+
+    def __init__(self, ticks, parent=None):
+        super().__init__(parent)
+        self.setObjectName("paramRangeHint")
+        prm = theme.TOKENS["param"]
+        self.setFixedHeight(prm["range_h"])
+        self._ticks = tuple(
+            (float(v), "" if lab is None else str(lab)) for v, lab in ticks
+        )
+        self._line = theme.colors()["border"]
+        self._text = theme.colors()["sub"]
+        theme.style_when_theme(self, self._on_theme)
+
+    def values(self) -> tuple:
+        """全部刻度值（含未标注刻度）。"""
+        return tuple(v for v, _lab in self._ticks)
+
+    def labels(self) -> tuple:
+        """已标注的刻度文案（稀疏；空串 = 未标注）。"""
+        return tuple(lab for _v, lab in self._ticks)
+
+    def endpoints(self) -> tuple:
+        """范围两端点值。"""
+        return (self._ticks[0][0], self._ticks[-1][0])
+
+    def _on_theme(self, c: dict) -> str:
+        self._line = c["border"]
+        self._text = c["sub"]
+        self.update()
+        # 刻度数值等宽（走令牌字链，随主题刷新；禁族名字面量）
+        return ("QWidget#paramRangeHint {"
+                f"  font-family: {theme.TOKENS['typography']['mono']};"
+                "}")
+
+    def paintEvent(self, event):  # noqa: N802 (Qt 命名)
+        if len(self._ticks) < 2:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        w, h = self.width(), self.height()
+        prm = theme.TOKENS["param"]
+        tick = int(prm["tick_len"])
+        base_y = h - tick - 1
+        lo, hi = self._ticks[0][0], self._ticks[-1][0]
+        span = (hi - lo) or 1.0
+        p.setPen(QPen(QColor(self._line), theme.TOKENS["elevation"]["border"]))
+        p.drawLine(0, base_y, w - 1, base_y)
+        p.setFont(self.font())      # 等宽由 QSS 令牌字链给出（见 _on_theme）
+        for value, label in self._ticks:
+            x = int(round((w - 1) * ((value - lo) / span)))
+            p.setPen(QPen(QColor(self._line), theme.TOKENS["elevation"]["border"]))
+            p.drawLine(x, base_y, x, h - 1)
+            if label:
+                tw = p.fontMetrics().horizontalAdvance(label)
+                p.setPen(QColor(self._text))
+                p.drawText(min(max(x - tw // 2, 0), max(w - tw, 0)),
+                           base_y - theme.TOKENS["spacing"]["xxs"], label)
+
+
+class ReadoutBox(QWidget):
+    """读数内嵌框（ARCH §四）：等宽数值（text 色，比说明更亮）+ 说明（text_sub）。"""
+
+    def __init__(self, name: str, value: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("paramReadout")
+        col = QVBoxLayout(self)
+        col.setContentsMargins(0, 0, 0, 0)
+        col.setSpacing(theme.TOKENS["spacing"]["xxs"])
+        self.lbl_name = QLabel(name, self)
+        self.lbl_name.setObjectName("paramReadoutName")
+        self.lbl_value = QLabel(value, self)
+        self.lbl_value.setObjectName("paramReadoutValue")
+        # 读数等宽（typography.mono）与内嵌框均由 _param_qss 令牌字链给出
+        col.addWidget(self.lbl_name)
+        col.addWidget(self.lbl_value)
+        # 供取值断言（数值层级：数值 text / 说明 text_sub）
+        self.name_color = theme.colors()["sub"]
+        self.value_color = theme.colors()["text"]
+        theme.style_when_theme(self, self._on_theme)
+
+    def set_value(self, text: str) -> None:
+        self.lbl_value.setText(text)
+
+    def value(self) -> str:
+        return self.lbl_value.text()
+
+    def _on_theme(self, c: dict) -> str:
+        self.name_color = c["sub"]
+        self.value_color = c["text"]
+        return _param_qss(c)
+
+
+class ParamGroup(QWidget):
+    """三段式参数组（ARCH §五-7 名称（上）/ 控件（中）/ 单位（下）+ §五-8 范围线索）。
+
+    同组内每列一个参数，四行由同一 QGridLayout 承载 →「名称列 / 控件列 / 单位列」
+    左边界**各自一致**（同列同 x）；可选第 4 行放该参数的范围线索（稀疏刻度）。
+    """
+
+    def __init__(self, fields, columns=None, parent=None):
+        """fields: 序列，元素 = (名称, 控件, 单位, 范围刻度或 None)。
+
+        `columns` 指定每行块容纳的参数数（默认全部一行；窄面板下换行成多个行块，
+        列宽跨行块共享 → 各列左边界仍一致）。
+        """
+        super().__init__(parent)
+        self.setObjectName("paramGroup")
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(theme.TOKENS["param"]["col_gap"])
+        grid.setVerticalSpacing(theme.TOKENS["spacing"]["xs"])
+        self.fields: list[dict] = []
+        cols = max(1, int(columns)) if columns else max(1, len(fields))
+        for index, (name, control, unit, ticks) in enumerate(fields):
+            block, col = divmod(index, cols)
+            row0 = block * 4
+            lbl_name = QLabel(name, self)
+            lbl_name.setObjectName("paramName")
+            lbl_unit = QLabel(unit, self)
+            lbl_unit.setObjectName("paramUnit")
+            grid.addWidget(lbl_name, row0, col)
+            grid.addWidget(control, row0 + 1, col)
+            grid.addWidget(lbl_unit, row0 + 2, col)
+            hint = None
+            if ticks:
+                hint = RangeHint(ticks, self)
+                grid.addWidget(hint, row0 + 3, col)
+            grid.setColumnStretch(col, 1)
+            control.setToolTip(name)
+            self.fields.append({"name": lbl_name, "control": control,
+                                "unit": lbl_unit, "range": hint})
+        theme.style_when_theme(self, _param_qss)
 
 
 def _is_local_url(url: str) -> bool:
@@ -108,7 +444,7 @@ class _EngineUpdateWorker(QObject):
 
 
 class SettingsDialog(QWidget):
-    """统一设置面板（QWidget，可嵌入 DrawerWidget；非模态）。"""
+    """统一设置面板（QWidget，装入右栏内容页；非模态）。"""
 
     applied = pyqtSignal()    # 点击「应用」：调用方读取取值方法并持久化
     cancelled = pyqtSignal()  # 未应用即关闭：调用方回滚预览（如主题）
@@ -182,17 +518,25 @@ class SettingsDialog(QWidget):
         self.nav_list.setUniformItemSizes(True)
         self.nav_list.currentRowChanged.connect(self._on_nav_row_changed)
 
+        # T-1109 IM-31：导航项字号 +1pt、行高增大（走 QSS 语义色·禁 hex/px）
+        nav_font = self.nav_list.font()
+        nav_font.setPointSize(nav_font.pointSize() + 1)
+        self.nav_list.setFont(nav_font)
+
         self.stack = QStackedWidget()
         self.stack.setObjectName("settingsPages")
-        for title, builder in (
-            (tr("settings.tab.general"), self._build_general_tab),
-            ("音频设备", self._build_audio_device_tab),
-            (tr("settings.tab.ai"), self._build_ai_tab),
-            (tr("settings.tab.interface"), self._build_interface_tab),
-            ("快捷键", self._build_shortcuts_tab),
-            (tr("settings.tab.export"), self._build_export_tab),
+        for title, builder, icon_name in (
+            (tr("settings.tab.general"), self._build_general_tab, "settings"),
+            (tr("settings.tab.audio_device"), self._build_audio_device_tab, "audio_device"),
+            (tr("settings.tab.ai"), self._build_ai_tab, "ai"),
+            (tr("settings.tab.interface"), self._build_interface_tab, None),
+            ("快捷键", self._build_shortcuts_tab, None),
+            (tr("settings.tab.export"), self._build_export_tab, None),
         ):
-            self.nav_list.addItem(title)
+            item = QListWidgetItem(title)
+            if icon_name:
+                item.setIcon(theme.get_icon(icon_name))
+            self.nav_list.addItem(item)
             self.stack.addWidget(builder())
 
         body.addWidget(self.nav_list)
@@ -262,6 +606,8 @@ class SettingsDialog(QWidget):
         form.addRow("", self.cmb_default_view)
 
         # A4 参考频率（T-921）：音分/音名换算基准，clamp 400–480，可一键恢复 440
+        # T-1047：改走三段式（名称/控件/单位）+ 范围线索（稀疏刻度 400/440/480）
+        #        + 读数内嵌框（等宽 · 数值亮度高于说明）+ 快捷基准 chip（激活 = 底色）
         row_reference = QWidget()
         row_reference_layout = QHBoxLayout(row_reference)
         row_reference_layout.setContentsMargins(0, 0, 0, 0)
@@ -280,9 +626,51 @@ class SettingsDialog(QWidget):
         row_reference_layout.addWidget(self.spin_reference_hz)
         row_reference_layout.addWidget(self.btn_reference_restore)
         row_reference_layout.addStretch(1)
-        form.addRow(tr("settings.reference_hz"), row_reference)
+
+        self.param_group_general = ParamGroup([
+            (tr("settings.reference_hz"), row_reference, tr("param.unit.hz"),
+             ((400.0, "400"), (440.0, "440"), (480.0, "480"))),
+        ])
+        form.addRow(self.param_group_general)
+
+        # 读数内嵌框：对齐到它所描述的参数列（禁把数值堆在角落）
+        self.readout_reference = ReadoutBox(tr("param.readout.a4"),
+                                            self._reference_readout_text())
+        form.addRow(self.readout_reference)
+
+        # 快捷基准 chip：激活态靠底色（禁描边 / 纯色文字）
+        preset = QWidget()
+        preset_col = QVBoxLayout(preset)
+        preset_col.setContentsMargins(0, 0, 0, 0)
+        preset_col.setSpacing(theme.TOKENS["spacing"]["xxs"])
+        lbl_preset = QLabel(tr("param.name.a4_preset"), preset)
+        lbl_preset.setObjectName("paramUnit")
+        self.chips_a4 = ChipGroup([(f"{hz:g}", hz) for hz in _A4_PRESETS], preset)
+        preset_col.addWidget(lbl_preset)
+        preset_col.addWidget(self.chips_a4)
+        form.addRow(preset)
+
+        # 接线：控件 → chip 激活态（回路） / chip → 控件
+        self.spin_reference_hz.valueChanged.connect(self._sync_a4_presets)
+        self.chips_a4.chipActivated.connect(self._on_a4_preset)
+        self._sync_a4_presets(self.spin_reference_hz.value())
 
         return tab
+
+    def _reference_readout_text(self) -> str:
+        """A4 读数文案（等宽数值 + 窄空格 + 单位；ARCH §四）。"""
+        return f"{self.spin_reference_hz.value():.1f}{NBSP_THIN}{tr('param.unit.hz')}"
+
+    def _sync_a4_presets(self, value: float) -> None:
+        """控件 → chip / 读数：仅与预设完全一致时点亮（激活态唯一）。"""
+        self.chips_a4.set_current(float(value))
+        self.readout_reference.set_value(
+            f"{float(value):.1f}{NBSP_THIN}{tr('param.unit.hz')}")
+
+    def _on_a4_preset(self, payload) -> None:
+        """chip → 控件（快捷基准）；激活态由 valueChanged 回路同步。"""
+        if payload is not None:
+            self.spin_reference_hz.setValue(float(payload))
 
     def _restore_reference_hz(self) -> None:
         """「恢复 440」：把 A4 参考频率置回 440.0 Hz（T-921）。"""
@@ -297,60 +685,43 @@ class SettingsDialog(QWidget):
         layout = QVBoxLayout(tab)
         layout.setSpacing(12)
 
-        # --- 播放设备 ---
-        play_box = QWidget()
-        play_form = QFormLayout(play_box)
-        play_form.setContentsMargins(0, 0, 0, 0)
-        play_form.setSpacing(8)
-
-        play_form.addRow(QLabel("<b>播放</b>"))
+        # --- 设备选择（输出 / 输入）---
+        dev_box = QWidget()
+        dev_form = QFormLayout(dev_box)
+        dev_form.setContentsMargins(0, 0, 0, 0)
+        dev_form.setSpacing(8)
 
         self.cmb_play_device = QComboBox()
         self._populate_playback_devices()
-        play_form.addRow("输出设备：", self.cmb_play_device)
-
-        self.cmb_play_channels = QComboBox()
-        self.cmb_play_channels.addItem("单声道 (Mono)", 1)
-        self.cmb_play_channels.addItem("立体声 (Stereo)", 2)
-        self.cmb_play_channels.setCurrentIndex(0)
-        play_form.addRow("声道数：", self.cmb_play_channels)
-
-        layout.addWidget(play_box)
-
-        # --- 录音设备 ---
-        rec_box = QWidget()
-        rec_form = QFormLayout(rec_box)
-        rec_form.setContentsMargins(0, 0, 0, 0)
-        rec_form.setSpacing(8)
-
-        rec_form.addRow(QLabel("<b>录音</b>"))
+        dev_form.addRow(tr("param.audio.output_device"), self.cmb_play_device)
 
         self.cmb_record_device = QComboBox()
         self._populate_recording_devices()
-        rec_form.addRow("输入设备：", self.cmb_record_device)
+        dev_form.addRow(tr("param.audio.input_device"), self.cmb_record_device)
+
+        layout.addWidget(dev_box)
+
+        # --- 参数区（T-1047 三段式：名称（上）/ 控件（中）/ 单位（下）+ 范围线索）---
+        lbl_params = QLabel(tr("param.audio.title"), tab)
+        lbl_params.setObjectName("paramName")
+        layout.addWidget(lbl_params)
+
+        self.cmb_play_channels = QComboBox()
+        self.cmb_play_channels.addItem(f"{tr('param.opt.mono')} (Mono)", 1)
+        self.cmb_play_channels.addItem(f"{tr('param.opt.stereo')} (Stereo)", 2)
+        self.cmb_play_channels.setCurrentIndex(0)
 
         self.cmb_record_channels = QComboBox()
-        self.cmb_record_channels.addItem("单声道 (Mono)", 1)
-        self.cmb_record_channels.addItem("立体声 (Stereo)", 2)
+        self.cmb_record_channels.addItem(f"{tr('param.opt.mono')} (Mono)", 1)
+        self.cmb_record_channels.addItem(f"{tr('param.opt.stereo')} (Stereo)", 2)
         self.cmb_record_channels.setCurrentIndex(0)
-        rec_form.addRow("声道数：", self.cmb_record_channels)
-
-        layout.addWidget(rec_box)
-
-        # --- 质量 ---
-        qual_box = QWidget()
-        qual_form = QFormLayout(qual_box)
-        qual_form.setContentsMargins(0, 0, 0, 0)
-        qual_form.setSpacing(8)
-
-        qual_form.addRow(QLabel("<b>采样率与质量</b>"))
 
         self.cmb_sample_rate = QComboBox()
         rates = [
             ("8000 Hz", 8000),
             ("11025 Hz", 11025),
             ("22050 Hz", 22050),
-            ("44100 Hz (推荐)", 44100),
+            ("44100 Hz ({r})".format(r=tr("param.opt.recommended")), 44100),
             ("48000 Hz", 48000),
             ("96000 Hz", 96000),
             ("192000 Hz", 192000),
@@ -358,21 +729,33 @@ class SettingsDialog(QWidget):
         for label, rate in rates:
             self.cmb_sample_rate.addItem(label, rate)
         self.cmb_sample_rate.setCurrentIndex(3)  # 44100
-        qual_form.addRow("默认采样率：", self.cmb_sample_rate)
 
         self.cmb_sample_format = QComboBox()
         self.cmb_sample_format.addItem("16-bit PCM", 16)
         self.cmb_sample_format.addItem("24-bit PCM", 24)
         self.cmb_sample_format.addItem("32-bit Float", 32)
         self.cmb_sample_format.setCurrentIndex(2)  # 32-bit Float
-        qual_form.addRow("采样格式：", self.cmb_sample_format)
 
-        layout.addWidget(qual_box)
+        # 四参数同组（每行块 2 列，窄面板下不溢出）→「名称列 / 控件列 / 单位列」
+        # 左边界各自一致（ARCH §五-7）；范围线索稀疏标注（ARCH §五-8）
+        self.param_group_audio = ParamGroup([
+            (tr("param.name.play_channels"), self.cmb_play_channels,
+             tr("param.unit.channels"), ((1.0, "1"), (2.0, "2"))),
+            (tr("param.name.record_channels"), self.cmb_record_channels,
+             tr("param.unit.channels"), ((1.0, "1"), (2.0, "2"))),
+            (tr("param.name.sample_rate"), self.cmb_sample_rate,
+             tr("param.unit.hz"),
+             ((8000.0, "8k"), (44100.0, None), (96000.0, None),
+              (192000.0, "192k"))),
+            (tr("param.name.sample_format"), self.cmb_sample_format,
+             tr("param.unit.bit"), ((16.0, "16"), (24.0, None), (32.0, "32"))),
+        ], columns=2, parent=tab)
+        layout.addWidget(self.param_group_audio)
 
         # --- 刷新按钮 ---
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.btn_refresh_devices = QPushButton("刷新设备列表")
+        self.btn_refresh_devices = QPushButton(tr("param.audio.refresh"))
         self.btn_refresh_devices.clicked.connect(self._refresh_audio_devices)
         btn_row.addWidget(self.btn_refresh_devices)
         layout.addLayout(btn_row)
@@ -485,9 +868,33 @@ class SettingsDialog(QWidget):
         lay_eng.addWidget(self.prog_engine)
         root.addWidget(self.grp_engine_state)
 
-        self.lbl_ai_builtin_status = QLabel(self._builtin_status_text())
+        # UP-2：应用更新检查独立开关（AD-12 默认开 + 首次运行征询；紧邻上方
+        # 「本地模型版本」区之后；变更即时落盘 app_state.json 的 update_check_enabled）
+        from acouscope import state as _app_state
+
+        self.chk_update_check = QCheckBox(tr("settings.update_check_enabled"))
+        self.chk_update_check.setObjectName("chkUpdateCheck")
+        # 未决策（键缺失）按 AD-12 默认开显示；此处 setChecked 在 connect 之前，
+        # 不触发落盘（只有用户显式切换才写键）。
+        self.chk_update_check.setChecked(
+            _app_state.is_update_check_enabled() is not False)
+        self.chk_update_check.toggled.connect(self._on_update_check_toggled)
+        root.addWidget(self.chk_update_check)
+
+        # T-1047：状态点（LED 式）+ 只读状态行（§五-4：小圆点令牌色，禁拟物）
+        status_text, ready = self._builtin_status()
+        self.led_ai_builtin = LedDot("ready" if ready else "off")
+        self.led_ai_builtin.setToolTip(
+            tr("param.led.ready") if ready else tr("param.led.off"))
+        row_builtin = QHBoxLayout()
+        row_builtin.setContentsMargins(0, 0, 0, 0)
+        row_builtin.setSpacing(theme.TOKENS["spacing"]["xs"])
+        row_builtin.addWidget(self.led_ai_builtin, 0,
+                              Qt.AlignmentFlag.AlignTop)
+        self.lbl_ai_builtin_status = QLabel(status_text)
         self.lbl_ai_builtin_status.setWordWrap(True)
-        root.addWidget(self.lbl_ai_builtin_status)
+        row_builtin.addWidget(self.lbl_ai_builtin_status, 1)
+        root.addLayout(row_builtin)
 
         # ---- T-1022 §7/§9.2③：推荐下载项（按硬件排序；纯文本模型不出现）----
         root.addWidget(SectionHeader(tr("settings.ai_models_title")))
@@ -604,6 +1011,7 @@ class SettingsDialog(QWidget):
         """仅显示当前档所需字段；不相关控件整体隐藏（禁残留干扰布局）。"""
         source = self._current_ai_source()
         self.lbl_ai_builtin_status.setVisible(source == "builtin")
+        self.led_ai_builtin.setVisible(source == "builtin")
         self.grp_engine_state.setVisible(source == "builtin")
         self.grp_ai_self_fields.setVisible(source == "self_hosted")
         self.grp_ai_cloud_fields.setVisible(source == "cloud")
@@ -717,27 +1125,30 @@ class SettingsDialog(QWidget):
             self._refresh_ai_probe_line()
             self._refresh_ai_models()
 
-    def _builtin_status_text(self) -> str:
-        """内置档状态行（只读现有接口；拿不到状态时显示中性文案）。"""
+    def _builtin_status(self) -> tuple[str, bool]:
+        """内置档状态行（只读现有接口；拿不到状态时显示中性文案）。
+
+        T-1047：同时给出「是否就绪」→ 驱动状态点（LED）。返回 (文案, 就绪)。
+        """
         try:
             from acouscope.ai.backends.local_registry import (
                 OFFICIAL_MODELS, get_missing_official_models, probe_ollama,
             )
             ok, models = probe_ollama()
             if not ok:
-                return "首次使用时将自动启动内置模型服务并准备推荐模型。"
+                return "首次使用时将自动启动内置模型服务并准备推荐模型。", False
             missing = get_missing_official_models(models)
             if not missing:
-                return "推荐模型已就绪，可直接开始释图。"
+                return "推荐模型已就绪，可直接开始释图。", True
             total = sum(
                 int(OFFICIAL_MODELS.get(m, {}).get("est_bytes", 0) or 0)
                 for m in missing)
             size = (f"{total / 1_000_000_000:.1f} GB"
                     if total >= 1_000_000_000
                     else f"{round(total / 1_000_000)} MB")
-            return f"首次使用时将自动下载推荐模型（约 {size}）。"
+            return f"首次使用时将自动下载推荐模型（约 {size}）。", False
         except Exception:
-            return "首次使用时将自动准备推荐模型。"
+            return "首次使用时将自动准备推荐模型。", False
 
     # ------------------------------------------------------------------
     # T-319：内置档「本地模型版本」检查更新 / 恢复默认（零黑话）
@@ -758,6 +1169,12 @@ class SettingsDialog(QWidget):
         if is_user and ver:
             return tr("settings.engine_updated_to").format(version=ver)
         return tr("settings.engine_bundled")
+
+    def _on_update_check_toggled(self, checked: bool) -> None:
+        """UP-2：应用更新检查开关变更 → 即时落盘（键 ``update_check_enabled``）。"""
+        from acouscope import state as _app_state
+
+        _app_state.set_update_check_enabled(bool(checked))
 
     def _on_engine_update_clicked(self):
         """「检查更新」：后台线程全流程（检查→下载→校验→切换），非模态。"""
@@ -1077,14 +1494,22 @@ class SettingsDialog(QWidget):
         style_when_theme(hint_icon, lambda c: f"color: {c['sub']};")
         form.addRow("", hint_icon)
 
-        # 字体大小
-        form.addRow(QLabel("界面字体大小："))
+        # 字体大小（T-1047 三段式 + 范围线索：刻度 11/13/15/17，稀疏标注）
         self.cmb_font_size = QComboBox()
-        sizes = [("小", 11), ("默认", 13), ("大", 15), ("特大", 17)]
+        sizes = [
+            (tr("param.opt.font_small"), 11),
+            (tr("param.opt.font_default"), 13),
+            (tr("param.opt.font_large"), 15),
+            (tr("param.opt.font_xlarge"), 17),
+        ]
         for label, size in sizes:
             self.cmb_font_size.addItem(label, size)
         self.cmb_font_size.setCurrentIndex(1)  # 默认 13
-        form.addRow("", self.cmb_font_size)
+        self.param_group_interface = ParamGroup([
+            (tr("param.name.font_size"), self.cmb_font_size, tr("param.unit.px"),
+             ((11.0, "11"), (13.0, None), (15.0, "15"), (17.0, "17"))),
+        ])
+        form.addRow(self.param_group_interface)
 
         # 显示网格
         self.chk_show_grid = QCheckBox("显示图表网格")
@@ -1196,7 +1621,12 @@ class SettingsDialog(QWidget):
         idx = self.cmb_dpi.findData(self._dpi)
         if idx >= 0:
             self.cmb_dpi.setCurrentIndex(idx)
-        form.addRow(tr("settings.export_dpi"), self.cmb_dpi)
+        # T-1047 三段式 + 范围线索（刻度 150/300/600/1200，稀疏标注端点+关键点）
+        self.param_group_export = ParamGroup([
+            (tr("settings.export_dpi"), self.cmb_dpi, tr("param.unit.dpi"),
+             ((150.0, "150"), (300.0, None), (600.0, "600"), (1200.0, "1200"))),
+        ])
+        form.addRow(self.param_group_export)
 
         return tab
 

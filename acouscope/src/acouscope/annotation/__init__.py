@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+
+from acouscope.dsp.units import get_reference_hz
 
 
 # 预置调色板（用于区域颜色）
@@ -196,7 +198,7 @@ class AnnotationModel:
         self,
         t_ms: int,
         f0_hz: float,
-        cent_ref: float = 440.0,
+        cent_ref: "float | None" = None,
         confidence: float = 1.0,
         label: str = "",
         session_id: str = "",
@@ -204,6 +206,9 @@ class AnnotationModel:
     ) -> "PitchAnnotation":
         """新增音高标注；cents 相对 cent_ref 自动计算（1200*log2(f0/ref)）。"""
         from math import log2
+
+        if cent_ref is None:
+            cent_ref = get_reference_hz()
 
         ann = PitchAnnotation(
             t_ms=int(t_ms),
@@ -242,7 +247,7 @@ class PitchAnnotation:
     t_ms: int            # 时间戳（毫秒，整数）
     f0_hz: float         # 基频 Hz
     cents: float = 0.0   # 相对 cent_ref 音分
-    cent_ref: float = 440.0
+    cent_ref: float = field(kw_only=True)
     confidence: float = 1.0  # 置信度 [0,1]（pYIN voiced 概率）
     label: str = ""
     session_id: str = ""

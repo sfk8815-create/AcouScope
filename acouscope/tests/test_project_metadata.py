@@ -17,7 +17,7 @@
 import json
 from pathlib import Path
 
-from acouscope.app.project import Project, ProjectFile, ProjectManager
+from acouscope.app.project import Project, ProjectManager
 
 # 禁词以拼接构造，避免模式字面量自身被扫中（同 test_settings_llama_models.py 口径）。
 _BANNED = "Mel" + "odyne"

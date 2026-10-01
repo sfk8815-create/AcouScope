@@ -365,9 +365,9 @@ class SpectrogramWidget(QWidget):
         from acouscope.ui.widgets.freq_axis import PianoKeyboardStrip
 
         self.kb_strip = PianoKeyboardStrip()
-        self.kb_strip.hide()
         self.kb_strip.follow(self.plot_widget)
         plot_layout.insertWidget(0, self.kb_strip)
+        self._sync_kb_strip()
 
         plot_container = QWidget()
         plot_container.setLayout(plot_layout)
@@ -446,6 +446,8 @@ class SpectrogramWidget(QWidget):
         _apply_canvas_theme(self.plot_widget)
         _apply_canvas_theme(self.colorbar_widget, "bg2")
         self._apply_ink()
+        # ★ T-1042c：主题切换亦须保持键面可见性与当前单位一致（与数据无关）
+        self._sync_kb_strip()
         self.plot_widget.update()
 
     def _init_mouse_tracking(self):
@@ -649,8 +651,20 @@ class SpectrogramWidget(QWidget):
         self._update_image()
         self._refresh_peak_if_visible()
 
+    def _sync_kb_strip(self) -> None:
+        """同步键盘条可见性（T-1042c 缺陷 B）。
+
+        ★ 键面可见性**只取决于当前频率单位**，与「有没有数据」无关：
+        原先该赋值写在 `_update_image()` 的数据守卫**之后**，未加载/未成谱图时
+        直接 return → 切「钢琴卷帘」后可见性从未被设置（键面永不出现）。
+        """
+        self.kb_strip.setVisible(self._freq_unit == "piano")
+
     def _update_image(self):
         """更新语谱图图像。"""
+        # ★ T-1042c：可见性同步放在数据守卫**之前**（防其它触发路径漏更新）
+        self._sync_kb_strip()
+
         if len(self._magnitude_db) < 1 or len(self._times) < 1:
             return
 
@@ -685,7 +699,6 @@ class SpectrogramWidget(QWidget):
         axis_left = self.plot_widget.getAxis("left")
 
         from acouscope.ui.widgets.freq_axis import (
-            freq_to_display,
             note_name_ticks,
             resample_rows,
             set_freq_axis_label,
@@ -693,7 +706,6 @@ class SpectrogramWidget(QWidget):
 
         set_freq_axis_label(self.plot_widget, self._freq_unit)
         unit = self._freq_unit
-        self.kb_strip.setVisible(unit == "piano")
 
         if unit in ("midi", "piano", "cents", "mel"):
             # 非线性单位：把图像重采样到目标单位空间的均匀网格
@@ -801,6 +813,8 @@ class SpectrogramWidget(QWidget):
     def _on_y_unit_changed(self, index: int):
         """Y 轴频率单位切换。"""
         self._freq_unit = self.cmb_y_unit.itemData(index)
+        # ★ T-1042c：设完单位**立即**同步键面可见性（主路径，不受数据守卫影响）
+        self._sync_kb_strip()
         self._update_image()
         self._refresh_peak_if_visible()
         self._clear_measurement()
@@ -1228,12 +1242,13 @@ class SpectrogramWidget(QWidget):
         """悬停读数文本（纯计算，测试直接调用断言）：t/频率/音分 + dB。
 
         频率 = 鼠标 y 显示坐标映射回 Hz；dB = 该 (t, f) 最近网格强度；
-        音分 = 1200·log2(f/440)，f≤0 防御 "--"。
+        音分 = 相对当前 A4 参考（units.hz_to_cents），f≤0 防御 "--"。
         """
+        from acouscope.dsp.units import hz_to_cents
         from acouscope.ui.widgets.freq_axis import format_freq_readout
 
         f = self._view_y_to_hz(float(y_disp))
-        cents = 1200.0 * np.log2(f / 440.0) if f > 0 else None
+        cents = hz_to_cents(f) if f > 0 else None
         parts = [
             f"t={float(t_disp):.3f}s",
             format_freq_readout(f, "hz") if f > 0 else "--",
@@ -1335,3 +1350,109 @@ class SpectrogramWidget(QWidget):
             tag.setText(f"{name}({tt:.3f}s)")
             tag.setPos(tt, y_hi)
             tag.show()
+
+    # ------------------------------------------------------------------
+    # T-1060 件3：统一收尾（模板 = waveform.py `_cleanup_scene`/`closeEvent`）
+    # 本控件析构图：PlotWidget→scene→{img_item, cursor_line, 标注区域/时间点,
+    # 调音叠加层线/标签, A/B 测量线/标签, 测量矩形/文本} + 色条 PlotWidget 的
+    # colorbar_img；本控件在 scene 与 viewport 上各装一个事件过滤器。无显式收尾
+    # 路径时，进程近尾由 Python GC 以「不同于 Qt 场景删除顺序」回收这些包装 →
+    # 场景析构遍历可能触碰已半释放的 C++ 项。这里先逐项移出场景 + 断 item 信号
+    # + 摘事件过滤器，消除析构序依赖。只加收尾，不改任何事件/交互/绘制路径。
+    # ------------------------------------------------------------------
+
+    _DETACH_SINGLE_ITEMS = ("img_item", "cursor_line", "colorbar_img",
+                            "_measure_rect", "_measure_text")
+
+    def _detach_scene_items(self) -> None:
+        """统一收尾：断场景 item / 信号 / 事件过滤器（幂等、绝不外抛）。
+
+        收尾后仍保留**纯值快照**（`_tuning_lines` / 标注模型 `_annotations`
+        ——后者为外部共享模型，所有权不属本控件）与 class 契约「close 后可读」
+        的取值路径不回退；仅清理 Qt 包装与连接：逐项 `removeItem` → 断 item
+        信号 → 摘事件过滤器 → 清空 item 容器。
+        """
+        plot_widget = getattr(self, "plot_widget", None)
+        if plot_widget is None:
+            return
+
+        items = []
+        for attr in self._DETACH_SINGLE_ITEMS:
+            item = getattr(self, attr, None)
+            if item is not None:
+                items.append(item)
+        for store_key in ("_region_items", "_instant_items"):
+            items.extend(list((getattr(self, store_key, None) or {}).values()))
+        for entry in getattr(self, "_tuning_items", None) or []:
+            if isinstance(entry, tuple):
+                items.extend([e for e in entry if e is not None])
+            elif entry is not None:
+                items.append(entry)
+        for key in ("_measure_items", "_measure_item_labels"):
+            items.extend([i for i in (getattr(self, key, None) or []) if i is not None])
+
+        # 断 item → 本控件的信号（先断后移除：避免移除后仍有连接指向本控件）
+        cursor = getattr(self, "cursor_line", None)
+        if cursor is not None:
+            try:
+                cursor.sigPositionChanged.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+        for store_key in ("_region_items", "_instant_items"):
+            for item in list((getattr(self, store_key, None) or {}).values()):
+                for sig_name in ("sigRegionChanged", "sigPositionChanged"):
+                    sig = getattr(item, sig_name, None)
+                    if sig is None:
+                        continue
+                    try:
+                        sig.disconnect()
+                    except (TypeError, RuntimeError):
+                        pass
+
+        for item in items:
+            try:
+                plot_widget.removeItem(item)
+            except RuntimeError:
+                pass  # 底层 C++ 已析构（控件正在销毁途中）
+            except Exception:
+                pass  # 双移除/缺登记等一律吞掉：收尾路径绝不外抛
+
+        # 色条上的图像 item 属另一个场景，单独摘除
+        cb = getattr(self, "colorbar_widget", None)
+        cb_img = getattr(self, "colorbar_img", None)
+        if cb is not None and cb_img is not None:
+            try:
+                cb.removeItem(cb_img)
+            except RuntimeError:
+                pass
+            except Exception:
+                pass
+
+        # 摘事件过滤器（断「控件 ← 场景/视口」的环）
+        for getter in ("scene", "viewport"):
+            try:
+                obj = getattr(plot_widget, getter)()
+            except RuntimeError:
+                continue
+            if obj is None:
+                continue
+            try:
+                obj.removeEventFilter(self)
+            except RuntimeError:
+                pass
+            except Exception:
+                pass
+
+        # 清空 item 容器（纯值快照/外部共享模型不在此列，保持可读）
+        self._region_items = {}
+        self._instant_items = {}
+        self._tuning_items = []
+        self._measure_items = []
+        self._measure_item_labels = []
+        self._measure_rect = None
+        self._measure_text = None
+
+    def closeEvent(self, event):  # noqa: N802 (Qt 命名)
+        """窗口关闭：先显式收尾场景 item，再走默认关闭。"""
+        self._detach_scene_items()
+        super().closeEvent(event)

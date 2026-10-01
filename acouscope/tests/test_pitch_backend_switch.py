@@ -23,7 +23,7 @@ import pytest
 
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QWidget
 
 from acouscope.app.controller import AppController
 from acouscope.i18n import _STRINGS, tr

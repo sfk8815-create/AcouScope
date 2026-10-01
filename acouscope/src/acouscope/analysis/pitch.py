@@ -9,6 +9,41 @@ from __future__ import annotations
 
 import numpy as np
 
+from acouscope.dsp.units import get_reference_hz
+
+ENV_NATIVE = "ACOUSCOPE_NATIVE"
+NATIVE_ON = "1"
+NATIVE_OFF = "0"  # 缺省/任何非 "1" 值一律按 OFF 处理
+_CORE_OK: "bool | None" = None  # acouscope_core 可导入性缓存（None=未探测）
+
+
+def _core_importable() -> bool:
+    """acouscope_core 可导入性（缓存·只探测一次）；只吞 ImportError。"""
+    global _CORE_OK
+    if _CORE_OK is None:
+        try:
+            import acouscope_core  # noqa: F401
+            _CORE_OK = True
+        except ImportError:
+            _CORE_OK = False
+    return bool(_CORE_OK)
+
+
+def is_native_enabled(env: "dict | None" = None) -> bool:
+    """ACOUSCOPE_NATIVE 开关判定：仅 "1" 为 ON；未设/其它值 = OFF。
+
+    显式 env（单测）⇒ 纯 env 逻辑·不 import；生产裸调用 ⇒ 判 ON 后再核
+    acouscope_core 可导入性（缓存），缺 .so 返回 False ⇒ 分派点降级 numpy。
+    """
+    import os
+
+    mapping = os.environ if env is None else env
+    if str(mapping.get(ENV_NATIVE, NATIVE_OFF)) != NATIVE_ON:
+        return False
+    if env is not None:
+        return True
+    return _core_importable()
+
 
 class PitchAnalyzer:
     """音高分析器。
@@ -230,11 +265,13 @@ class PitchTrack:
     confidence: np.ndarray
     fmin: float = 40.0
     fmax: float = 2000.0
-    cent_ref: float = 440.0
+    cent_ref: "float | None" = None
 
     def cents(self, ref: "float | None" = None) -> np.ndarray:
         """Hz → 音分（参照 cent_ref，可配置；NaN 传递）。"""
-        r = self.cent_ref if ref is None else ref
+        r = ref if ref is not None else self.cent_ref
+        if r is None:
+            r = get_reference_hz()
         with np.errstate(invalid="ignore"):
             return 1200.0 * np.log2(
                 np.where(self.f0_hz > 0, self.f0_hz, np.nan) / r
@@ -249,7 +286,7 @@ def detect_pyin(
     fmin: float = 40.0,
     fmax: float = 2000.0,
     beta_mean: float = 0.15,
-    cent_ref: float = 440.0,
+    cent_ref: "float | None" = None,
     fixed_lag: "int | None" = 100,
 ) -> "PitchTrack":
     """pYIN 音高检测统一入口。
@@ -260,6 +297,11 @@ def detect_pyin(
     frame_size 默认 4096：SNR=10dB 下检出率达标所需（2048 时实测 83%<85%，
     2026-09-04 沙箱实测），93ms 窗对颤音/扫频精度无回归。
     """
+    if is_native_enabled():
+        import acouscope_core
+
+        acouscope_core.native_selfcheck()
+
     from acouscope.analysis.pyin import pyin_candidates
     from acouscope.analysis.pitch_hmm import PitchHMM
 
@@ -268,21 +310,28 @@ def detect_pyin(
     )
     hmm = PitchHMM()
     res = hmm.decode(cands, fixed_lag=fixed_lag)
-    f0 = np.where(res.voiced & np.isfinite(res.f0_hz), res.f0_hz, np.nan)
-    # 硬门控 1：原始候选为空的帧强制 NaN
-    no_cand = np.array([len(c) == 0 for c in cands])
-    f0[no_cand] = np.nan
-    # 硬门控 2：帧能量低于信号峰值 10% 的帧强制 NaN
-    # （93ms 窗口在静音边界仍可能含相邻有声信号候选，
-    # 能量门控抑制弱过渡帧；剩余高能量边界帧是窗口固有效应）
-    if len(signal) >= frame_size:
-        n_fr = 1 + (len(signal) - frame_size) // hop_length
-        rms = np.array([
-            np.sqrt(np.mean(signal[i*hop_length : i*hop_length+frame_size] ** 2))
-            for i in range(n_fr)
-        ])
-        if rms.max() > 0:
-            f0[rms < 0.10 * rms.max()] = np.nan
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        f0 = _core.pyin_hard_gate(
+            res.f0_hz, res.voiced, cands, signal, frame_size, hop_length
+        )
+    else:
+        f0 = np.where(res.voiced & np.isfinite(res.f0_hz), res.f0_hz, np.nan)
+        # 硬门控 1：原始候选为空的帧强制 NaN
+        no_cand = np.array([len(c) == 0 for c in cands])
+        f0[no_cand] = np.nan
+        # 硬门控 2：帧能量低于信号峰值 10% 的帧强制 NaN
+        # （93ms 窗口在静音边界仍可能含相邻有声信号候选，
+        # 能量门控抑制弱过渡帧；剩余高能量边界帧是窗口固有效应）
+        if len(signal) >= frame_size:
+            n_fr = 1 + (len(signal) - frame_size) // hop_length
+            rms = np.array([
+                np.sqrt(np.mean(signal[i*hop_length : i*hop_length+frame_size] ** 2))
+                for i in range(n_fr)
+            ])
+            if rms.max() > 0:
+                f0[rms < 0.10 * rms.max()] = np.nan
     return PitchTrack(
         times=times,
         f0_hz=f0,

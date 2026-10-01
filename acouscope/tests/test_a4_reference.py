@@ -236,7 +236,8 @@ def test_set_reference_hz_callers_are_limited_to_allowed_files():
     callers = sorted(
         path.relative_to(root).as_posix()
         for path in root.rglob("*.py")
-        if "set_reference_hz(" in path.read_text(encoding="utf-8")
+        if not path.name.startswith("._")  # AppleDouble 旁车（外置卷非 UTF-8 元数据），非源码
+        and "set_reference_hz(" in path.read_text(encoding="utf-8")
     )
     assert callers == ["dsp/units.py", "ui/main_window.py"]
 

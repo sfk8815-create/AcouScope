@@ -195,19 +195,36 @@ def test_m5_key_source_uses_keys_token_no_semantic_center():
     新键面取色改走 `theme.key_faces()` 的 `TOKENS["keys"]`（物理面色阶，白恒亮/黑恒暗），
     中央 C 用**文字加粗**强调（不再取 bg3 强调；`freq_axis` 已叠 `_center_c_label`）。
     T-1038 → T-1042 守卫强度只增不降：新增断言两文件内**不得出现任何 `TOKENS["semantic"]`**。
+
+    ★ T-1042b 非静默归因：旧断言 `'faces["strip"]' in 两文件` 随 `TOKENS["keys"]` 改
+    **单套物理色**（strip 角色废除，键带底/gutter 随骨架 `bg2`）作废；以更强的
+    「键带底经 `theme.colors()["bg2"]` 取（源码无字面 hex）+ `faces["black"]/["white_seam"]`
+    仍经 key_faces() 取」承接，取值来源唯一性强度不减。
+
+    ★ T-1042c 非静默归因：中央 C 加粗标签与音名**落位键床内**后，字体构造收敛到
+    `PianoKeyboardStrip._name_fonts()`（返回 base/bold 两字体），取色改经 `faces = key_faces()`
+    后按角色索引 —— 故旧字面量断言 `'cfont.setBold(True)'` / `'theme.key_face("label")'`
+    作废；改断「`bold.setBold(True)` 构造加粗字体 + `bold_font if is_center` 把加粗字体
+    真正应用到中央 C 标签 + `faces["label"]` 取音名色」，**从「建了加粗字体」升级为
+    「加粗字体确被中央 C 标签使用」**，且 `_center_c_label` 与运行时 `font().bold()`
+    （test_piano_key_face.py ⑨）两道守卫均在 → 强度只增不减。
     """
     freq_axis = _src("freq_axis.py")
     spectrum = _src("spectrum.py")
     assert 'black_brush = pg.mkBrush(faces["black"])' in freq_axis
     assert 'key_black = pg.mkBrush(faces["black"])' in spectrum
-    assert 'faces["strip"]' in freq_axis and 'faces["strip"]' in spectrum
+    # 键带底/gutter 随骨架 bg2（ARCH §五c v1.5「非键面主角」，经 theme.colors() 取、无字面 hex）
+    assert 'theme.colors()["bg2"]' in freq_axis and 'theme.colors()["bg2"]' in spectrum
     assert 'faces["white_seam"]' in freq_axis and 'faces["white_seam"]' in spectrum
     # 去金色：两文件内不再出现任何语义反馈色取值
     assert "TOKENS[\"semantic\"]" not in freq_axis, "freq_axis.py 残留语义色（中央 C 应去金色）"
     assert "TOKENS[\"semantic\"]" not in spectrum, "spectrum.py 残留语义色（中央 C 应去金色）"
-    # 中央 C 文字强调（freq_axis 专用加粗标签）
+    # 中央 C 文字强调（freq_axis 专用加粗标签；T-1042b：音名文字色取 keys.label）
     assert "_center_c_label" in freq_axis
-    assert 'cfont.setBold(True)' in freq_axis
+    assert 'bold.setBold(True)' in freq_axis, "未构造加粗字体（中央 C 加粗强调）"
+    assert 'bold_font if is_center' in freq_axis, "加粗字体未应用到中央 C 标签（仅构造不算）"
+    assert 'faces["label"]' in freq_axis, "音名文字色未取 keys.label 角色"
+    assert 'color=faces["label"]' in spectrum, "横排音名文字色未取 keys.label 角色"
 
 
 # ----------------------------------------------------------------------

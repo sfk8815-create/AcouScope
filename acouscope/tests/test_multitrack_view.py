@@ -21,8 +21,9 @@ from acouscope.ui.widgets.multitrack.multitrack_view import (
 )
 from acouscope.ui.widgets.multitrack.track_header import ROW_HEIGHT
 from acouscope.ui.widgets.multitrack.track_model import (
-    COARSE_POINTS, MultitrackSession,
+    MultitrackSession,
 )
+from tests._pin_baselines import MULTITRACK_ANALYZE_REQUEST_CONNECTS
 
 
 def _session(n: int = 2, duration: float = 2.0, sr: int = 8000) -> MultitrackSession:
@@ -295,3 +296,88 @@ def test_panel_play_toggle_semantics(qapp):
     assert played == [tid] and panel.playing_id() == tid
     panel.view.playToggled.emit(tid)                   # 再点同一轨 = 停止
     assert stopped == [True] and panel.playing_id() is None
+
+
+# ---------------------------------------------------------------------------
+# T-1041a 轮 A：投递缝（未注入走原同步路径 / 已注入走缝且不双跑）
+# ---------------------------------------------------------------------------
+
+
+class _PitchStub:
+    """逐轨音高结果桩（只含呈现层消费的 times / f0_hz）。"""
+
+    def __init__(self, times, f0_hz):
+        self.times = np.asarray(times, dtype=float)
+        self.f0_hz = np.asarray(f0_hz, dtype=float)
+
+
+def _recording_runner(calls):
+    def run(source, params):
+        calls.append(source.track_id)
+        return _PitchStub(np.linspace(0.0, 1.0, 8), np.full(8, 440.0))
+    return run
+
+
+def test_analyze_all_sync_path_when_not_delivered(qapp):
+    """未注入投递 ⇒ 逐字走原同步路径（断言形态与 present 层守卫同构）。"""
+    session = _session(n=2)
+    panel = MultitrackPanel(session)
+    panel.set_session(session)
+    assert panel.analysis_deliver() is None            # 未注入
+
+    calls = []
+    handles = panel.analyze_all(runner=_recording_runner(calls))
+    assert [h.status for h in handles] == ["done", "done"]
+    assert len(calls) == 2
+    assert panel.compare_view.has_results() is True
+    assert len(panel.result_cache()) == 2
+
+
+def test_analyze_all_deliver_redirects_without_double_run(qapp, monkeypatch):
+    """已注入 ⇒ 假投递被调恰 1 次、原同步调用 0 次、返回值原样透传。"""
+    import acouscope.ui.widgets.multitrack.analysis_source as asrc
+
+    sync_calls = []
+    monkeypatch.setattr(
+        asrc, "run_analysis_on_tracks",
+        lambda *args, **kwargs: sync_calls.append(args),
+    )
+
+    session = _session(n=2)
+    panel = MultitrackPanel(session)
+    panel.set_session(session)
+
+    seen = []
+    sentinel = object()
+
+    def deliver(sources, kind, cache):
+        seen.append((sources, kind, cache))
+        return sentinel
+
+    panel.set_analysis_deliver(deliver)
+    assert panel.analysis_deliver() is deliver
+
+    panel.compare_view.btn_analyze.click()             # 经 analyzeRequested 触发
+    assert len(seen) == 1                              # 假投递恰 1 次
+    assert sync_calls == []                            # 反向守卫：禁双跑（可数 == 0）
+    assert panel.compare_view.has_results() is False   # 已注入分支不刷新
+    sources, kind, cache = seen[0]
+    assert len(sources) == 2
+    assert [s.track_id for s in sources] == [
+        t.track_id for t in session.tracks()
+    ]
+    assert kind == "pitch"
+    assert cache is panel.result_cache()               # 同一缓存域，宿主可直接落结果
+
+    assert panel.analyze_all() is sentinel             # N4：返回值原样透传
+    assert len(seen) == 2 and sync_calls == []
+
+
+def test_analyze_requested_connect_is_single():
+    """静态：analyzeRequested.connect 在本文件内恰 1 处（防追加连接式双触发）。"""
+    import pathlib
+
+    import acouscope.ui.widgets.multitrack.multitrack_view as mv
+
+    source = pathlib.Path(mv.__file__).read_text()
+    assert source.count("analyzeRequested.connect") == MULTITRACK_ANALYZE_REQUEST_CONNECTS

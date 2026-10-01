@@ -45,6 +45,9 @@ from acouscope.i18n import tr
 from acouscope.ui import theme
 from acouscope.ui.widgets.panels.empty_state import EmptyState
 from acouscope.ui.widgets.panels.section_header import SectionHeader
+# T-1047：状态点（LED 式）构件与设置页同套规范（授权面内无新源文件，
+# 构件落于主战场 settings_dialog；本面板按同套规范复用，不另起一套样式）
+from acouscope.ui.widgets.settings_dialog import LedDot
 
 # 占位符（与 reset() 口径一致）
 _PH_VIEW = "—"
@@ -222,6 +225,11 @@ class InspectorPanel(QWidget):
             f"  color: {c['text']}; "
             f"  font-family: {ty['mono']}; "
             f"  font-size: {ty['caption']}px;"
+            # T-1047：读数内嵌框（等宽数值 + 数值色 text 亮于说明色 text_sub）
+            f"  background: {c['bg2']}; "
+            f"  border: {elev['border']}px solid {c['border']}; "
+            f"  border-radius: {rad['sm']}px; "
+            f"  padding: {sp['xxs']}px {sp['xs']}px;"
             "}"
             "QFrame#inspectorDivider {"
             f"  border: none; "
@@ -241,9 +249,13 @@ class InspectorPanel(QWidget):
             "QLineEdit#metaLineEdit, QComboBox#metaStandardCombo {"
             f"  background: transparent; "
             f"  color: {c['text']}; "
-            f"  border: 1px solid {c['border']}; "
+            f"  border: {elev['border']}px solid {c['border']}; "
             f"  border-radius: {rad['sm']}px; "
             f"  padding: {sp['xxs']}px;"
+            "}"
+            # T-1047：键值网格的「值」一律等宽（数值层级同设置页读数框）
+            "QLineEdit#metaLineEdit {"
+            f"  font-family: {ty['mono']};"
             "}"
         )
 
@@ -342,6 +354,10 @@ class InspectorPanel(QWidget):
         self.btn_meta_save.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_meta_save.setEnabled(False)
         self.btn_meta_save.clicked.connect(self._on_meta_save)
+        # T-1047：状态点（LED 式）表达「有可编辑档案（就绪）/ 无（不可用）」
+        self.led_meta = LedDot("off", self.meta_box)
+        self.led_meta.setToolTip(tr("param.led.off"))
+        head.addWidget(self.led_meta)
         head.addWidget(self.lbl_meta_status)
         head.addStretch(1)
         head.addWidget(self.btn_meta_save)
@@ -423,6 +439,10 @@ class InspectorPanel(QWidget):
         self.empty_meta.setVisible(not active)
         self.meta_box.setVisible(active)
         self.lbl_meta_status.clear()
+        # T-1047：状态点与激活态同源（就绪 / 不可用），禁拟物表达
+        self.led_meta.set_state("ready" if self.meta_active else "off")
+        self.led_meta.setToolTip(
+            tr("param.led.ready") if self.meta_active else tr("param.led.off"))
         if not active:
             self._meta_path = None
             self.btn_meta_save.setEnabled(False)

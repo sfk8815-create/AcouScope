@@ -8,6 +8,7 @@ pytest.importorskip("PyQt6")
 
 from PyQt6.QtWidgets import QApplication
 
+from acouscope.i18n import tr
 from acouscope.ui.widgets.realtime_features import RealtimePanel
 
 
@@ -52,8 +53,12 @@ def _sample(p, qapp, t):
 
 class TestStaticMode:
     def test_static_overview(self, panel, qapp):
-        assert "静态" in panel.lbl_info.text()
-        assert "起音 L" in panel.lbl_info.text()
+        # IM-17：断言走 i18n 键（语言无关），不再写死中文字面
+        info = panel.lbl_info.text()
+        assert tr("rt.static") in info
+        onset_prefix = tr("rt.onset_lmh").split("{", 1)[0].strip()
+        assert onset_prefix, "rt.onset_lmh 模板应含占位符前缀（防空串断言恒真）"
+        assert onset_prefix in info
         assert not panel._timer.isActive()
         assert not panel.playhead.isVisible()
         # 左图全览
@@ -186,7 +191,9 @@ class TestLiveMode:
         assert not panel._timer.isActive()
         assert not panel.playhead.isVisible()
         assert not panel.curve_peaks.isVisible()
-        assert "静态" in panel.lbl_info.text()
+        info = panel.lbl_info.text()
+        assert tr("rt.static") in info
+        assert tr("rt.live_play") not in info, "停止后 LIVE 标记应撤除"
         x0, x1 = panel.plot_bands.getViewBox().viewRange()[0]
         assert x1 > 29.0, "停止后应恢复全文件 X 范围"
         xs, _ = panel.curve_spectrum.getData()
@@ -267,7 +274,7 @@ class TestMainwindowIntegration:
         assert mw._rt_cache is cache, "缓存对象应被复用（未重算）"
         panel = mw._live_widget("_realtime_panel")
         assert panel is not None
-        assert "静态" in panel.lbl_info.text()
+        assert tr("rt.static") in panel.lbl_info.text()
         mw.close()
 
 
@@ -358,7 +365,7 @@ class TestLiveCapture:
         # 之后正常载入静态数据
         p.set_audio(x, sr)
         qapp.processEvents()
-        assert "静态" in p.lbl_info.text()
+        assert tr("rt.static") in p.lbl_info.text()
         p.close()
 
     def test_push_chunk_before_begin_ignored(self, qapp):
@@ -385,7 +392,6 @@ class TestRingBuffer:
 
     def test_ring_wrap_across_multiple_cycles(self, qapp):
         """录 3 分钟（环容 32s，回绕 5+ 次）：内存恒定、窗口正确。"""
-        import time as _time
 
         from acouscope.ui.widgets.waveform import WaveformWidget
 
@@ -458,7 +464,6 @@ class TestRingBuffer:
     def test_recording_load_set_data_signature(self, qapp, tmp_path, monkeypatch):
         """回归：录音载入必须传 (times, data, sr) 三参——此前只传 2 参
         导致音频被当作时间轴、采样率被当作波形，set_data 内部 TypeError。"""
-        import wave as wavemod
         from PyQt6.QtWidgets import QMessageBox
 
         from acouscope.app.controller import AppController
@@ -500,7 +505,6 @@ class TestRingBuffer:
 
     def test_ring_wrap_across_multiple_cycles(self, qapp):
         """录 3 分钟（环容 32s，回绕 5+ 次）：内存恒定、窗口正确。"""
-        import time as _time
 
         from acouscope.ui.widgets.waveform import WaveformWidget
 
@@ -573,7 +577,6 @@ class TestRingBuffer:
     def test_recording_load_set_data_signature(self, qapp, tmp_path, monkeypatch):
         """回归：录音载入必须传 (times, data, sr) 三参——此前只传 2 参
         导致音频被当作时间轴、采样率被当作波形，set_data 内部 TypeError。"""
-        import wave as wavemod
         from PyQt6.QtWidgets import QMessageBox
 
         from acouscope.app.controller import AppController

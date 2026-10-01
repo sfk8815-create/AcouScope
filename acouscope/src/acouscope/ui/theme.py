@@ -58,18 +58,19 @@ _LIGHT_DATA: dict[str, str] = {
     "trace": "#16588F", "trace_alt": "#A85A12", "cursor": "#0B0E12",
     "marker": "#7A3FA8", "ref_line": "#5A6570", "tint": "#E8EEF4",
 }
-# 键面（钢琴键）物理内容色阶（T-1042）：钢琴键是「物理约定面」（ARCH §2.1-5），
-# 白键恒亮、黑键恒暗，**明度不随主题骨架反转**（物理面铁律 §2.1-5/§六-10）。
+# 键面（钢琴键）物理内容色阶（T-1042 → T-1042b v2 定形）：钢琴键是「物理约定面」
+# （ARCH §2.1-5），白键恒亮、黑键恒暗，**明度不随主题骨架反转**（物理面铁律 §2.1-5/§六-10）。
+# ★ v2：按最高指挥参考图改为**单套物理色**——明/暗骨架调用 key_faces() 返回**同一字典**。
 # hex 唯一数据源在本文件（禁散落到 theme.py 之外）。四角色：
-#   strip       键带底 / gutter —— 比黑键更暗，让键「浮」出来
-#   white       白键面 —— 显著亮于 black（非纯白防刺眼）
-#   black       黑键面 —— 必须与 strip 可分辨（不得同色）
+#   white       白键面 —— 恒亮（#D4D4D6，非纯白防刺眼）
+#   black       黑键面 —— 恒暗（#1E1E1E，显著暗于 white）
 #   white_seam  白键之间极细分隔 —— 比 white 暗一档；禁 border（那是壳色，会亮于键面）
-_DARK_KEYS: dict[str, str] = {
-    "strip": "#101215", "white": "#D9DBDF", "black": "#1A1C1F", "white_seam": "#C6C9CE",
-}
-_LIGHT_KEYS: dict[str, str] = {
-    "strip": "#F5F6F7", "white": "#FFFFFF", "black": "#23262A", "white_seam": "#E4E6E8",
+#   label       键面音名文字 —— 深灰（#3A3A3A，非语义/强调色）
+# 注：键带底/gutter（旧 strip 角色）随骨架 `bg2`（ARCH §五c v1.5），由两 widget 经
+# theme.colors()["bg2"] 取，不再纳入 keys 令牌。
+_KEYS_PHYSICAL: dict[str, str] = {
+    "white": "#D4D4D6", "black": "#1E1E1E",
+    "white_seam": "#C6C6C8", "label": "#3A3A3A",
 }
 # 旧键 → 新中性阶键（别名映射；TOKENS["neutral"]["alias"] 为同一份）
 NEUTRAL_ALIAS: dict[str, str] = {
@@ -149,11 +150,25 @@ TOKENS: dict = {
         "roles": ["trace", "trace_alt", "cursor", "marker", "ref_line", "tint"],
         "dark": _DARK_DATA, "light": _LIGHT_DATA,
     },
-    # 键面（钢琴键）物理内容色阶角色表（T-1042）：白键恒亮/黑键恒暗，明度不随骨架反转；
-    # hex 唯一源为上方 _DARK_KEYS / _LIGHT_KEYS，此处只做骨架索引。
+    # 键面（钢琴键）物理内容色阶角色表（T-1042b）：**单套物理色**，明/暗骨架同款；
+    # hex 唯一源为上方 _KEYS_PHYSICAL，此处只做角色索引。
     "keys": {
-        "roles": ["strip", "white", "black", "white_seam"],
-        "dark": _DARK_KEYS, "light": _LIGHT_KEYS,
+        "roles": ["white", "black", "white_seam", "label"],
+        "physical": _KEYS_PHYSICAL,
+    },
+    # 参数控件规范构件（T-1047 · ARCH §五-7 三段式 / §五-8 范围可见性 /
+    # §六-11 chip 激活态）：**尺寸与透明度唯一源**，本项只加不改
+    # （semantic 四值 / THEME_ORDER / ICONS 零改动）。
+    "param": {
+        "led_dot": 8,        # 状态点直径
+        "chip_alpha": 46,    # chip 激活态底色 = accent + 该 alpha（低 alpha 底）
+        "chip_pad_x": 10,
+        "chip_pad_y": 3,
+        "col_gap": 24,       # 三段式列间距
+        "tick_len": 4,       # 稀疏刻度线长
+        "range_h": 18,       # 范围线索条高（刻度线 + 稀疏数值标签）
+        "box_pad_x": 6,      # 读数内嵌框内边距
+        "box_pad_y": 2,
     },
 }
 
@@ -382,6 +397,7 @@ def apply_theme(theme_id: str) -> None:
         if theme_id == "system":
             _watch_system(app)
     _icon_cache.clear()  # 主题切换：图标缓存整体失效（T-601）
+    refresh_icons()  # T-1078/IM-29：已挂载图标按新主题重染（工具栏/左右 ribbon 一行通修）
     _notify_dynamic()
 
 
@@ -434,13 +450,13 @@ def data_ink(role: str, colors_dict: dict | None = None) -> str:
 
 
 def key_faces(colors_dict: dict | None = None) -> dict[str, str]:
-    """键面（钢琴键）四角色色值：按当前骨架取回（T-1042，物理面不随骨架反转明度关系）。
+    """键面（钢琴键）角色色值：**单套物理色**，明/暗骨架返回**同一字典**（T-1042b）。
 
-    角色：strip（键带底）/ white（白键面）/ black（黑键面）/ white_seam（白键间分隔）。
+    角色：white（白键面）/ black（黑键面）/ white_seam（白键间分隔）/ label（键面音名文字）。
     pyqtgraph 键面绘制与守卫测试共用此入口，键面色唯一源在 theme.py。
     """
     group = TOKENS["keys"]
-    palette = group[skeleton_of(colors_dict)]
+    palette = group["physical"]
     return {role: str(palette[role]) for role in group["roles"]}
 
 
@@ -585,7 +601,7 @@ ICONS: dict[str, str] = {
     # 文件/编辑/导出（T-604 错峰：main_window 引用本波不动，仅备好资源与映射）
     "open": "generic/folder-open.svg",
     "save": "generic/save.svg",
-    "export": "generic/save.svg",
+    "export": "generic/download.svg",
     "undo": "generic/arrow-left.svg",
     "redo": "generic/arrow-right.svg",
     # 播放控制（T-1001 ②：generic 资源已由 scripts/derive_icon_styles.py 补齐）
@@ -617,6 +633,17 @@ ICONS: dict[str, str] = {
     "room_modal": "generic/room_modal.svg",
     "room_acoustic": "generic/room_acoustic.svg",
     "chart_designer": "generic/chart_designer.svg",
+    "tuning_ruler": "generic/tuning_ruler.svg",
+    # T-1098：IM-10 呈现模式 2 名（授权扩容 31→33）——多轨呈现带「一图 / 多图」切换钮专用，
+    # 与文字标签并存；AcouScope 自有图元，接线于 multitrack_view 自建工具栏。
+    "mode_single": "generic/mode_single.svg",
+    "mode_grid": "generic/mode_grid.svg",
+    # T-1109 IM-31：音频设备设置标签图标（授权扩容 33→34）
+    "audio_device": "generic/audio_device.svg",
+    # T-1111「支持一下」常驻入口图标（授权扩容 34→35）
+    "encourage": "generic/encourage.svg",
+    # T-1112 微信群入口图标（授权扩容 35→36）
+    "weixin_group": "generic/weixin_group.svg",
 }
 
 # 图标状态 → 当前主题语义色角色（值必须是 colors() 的既有键，禁硬编码 hex；

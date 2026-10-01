@@ -393,13 +393,14 @@ class FormantWidget(QWidget):
         """悬停读数文本（纯计算，测试直接调用断言）。
 
         频率 = 鼠标 y 显示坐标按当前单位映射回 Hz（format_freq_readout）；
-        音分 = 1200·log2(f/440)，f≤0 防御显示 "--"。
+        音分 = 相对当前 A4 参考（units.hz_to_cents），f≤0 防御显示 "--"。
         """
+        from acouscope.dsp.units import hz_to_cents
         from acouscope.ui.widgets.freq_axis import display_to_freq, format_freq_readout
 
         f = display_to_freq(float(y_disp), self._freq_unit)
         if f > 0:
-            cents = 1200.0 * np.log2(f / 440.0)
+            cents = hz_to_cents(f)
             return (
                 f"t={float(t_disp):.3f}s | {format_freq_readout(f, 'hz')} "
                 f"| {cents:+.1f} cents"

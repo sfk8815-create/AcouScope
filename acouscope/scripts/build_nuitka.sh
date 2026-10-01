@@ -1,7 +1,7 @@
 #!/bin/bash
 # AcouScope Nuitka macOS arm64 构建脚本（T-903 打包链裁决实验 / T-903b 续，PyInstaller 备选候选）
 # 用法：bash scripts/build_nuitka.sh
-# 产物：dist-nuitka/AcouScope.app（可选 dist-nuitka/AcouScope-0.99.20260904-macOS-arm64.dmg）
+# 产物：dist-nuitka/AcouScope.app（可选 dist-nuitka/AcouScope-0.99.20260925-macOS-arm64.dmg）
 # 幂等：每次运行先清理 dist-nuitka 构建目录再重建；与 dist/（PyInstaller，冻结）完全隔离
 # 模型/FFmpeg 以数据文件模式 --include-data-dir 进包（禁编译进二进制）
 # 构建期工具（nuitka/zstandard）装至 .venv site-packages（--target 显式定向；
@@ -59,8 +59,8 @@ VENV_SP=".venv/lib/python3.10/site-packages"
 ENTRY="src/acouscope/__main__.py"
 DIST_DIR="dist-nuitka"
 APP="$DIST_DIR/AcouScope.app"
-DMG="$DIST_DIR/AcouScope-0.99.20260904-macOS-arm64.dmg"
-APP_VERSION="0.99.20260904"
+DMG="$DIST_DIR/AcouScope-0.99.20260925-macOS-arm64.dmg"
+APP_VERSION="0.99.20260925"
 SIGNED_APP_NAME="com.acouscope.app"
 ICON="build/AcouScope.icns"
 
@@ -142,7 +142,7 @@ log "   du -sk 清洗后副本：$(du -sk "$TMP_MPL" | awk '{print $1}') KB"
 # Nuitka flag 依据 4.2.1 --help 实读（2026-09-06）：
 #   --macos-create-app-bundle  隐含 standalone，app bundle 模式（对应 spec BUNDLE/console=False）
 #   --macos-app-console-mode=disable  无控制台（对应 spec console=False）
-#   --macos-app-name / --macos-app-icon / --macos-app-version（0.99.20260904，
+#   --macos-app-name / --macos-app-icon / --macos-app-version（0.99.20260925，
 #     对齐 pyproject 现行版本；spec 内 0.98.20160830 为 PyInstaller 冻结路径的历史值）
 #   --macos-signed-app-name  ad-hoc 签名身份/bundle id（对应 spec bundle_identifier）
 #   --macos-app-protected-resource  麦克风权限文案（对应 spec NSMicrophoneUsageDescription）
@@ -173,6 +173,7 @@ NUITKA_ARGS=(
     --enable-plugin=pyqt6
     --macos-app-protected-resource="NSMicrophoneUsageDescription:AcouScope 需要访问麦克风以录制音频进行分析。"
     --include-package=acouscope
+    --include-package=acouscope_core
     --include-data-dir=src/acouscope/resources/models=acouscope/resources/models
     --include-data-dir=src/acouscope/resources/bin=acouscope/resources/bin
     --include-data-dir=src/acouscope/resources/icons=acouscope/resources/icons

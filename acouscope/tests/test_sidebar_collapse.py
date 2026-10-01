@@ -15,15 +15,14 @@ QSplitter handle——挂起黑名单铁律只禁主窗口顶层显示）：
   ⑦ 静态纪律（禁词/hex 颜色/主窗顶层显示禁用——扫本文件与源码）。
 """
 
-import os
 import pathlib
 
 import pytest
 
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QEnterEvent, QMouseEvent, QPixmap, QPainter, QColor, QImage
+from PyQt6.QtCore import QCoreApplication, QEvent, QPointF, QRect, Qt
+from PyQt6.QtGui import QEnterEvent, QImage, QMouseEvent, QPixmap, QPainter, QColor
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QSplitterHandle, QWidget
 
@@ -33,7 +32,6 @@ from acouscope.ui.widgets.panels.workspace import (
     build_workspace_splitter,
     fit_panel_width,
     restore_workspace,
-    save_workspace,
 )
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -373,3 +371,83 @@ def test_grip_clamped_stays_in_handle(qapp, tmp_path):
         assert bbox is not None
         assert bbox[0] >= rect.left() and bbox[2] <= rect.right()
         assert bbox[1] >= rect.top() and bbox[3] <= rect.bottom()
+
+
+# ----------------------------------------------------------------------
+# ⑧ T-1079 ③：handle 清底去残影
+# 事件驱动重绘时 Qt 不为该 handle 清背景（无 autoFillBackground/WA_StyledBackground，
+# 实测离屏 render() 却会画窗底、遮蔽缺陷），故残影守卫必须**仿真 backing store 语义**：
+# 共享 pixmap 当 backing store + 代理 QPainter 注入脏区 clip，直接驱动 paintEvent 本体。
+# 旧码（不清底）在此判据下必红；新码 paintEvent 起始 fillRect 铺满 → 旧位描边被抹平。
+# ----------------------------------------------------------------------
+
+
+def _count_color(img, hexcolor, y0, y1):
+    target = QColor(hexcolor).rgb()
+    return sum(1 for y in range(max(0, y0), min(img.height(), y1))
+               for x in range(img.width()) if img.pixel(x, y) == target)
+
+
+def test_grip_partial_repaint_no_ghost(qapp, tmp_path, monkeypatch):
+    """§6.1-6（T-1079 ③）：只重绘旧悬停位脏区后，该带内不得残留旧描边像素（残影）。"""
+    from acouscope.ui.widgets.panels import workspace as workspace_mod
+
+    cc = theme.colors()
+    ws = _make_shown(qapp, tmp_path, 1300, 600)
+    h0 = _boundary_handle(ws, ws["left"])
+
+    pm = QPixmap(h0.size())
+    pm.fill(QColor(cc["bg0"]))
+    real_qp = QPainter
+    clips = []
+
+    def proxy(widget=None, *a, **k):
+        p = real_qp(pm)
+        if clips:
+            p.setClipRect(clips[-1])
+        return p
+
+    proxy.RenderHint = real_qp.RenderHint
+    monkeypatch.setattr(workspace_mod, "QPainter", proxy)
+
+    y1, y2 = int(h0.height() * 0.25), int(h0.height() * 0.75)
+    h0._hover, h0._dragged = True, False
+    h0._cursor_y = y1
+    clips.append(h0.rect())
+    h0.paintEvent(None)
+    assert _count_color(pm.toImage(), cc["sub"], y1 - 12, y1 + 13) > 0, \
+        "前置：y1 悬停应画出抓手"
+
+    h0._cursor_y = y2
+    clips.append(QRect(0, y1 - 10, h0.width(), 20))  # Qt 只把旧位带标脏
+    h0.paintEvent(None)
+    assert _count_color(pm.toImage(), cc["sub"], y1 - 10, y1 + 11) == 0, \
+        "旧悬停位描边像素残留 = 残影（paintEvent 未清底）"
+
+
+def test_grip_move_full_frame_clean_and_evidence(qapp, tmp_path):
+    """§6.1-7（T-1079 ③）：悬停位 y1→y2 整帧重绘后 y1 带无描边残留；出前后帧自证图。"""
+    cc = theme.colors()
+    ws = _make_shown(qapp, tmp_path, 1300, 600)
+    h0 = _boundary_handle(ws, ws["left"])
+    h = h0.height()
+
+    _hover(h0, int(h * 0.25))
+    img_a = _render(h0).toImage()
+    assert _count_color(img_a, cc["sub"], int(h * 0.25) - 12, int(h * 0.25) + 13) > 0, \
+        "前置：y1 悬停应画出抓手"
+    _hover(h0, int(h * 0.75))
+    img_b = _render(h0).toImage()
+    assert _count_color(img_b, cc["sub"], int(h * 0.25) - 12, int(h * 0.25) + 13) == 0, \
+        "y1 旧位抓手像素残留（残影）"
+    assert _count_color(img_b, cc["sub"], int(h * 0.75) - 12, int(h * 0.75) + 13) > 0
+
+    # 自证图：同 handle 悬停 y1 / y2 两帧并排（幕僚目测复核用）
+    gap = 8
+    canvas = QImage(img_a.width() * 2 + gap, img_a.height(), QImage.Format.Format_RGB32)
+    canvas.fill(QColor(cc["bg3"]))
+    cp = QPainter(canvas)
+    cp.drawImage(0, 0, img_a)
+    cp.drawImage(img_a.width() + gap, 0, img_b)
+    cp.end()
+    assert canvas.save("/tmp/pi_t1079_handle.png")

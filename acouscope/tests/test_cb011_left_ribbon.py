@@ -86,11 +86,11 @@ def test_central_layout_is_ribbon_then_workspace(window):
 
     # 中间栏（T-913）为 central_stack：index0 = 常规页（原垂直 splitter：
     # 波形视图（含传输条）在上、分析面板在下）；index1 = 批处理工作区；
-    # index2 = 房间模态页；index3 = 房间声学页（T-1054b3）。
+    # index2 = 房间模态页；index3 = 房间声学页（T-1054b3）；index4 = 图表设计器页（T-1054a）。
     center = ws.widget(1)
     assert isinstance(center, QStackedWidget)
     assert center is window.central_stack
-    assert center.count() == 4
+    assert center.count() == 6
     assert center.currentIndex() == 0  # 默认常规模式（行为零变化）
     regular = center.widget(0)
     assert isinstance(regular, QSplitter)

@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""T-504d 房间声学工具去模态化 + 右抽屉接入测试。
+"""T-504d 房间声学工具去模态化 + 右栏内容页宿主接入测试。
 
-模式照抄 tests/test_settings_drawer.py（T-504g-migration 模式）。
+T-1054 批4d：抽屉（open_drawer）已整体退役，房间声学面板改由中央
+全铺页 / 页宿主承载。模式照抄 tests/test_settings_drawer.py。
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from PyQt6.QtWidgets import QWidget, QDialog, QTabWidget
+from PyQt6.QtWidgets import QWidget, QDialog, QTabWidget, QVBoxLayout
 from acouscope.ui.widgets.room_acoustics_dialog import RoomAcousticsDialog
 
 UI = pathlib.Path(__file__).resolve().parents[1] / "src" / "acouscope" / "ui"
@@ -44,13 +45,22 @@ def test_close_button_emits_cancelled(qapp):
     assert seen == ["c"]
 
 
-def test_embedded_in_drawer(qapp):
-    from acouscope.ui.widgets.drawer import open_drawer
+def test_embedded_in_page_host(qapp):
+    """非模态嵌入：房间声学面板可装入页宿主容器且非模态。
+
+    抽屉退役后等价断言：面板作为普通 QWidget 子件装入宿主容器。
+    """
     host = QWidget()
     host.resize(1200, 800)
     host.show()
-    drawer = open_drawer(host, RoomAcousticsDialog(), width=560)
-    assert drawer.is_open()
+    panel = RoomAcousticsDialog()
+    layout = QVBoxLayout(host)
+    layout.addWidget(panel)
+    qapp.processEvents()
+    assert not isinstance(panel, QDialog)     # 非模态面板（非对话框）
+    assert panel.parent() is host             # 装入宿主容器
+    assert panel.isModal() is False           # 非模态语义保留
+    assert panel.isVisibleTo(host)            # 宿主显示时面板随之可见
 
 
 def test_sources_de_modalized():
@@ -60,7 +70,10 @@ def test_sources_de_modalized():
     assert ".exec(" not in sd
     assert "self.accept" not in sd
     mw = (UI / "main_window.py").read_text(encoding="utf-8")
-    assert "open_drawer" in mw  # 抽屉基础设施仍在（批4 才退役）
+    # 批4c：录音设置抽屉亦退役 → main_window 无 open_drawer；
+    # 批4d：抽屉基础设施本体（drawer.py）整体删除 → 反向断言文件不存在
+    assert "open_drawer" not in mw
+    assert not (UI / "widgets" / "drawer.py").exists()
     # _on_room_acoustics 函数体：走全铺页通路（_set_workspace_page）、无 .exec()
     # 分隔符 "\n    def " 会吞掉 "def " 前缀，块以方法名开头
     chunks = [c for c in mw.split("\n    def ") if c.startswith("_on_room_acoustics")]

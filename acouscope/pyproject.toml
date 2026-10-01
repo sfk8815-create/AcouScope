@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "acouscope"
-version = "0.99.20260904"
+version = "0.99.20260925"
 description = "AcouScope - 面向音乐与数字人文领域研究的跨平台音频分析软件"
 authors = ["Fengkai Shi <sfklc@hotmail.com>"]
 license = "GPL-3.0-only"

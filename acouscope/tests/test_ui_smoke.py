@@ -3,7 +3,8 @@
 
 两层守卫：
 ① 结构用例（window fixture，离屏、不 show()）：三栏/堆叠/传输条/导航器
-   删除守卫（T-1013）/检查器各就各位 + 抽屉宽度注册表 + close 清理路径
+   删除守卫（T-1013）/检查器各就各位 + 无抽屉注册族（T-1054d 抽屉退役） +
+   close 清理路径
 ② 模态清单用例（纯源码扫描，无需 qapp）：6 文件去模态化防回退 +
    QDialog 白名单清单
 
@@ -30,12 +31,10 @@ from PyQt6.QtCore import pyqtBoundSignal, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QStackedWidget,
-    QWidget,
 )
 
 from acouscope.app.controller import AppController
 from acouscope.ui.main_window import MainWindow
-from acouscope.ui.widgets.drawer import DrawerWidget, open_drawer
 from acouscope.ui.widgets.panels import InspectorPanel
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -120,20 +119,18 @@ class TestV099Structure:
         assert isinstance(InspectorPanel.aiRequested, pyqtSignal)
 
     def test_close_cleanup_no_crash(self, window):
-        # 打开临时抽屉后直接 close（本用例不依赖音频）
-        open_drawer(window, QWidget(), 360)
-        assert isinstance(getattr(window, "_v099_drawer_360"), DrawerWidget)
-        window.close()  # closeEvent 走 shutdown_content 路径，不得抛异常
+        # T-1054d：抽屉退役 → 改触发一个在役右栏页（图表字体页，无 worker）再 close
+        window.action_chart_font.trigger()
+        assert window.right_content.currentWidget() is window._chart_font_page
+        window.close()  # closeEvent 走退出收尾路径，不得抛异常
         # 幂等：close 后再次 close 不报错
         window.close()
 
-    def test_drawer_width_registry(self, window):
-        for width in (360, 560, 640):
-            open_drawer(window, QWidget(), width)
-            assert isinstance(getattr(window, f"_v099_drawer_{width}"), DrawerWidget)
-        # 逐一清理（防泄漏；装普通 QWidget，不触发 AI worker）
-        for width in (360, 560, 640):
-            getattr(window, f"_v099_drawer_{width}").shutdown_content()
+    def test_no_drawer_width_registry(self, window):
+        # T-1054d：抽屉机制整体退役 → 实例上不得再残留 _v099_drawer_* 注册族
+        assert [k for k in window.__dict__ if k.startswith("_v099_drawer_")] == []
+        # 反向断言：抽屉组件源文件已整档删除（防能力回退）
+        assert (_WIDGETS_DIR / "drawer.py").exists() is False
 
 
 class TestModalInventory:

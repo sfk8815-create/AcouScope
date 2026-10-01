@@ -430,6 +430,7 @@ class TrackHeaderColumn(QWidget):
             )
             self._headers[track.track_id] = header
             self._layout.addWidget(header)
+        self._layout.addStretch(1)
 
     def header_for(self, track_id: str) -> TrackHeader | None:
         return self._headers.get(track_id)

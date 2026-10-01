@@ -90,6 +90,13 @@ class TestRecordSettingsDialog:
             "acouscope.ui.widgets.record_settings_dialog._last_dir",
             str(tmp_path),
         )
+        # T-1054 批4c（PI-T20 M1）：`_last_rate` 为模块级会话内粘滞全局，任何
+        # accept 过的面板都会写它 ⇒ 档序敏感（drawer 档先跑会污染本档的 48000 断言）。
+        # 本处显式归零（粘滞全局本体属禁碰面，登记不修），使本档与档序无关。
+        monkeypatch.setattr(
+            "acouscope.ui.widgets.record_settings_dialog._last_rate",
+            None,
+        )
         dlg = RecordSettingsDialog(current_rate=48000)
         assert dlg.format_name() == "WAV"
         assert dlg.depth() == "PCM_16"

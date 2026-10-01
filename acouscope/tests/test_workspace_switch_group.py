@@ -1,7 +1,8 @@
 """T-1054 批0：主工具栏「工作区开关组」验收（令 §五 1~6）。
 
 覆盖：开关组结构 / 切页与再点收回 / 互斥 / 右键入口状态一致性 /
-房间两开关启用（批3）+ 图表设计器禁用占位（待启用）/ 状态源禁引入新机制（无 QDialog·线程·定时器·hex·px）。
+房间两开关启用（批3）+ 图表设计器启用与 index4 往返（批4a）/ 状态源禁引入新机制
+（无 QDialog·线程·定时器·hex·px）。
 开关组位置：file_toolbar 右栏开关之后、前置分隔符。
 """
 
@@ -105,39 +106,48 @@ def test_external_entries_sync_switch_state(window):
 
 
 # ---------------------------------------------------------------------------
-# §五 5 占位：图表设计器仍禁用（tooltip 含「待启用」）；房间两开关已启用
-# （tooltip 无待启用标记、接槽可点、互斥、再点收回）——批3 扩面⑦（用例数不变）
+# §五 5 启用面：四钮全启用（批3 房间两开关 + 批4a 图表设计器）
+# （tooltip 无待启用标记、接槽可点、互斥、再点收回）——批3 扩面⑦ / 批4a 扩面（用例数不变）
 # ---------------------------------------------------------------------------
 
 
 def test_placeholder_switches_disabled_with_pending_tooltip(window):
-    """图表设计器保持禁用占位；房间模态/房间声学已启用并可切全铺页。"""
+    """（历史名保留可追溯）批4a 后开关组四钮全启用：图表设计器 = 启用 + index4 往返。
+
+    批3 时代本用例断「房间两开关启用 / 图表设计器保持禁用占位（tooltip 含待启用）」；
+    批4a 图表设计器改走中央全铺页（index4）⇒ 启用面扩至开关组全 4 钮，禁用占位清零
+    （isEnabled False 分支已无对象）。
+    """
     from acouscope.ui.theme import ICONS
 
-    # 图表设计器：仍为禁用占位 + tooltip 含待启用 + 图标非空
-    btn = window.btn_toggle_chart_designer
-    assert btn.isEnabled() is False, "chart_designer 应为禁用占位"
-    tip = tr("toolbar.chart_designer")
-    assert "待启用" in tip or "待啟用" in tip or "pending" in tip, "chart_designer tooltip 缺待启用标记"
-    assert btn.toolTip() == tip and btn.toolTip().strip(), "chart_designer tooltip 缺失/不一致"
-    assert "chart_designer" in ICONS, "图标 chart_designer 未登记于 ICONS"
-    assert btn.icon().isNull() is False, "chart_designer 图标为空（R7 无障碍）"
-
-    # 房间模态 / 房间声学：启用 + tooltip 无待启用标记 + 图标非空 + 接槽可点
-    for key, objname, icon_name in (
-        ("room_modal", "toggleRoomModalBtn", "room_modal"),
-        ("room_acoustic", "toggleRoomAcousticBtn", "room_acoustic"),
+    # 启用面（批4a：扩至开关组全 4 钮）：启用 + tooltip 无待启用标记 + 图标非空
+    for key, objname, icon_name, tip_key in (
+        ("batch_workspace", "toggleBatchWorkspaceBtn", "layers", "action.batch"),
+        ("chart_designer", "toggleChartDesignerBtn", "chart_designer", "toolbar.chart_designer"),
+        ("room_modal", "toggleRoomModalBtn", "room_modal", "toolbar.room_modal"),
+        ("room_acoustic", "toggleRoomAcousticBtn", "room_acoustic", "toolbar.room_acoustic"),
     ):
         b = getattr(window, "btn_toggle_" + key)
         assert b.isEnabled() is True, f"{objname} 应为启用"
-        tip = tr(f"toolbar.{key}")
+        tip = tr(tip_key)
         assert "待启用" not in tip and "待啟用" not in tip and "pending" not in tip, \
-            f"{key} tooltip 不应含待启用标记"
+            f"{tip_key} tooltip 不应含待启用标记"
         assert b.toolTip() == tip and b.toolTip().strip(), f"{objname} tooltip 缺失/不一致"
         assert icon_name in ICONS, f"图标 {icon_name} 未登记于 ICONS"
         assert b.icon().isNull() is False, f"{objname} 图标为空（R7 无障碍）"
 
-    # 接槽可点：点1 → 切页 + checked；互斥（批处理/房间模态/房间声学至多一个 checked）
+    # ★ 批4a 新增：图表设计器（index4）切页往返 + 互斥 + 再点收回
+    window.btn_toggle_chart_designer.click()
+    assert window.central_stack.currentIndex() == 4
+    assert window.btn_toggle_chart_designer.isChecked()
+    assert not window.btn_toggle_batch_workspace.isChecked()
+    assert not window.btn_toggle_room_modal.isChecked()
+    assert not window.btn_toggle_room_acoustic.isChecked()
+    window.btn_toggle_chart_designer.click()  # 再点 → 收回 index0 + 反勾选
+    assert window.central_stack.currentIndex() == 0
+    assert not window.btn_toggle_chart_designer.isChecked()
+
+    # 房间模态 / 房间声学：接槽可点（含互斥）
     window.btn_toggle_room_modal.click()
     assert window.central_stack.currentIndex() == 2
     assert window.btn_toggle_room_modal.isChecked()

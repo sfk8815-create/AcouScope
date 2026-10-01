@@ -118,15 +118,18 @@ class PitchContourWidget(QWidget):
         self.scatter = pg.ScatterPlotItem(size=3, pen=pg.mkPen(None))
         self.plot_widget.addItem(self.scatter)
 
-        # 参考音高线（A4 = 440Hz）
+        # 参考音高线（A4 = 当前参考频率）
+        from acouscope.dsp.units import get_reference_hz
+
+        a4_hz = get_reference_hz()
         self.ref_line = pg.InfiniteLine(
-            pos=440, angle=0,
+            pos=a4_hz, angle=0,
             pen=pg.mkPen(color=theme.data_ink("ref_line"), width=2.2,
                          style=pg.QtCore.Qt.PenStyle.DashLine),
         )
         self.plot_widget.addItem(self.ref_line)
-        self.ref_label = pg.TextItem("A4 (440 Hz)", color=theme.data_ink("ref_line"))
-        self.ref_label.setPos(0, 440)
+        self.ref_label = pg.TextItem(f"A4 ({a4_hz:.0f} Hz)", color=theme.data_ink("ref_line"))
+        self.ref_label.setPos(0, a4_hz)
         self.plot_widget.addItem(self.ref_label)
 
         # 游标
@@ -340,8 +343,10 @@ class PitchContourWidget(QWidget):
         else:
             axis_left.setTicks(None)
 
-        # 参考线位置（A4 = 440 Hz）
-        ref_y = freq_to_display(440.0, self._freq_unit)
+        # 参考线位置（A4 = 当前参考频率）
+        from acouscope.dsp.units import get_reference_hz
+
+        ref_y = freq_to_display(get_reference_hz(), self._freq_unit)
         self.ref_line.setPos(ref_y)
         self.ref_label.setPos(self._times[0], ref_y)
 
@@ -369,7 +374,7 @@ class PitchContourWidget(QWidget):
                 self._xrange_blocked = False
 
     def _toggle_ref_line(self) -> None:
-        """A4 参考线（440 Hz）显示开关。"""
+        """A4 参考线（当前参考频率）显示开关。"""
         visible = not self.ref_line.isVisible()
         self.ref_line.setVisible(visible)
         self.ref_label.setVisible(visible)
@@ -448,8 +453,10 @@ class PitchContourWidget(QWidget):
             f = f0_valid[idx]
             self.lbl_freq.setText(f"频率: {f:.1f} Hz")
 
-            # 计算音分偏差（相对于 A4 = 440Hz）
-            cents = 1200 * np.log2(f / 440.0)
+            # 计算音分偏差（相对于当前 A4 参考）
+            from acouscope.dsp.units import hz_to_cents
+
+            cents = hz_to_cents(f)
             self.lbl_cents.setText(f"音分: {cents:+.0f} cents")
 
     # ------------------------------------------------------------------
@@ -472,13 +479,14 @@ class PitchContourWidget(QWidget):
         """悬停读数文本（纯计算，测试直接调用断言）。
 
         频率 = 鼠标 y 显示坐标按当前单位映射回 Hz（format_freq_readout）；
-        音分 = 1200·log2(f/440)，f≤0 防御显示 "--"。
+        音分 = 相对当前 A4 参考（units.hz_to_cents），f≤0 防御显示 "--"。
         """
+        from acouscope.dsp.units import hz_to_cents
         from acouscope.ui.widgets.freq_axis import display_to_freq, format_freq_readout
 
         f = display_to_freq(float(y_disp), self._freq_unit)
         if f > 0:
-            cents = 1200.0 * np.log2(f / 440.0)
+            cents = hz_to_cents(f)
             return (
                 f"t={float(t_disp):.3f}s | {format_freq_readout(f, 'hz')} "
                 f"| {cents:+.1f} cents"
@@ -572,3 +580,83 @@ class PitchContourWidget(QWidget):
             tag.setText(f"{name}({tt:.3f}s)")
             tag.setPos(tt, y_hi)
             tag.show()
+
+    # ------------------------------------------------------------------
+    # T-1060 件3：统一收尾（模板 = waveform.py `_cleanup_scene`/`closeEvent`）
+    # 本控件析构图：PlotWidget→scene→{scatter, ref_line/ref_label, v_line,
+    # 调音线/标签对, A/B 测量线/标签}，无显式收尾路径时进程近尾由 Python GC
+    # 以「不同于 Qt 场景删除顺序」回收 item 包装 → 场景析构遍历可能触碰已
+    # 半释放的 C++ 项。这里先逐项移出场景 + 断 item 信号 + 摘事件过滤器，
+    # 消除析构序依赖。只加收尾，不改任何事件/交互/绘制路径。
+    # ------------------------------------------------------------------
+
+    _DETACH_SINGLE_ITEMS = ("scatter", "ref_line", "ref_label", "v_line")
+
+    def _detach_scene_items(self) -> None:
+        """统一收尾：断场景 item / 信号 / 事件过滤器（幂等、绝不外抛）。
+
+        收尾后仍保留**纯值快照**（`_times` / `_f0` / `_tuning_lines` 等
+        numpy/序列数据），class 契约「close 后可读」不回退；仅清理 Qt 包装与
+        连接：逐项 `removeItem` → 断 item 信号 → 摘 scene/viewport 事件过滤器
+        → 清空 item 容器。
+        """
+        plot_widget = getattr(self, "plot_widget", None)
+        if plot_widget is None:
+            return
+
+        items = []
+        for attr in self._DETACH_SINGLE_ITEMS:
+            item = getattr(self, attr, None)
+            if item is not None:
+                items.append(item)
+        for entry in getattr(self, "_tuning_items", None) or []:
+            if isinstance(entry, tuple):
+                items.extend([e for e in entry if e is not None])
+            elif entry is not None:
+                items.append(entry)
+        for key in ("_measure_items", "_measure_item_labels"):
+            items.extend([i for i in (getattr(self, key, None) or []) if i is not None])
+
+        # 断 item → 本控件的信号（先断后移除：避免移除后仍有连接指向本控件）
+        v_line = getattr(self, "v_line", None)
+        if v_line is not None:
+            try:
+                v_line.sigPositionChanged.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+
+        for item in items:
+            try:
+                plot_widget.removeItem(item)
+            except RuntimeError:
+                pass  # 底层 C++ 已析构（控件正在销毁途中）
+            except Exception:
+                pass  # 双移除/缺登记等一律吞掉：收尾路径绝不外抛
+
+        # 摘事件过滤器（断「控件 ← 场景/视口」的环）
+        try:
+            scene = plot_widget.scene()
+            if scene is not None:
+                scene.removeEventFilter(self)
+        except RuntimeError:
+            pass
+        except Exception:
+            pass
+        try:
+            viewport = plot_widget.viewport()
+            if viewport is not None:
+                viewport.removeEventFilter(self)
+        except RuntimeError:
+            pass
+        except Exception:
+            pass
+
+        # 清空 item 容器（纯值快照不在此列，保持可读）
+        self._tuning_items = []
+        self._measure_items = []
+        self._measure_item_labels = []
+
+    def closeEvent(self, event):  # noqa: N802 (Qt 命名)
+        """窗口关闭：先显式收尾场景 item，再走默认关闭。"""
+        self._detach_scene_items()
+        super().closeEvent(event)

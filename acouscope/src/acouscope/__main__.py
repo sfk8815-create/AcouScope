@@ -9,6 +9,9 @@ from acouscope.utils.log import get_logger
 
 _log = get_logger("main")
 
+# 预热延后秒数：不与冷启动窗口争核（T-901b 有意设计，改动需真机 profile 另议）
+MATPLOTLIB_WARM_DELAY_S = 8.0
+
 
 def _warm_matplotlib():
     """后台预热 matplotlib（import + 字体缓存构建，冷启动可达数秒）。
@@ -31,6 +34,16 @@ def main():
     src_path = Path(__file__).parent.parent.parent
     if str(src_path) not in sys.path:
         sys.path.insert(0, str(src_path))
+
+    # 单实例守卫（T-1029）：早于 AppController / QApplication
+    from acouscope.utils.single_instance import try_acquire
+
+    _si = try_acquire()
+    if _si is False:
+        _log.info("AcouScope 已在运行，本次启动退出。")
+        sys.exit(0)
+    elif _si is None:
+        _log.warning("单实例守卫机制失败（fail-open，照常启动）。")
 
     from acouscope.app.controller import AppController
     from acouscope.ui.main_window import MainWindow
@@ -83,7 +96,7 @@ def main():
 
     # 后台预热 matplotlib，避免首次使用 3D 频谱图时界面冻结
     # 预热延迟到窗口就绪后 8s（冷启动窗口内不与 UI 初始化争核；T-901b）
-    warm_timer = threading.Timer(8.0, _warm_matplotlib)
+    warm_timer = threading.Timer(MATPLOTLIB_WARM_DELAY_S, _warm_matplotlib)
     warm_timer.daemon = True
     warm_timer.start()
 

@@ -60,7 +60,8 @@ MISSING_GENERIC_PRIMITIVES = {
     # track：单条音轨 —— 横向圆角轨条（左右各留白 ≥2px），语义=多轨时间线上的单轨。
     "track": '<rect x="3" y="10" width="18" height="4" rx="2" />',
     # add_track：新建音轨 —— 轨条 + 右上加号（十字），语义=在既有轨道旁追加一条新轨。
-    "add_track": '<g><rect x="3" y="10" width="13" height="4" rx="2" /><path d="M18.5 8.5v7" /><path d="M15.5 12h6" /></g>',
+    # T-1076 O-1 修法(b)：加号右移（横笔 17→21 / 竖笔 x=19），轨条右缘 16 与加号起 17 间隙 ≥1px，消除 0.5px 相碰。
+    "add_track": '<g><rect x="3" y="10" width="13" height="4" rx="2" /><path d="M19 8.5v7" /><path d="M17 12h4" /></g>',
     # solo：独奏/监听 —— 耳机轮廓（头带圆弧 + 左右耳罩），语义=只监听该轨；禁字母 S。
     "solo": '<g><path d="M3.5 13a8.5 8.5 0 0 1 17 0" /><rect x="3" y="13" width="3.5" height="6" rx="1.5" /><rect x="17.5" y="13" width="3.5" height="6" rx="1.5" /></g>',
     # mute：静音 —— 喇叭（方锥体）+ 贯穿斜杠，语义=此轨静音。
@@ -70,12 +71,36 @@ MISSING_GENERIC_PRIMITIVES = {
     # volume：音量 —— 喇叭（方锥体）+ 两条声波弧，语义=调节音量。
     "volume": '<g><path d="M4.5 9v6h3l4 3V6l-4 3h-3z" /><path d="M15 9.5a4 4 0 0 1 0 5" /><path d="M17.5 8a4 4 0 0 1 0 8" /></g>',
     # -- T-1025 批0 前置 3 名（T-1054 工作区开关组） --
-    # room_modal：房间模态 —— 房间轮廓（圆角矩形）+ 内部驻波曲线，语义=简正模式/房间模态。
-    "room_modal": '<g><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M7 11.5c1.8-2 3.4 0 5 0s3.2-2 5 0" /></g>',
+    # room_modal：房间模态 —— 3×3 驻波节点 + 中央振幅标记（环），语义=简正模式/房间模态。
+    # T-1076 O-2 修法(A)：去共用外框，与 room_acoustic（框+声波弧）轮廓级分化。
+    "room_modal": '<g><circle cx="5" cy="5" r="1.2" /><circle cx="12" cy="5" r="1.2" /><circle cx="19" cy="5" r="1.2" /><circle cx="5" cy="12" r="1.2" /><circle cx="19" cy="12" r="1.2" /><circle cx="5" cy="19" r="1.2" /><circle cx="12" cy="19" r="1.2" /><circle cx="19" cy="19" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="12" cy="12" r="4.5" /></g>',
     # room_acoustic：房间声学 —— 房间轮廓 + 扩散波弧（两段发散圆弧），语义=室内声学/混响。
     "room_acoustic": '<g><rect x="3" y="4" width="18" height="16" rx="1" /><path d="M6.5 12c2.8-2.6 8.2-2.6 11 0" /><path d="M6 8.5c3.5-3.2 8.5-3.2 12 0" /></g>',
-    # chart_designer：图表设计器 —— 图框（圆角矩形）+ 上升折线 + 右下角编辑笔（铅笔），语义=图表设计与编辑。
-    "chart_designer": '<g><rect x="3" y="4" width="18" height="15" rx="1.5" /><path d="M5 15l3.5-3 3 3.5 3.5-4.5 2 2" /><rect x="14" y="16.5" width="6.5" height="2.2" rx="1" /><path d="M14 16.5l-2.4 1.1 2.4 1.1z" /></g>',
+    # chart_designer：图表设计器 —— 开放式 L 形坐标轴 + 三柱数据 + 顶部滑块（轨道+手柄），语义=图表设计与调节。
+    # T-1077 O-3 重设计：去封闭外框 rect（"相框/图片"元凶），改"轴+柱+滑块"三簇开放式构图。
+    "chart_designer": '<g><path d="M5 4v15h15" /><path d="M9 19v-4" /><path d="M13 19v-8" /><path d="M17 19v-6" /><path d="M8 7h10" /><path d="M15 5v4" /></g>',
+    # -- T-1084 O-4（候选 A） --
+    # tuning_ruler：音律标尺 —— 下基线 + 四等距刻度竖线 + 中刻度高亮（顶端实心点），语义=调音/标尺叠加层。
+    "tuning_ruler": '<g><path d="M3 19h18" /><path d="M6 19v-5" /><path d="M14 19v-5" /><path d="M18 19v-5" /><path d="M10 19V6" /><circle cx="10" cy="6" r="1.6" fill="currentColor" /></g>',
+    # -- T-1098 IM-10 呈现模式 2 名 --
+    # mode_single：一图 —— 一条下基线上两条起伏折线同轴交叠，语义=多轨 F0 叠合成一张图。
+    # 与 chart_designer（L 形轴+柱）、align（三条水平直线）逐簇分化：
+    # 本枚无竖柱、无刻度、无外框，主体是「两条互相交叠的轨迹」。
+    "mode_single": '<g><path d="M3.5 19.5h17" /><polyline points="4 15.5 8 8.5 12 12.5 16 5.5 20 9.5" /><polyline points="4 16 8 12.5 12 10 16 8 20 6" /></g>',
+    # mode_grid：多图 —— 2×2 等距分离小格（四角各一，互不相连），语义=各轨分离成网格。
+    # 与 room_modal（3×3 实心点 + 中央环）、layers（错位菱形堆叠）分化：本枚为空心方格阵列。
+    "mode_grid": '<g><rect x="3" y="3" width="7" height="7" rx="2" /><rect x="14" y="3" width="7" height="7" rx="2" /><rect x="3" y="14" width="7" height="7" rx="2" /><rect x="14" y="14" width="7" height="7" rx="2" /></g>',
+    # -- T-1109 IM-31 设置标签图标 --
+    # audio_device：音频设备 —— 扬声器箱体轮廓 + 两条声波弧，语义=音频输入/输出设备设置。
+    # 与 volume（喇叭锥体+声波）、solo（耳机轮廓）分化：本枚为矩形箱体+圆形单元+声波。
+    "audio_device": '<g><rect x="3" y="5" width="12" height="14" rx="2" /><circle cx="9" cy="14" r="3" /><path d="M18 9a4 4 0 0 1 0 6" /><path d="M20.5 7a6 6 0 0 1 0 10" /></g>',
+    # -- T-1111「支持一下」常驻入口 --
+    # encourage：鼓励/支持 —— 心形描边轮廓（24×24 视框·右下留白收势），语义=自愿支持/致谢。
+    # 与 ai（sparkles 星芒）、settings（齿轮）、audio_device（音箱）语义分化：本枚只画心形单线。
+    "encourage": '<g><path d="M12 20.2C12 20.2 4.4 15.5 4.4 10.3A4.3 4.3 0 0 1 12 7.6A4.3 4.3 0 0 1 19.6 10.3C19.6 15.5 12 20.2 12 20.2Z" /></g>',
+    # weixin_group：官方微信群 —— 两个交叠的圆角对话气泡 + 右下加号，语义=扫码入群/社区。
+    # 与 ai（星芒）、encourage（心形）、settings（齿轮）语义分化：本枚只画气泡与加号。
+    "weixin_group": '<g><rect x="3" y="4" width="12" height="9" rx="3" /><path d="M6 13v3l3-3" /><rect x="9" y="9" width="12" height="9" rx="3" /><path d="M27 13.5h-9m4.5-4.5v9" /></g>',
 }
 
 _PRIMITIVE_HEADER = (

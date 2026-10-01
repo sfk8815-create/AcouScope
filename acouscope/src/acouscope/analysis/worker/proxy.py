@@ -18,7 +18,7 @@ WORKER_PROXY_V1 — 主进程侧 WorkerProxy：
   实际调用时发生）
 
 T-902b 新增 watchdog（AT-1006 主进程免疫 hang/OOM）：
-- heartbeat 线程：2s 间隔发 PING，5s 无 PONG → 置 dead（锁内翻转）
+- heartbeat 线程：按 interval 发 PING，超 _wd_timeout 无 PONG → 置 dead（锁内翻转）
 - 死亡 → 下次 detect 自动 respawn 一次（_ensure_process 单重生，代次上限）
 - 连续 2 次 worker 失败 → 本会话 fallback 直连（logging.warning 记
   backend 名与失败原因摘要；非模态、无 UI；fallback 后 env 语义不变，
@@ -98,7 +98,7 @@ def _heartbeat_loop(proxy_ref) -> None:
         的 interval——两者均不反向引用 proxy；_wd 的动态 interval 注入
         自下次 hb 重启生效，既有测试 _wd 注入后均重起 hb，语义不变）
 
-    状态机（AT-1006 ①：2s 间隔 / 5s 超时，可经 _wd 注入缩短）与
+    状态机（AT-1006 ①：interval 间隔 / _wd_timeout 超时，可经 _wd 注入）与
     _lock 纪律与实装完全一致：
       - 抢到 _lock 才动 socket（一次一读者，防与 detect 竞争 LineReader）；
         detect 占用期跳过（该窗口内的死亡由 detect 失败路径记账）
@@ -153,7 +153,7 @@ def _heartbeat_loop(proxy_ref) -> None:
                     except TimeoutError:
                         # 本轮 PONG 未回（worker 忙或慢）：不判死，
                         # 留给下轮超时判定（_last_pong_at 未刷新 → 累计超
-                        # _wd_timeout 才置 dead，保证 5s 超时语义）
+                        # _wd_timeout 才置 dead，保证超时语义）
                         pass
                     except OSError:
                         p._hb_dead = True
@@ -190,7 +190,7 @@ class WorkerProxy:
         self._lock = threading.Lock()
         # ---- watchdog 状态（T-902b / AT-1006，全部 _lock 保护）----
         self._wd_interval = 2.0          # heartbeat 间隔（s，可经 _wd 注入）
-        self._wd_timeout = 5.0           # heartbeat 超时（s，可经 _wd 注入）
+        self._wd_timeout = 15.0          # heartbeat 超时（s，可经 _wd 注入；T-1030：5.0→15.0，依据 PI-T25 实测 2.581s/档）
         self._hb_thread: Optional[threading.Thread] = None
         self._stop_hb = threading.Event()
         self._last_pong_at: Optional[float] = None
@@ -206,7 +206,7 @@ class WorkerProxy:
     # ------------------------------------------------------------------
 
     def _wd(self, **kwargs) -> None:
-        """watchdog 参数注入（测试可缩短超时避免真实 5s 等待）。"""
+        """watchdog 参数注入（测试可缩短超时，避免真实等待）。"""
         with self._lock:
             if "interval" in kwargs:
                 self._wd_interval = float(kwargs["interval"])
@@ -385,6 +385,12 @@ class WorkerProxy:
             pass
         # 成功 → 失败计数清零（连续失败语义：成功即打断；调用方持 _lock）
         self._consecutive_fails = 0
+        # IM-25 α（T-1070）：完整成功即活体证据。detect 全程持锁，期间
+        # heartbeat 抢锁失败（:121 跳过）发不出 PING，server 串行处理
+        # detect（返回循环后才写 PONG）⇒ 以成功时刻续 _last_pong_at，把
+        # 判死窗后移一整档，免合法久 detect 被全额计入墙钟差而误判死。
+        # 仅成功路径可达（:354-358/:372-375 失败 raise 在前行），判死式不动。
+        self._last_pong_at = time.monotonic()
         return track
 
     @staticmethod
@@ -632,5 +638,4 @@ class WorkerProxy:
             confidence=conf,
             fmin=payload.fmin,
             fmax=payload.fmax,
-            cent_ref=440.0,
         )

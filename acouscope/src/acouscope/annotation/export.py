@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import PitchAnnotation
-from .metadata import SessionMetadata
+from .metadata import FIELD_TERMS, SessionMetadata
 
 PITCH_FIELDS = [
     "t_ms", "f0_hz", "cents", "cent_ref",
@@ -101,6 +101,31 @@ def load_pitches_csv(path) -> list[PitchAnnotation]:
                 label=row[5], session_id=row[6], note=row[7],
             ))
     return rows
+
+
+# ---------------- SessionMetadata 单体导出（T-1035b）----------------
+
+def export_session_json(path, session: SessionMetadata) -> None:
+    """导出 SessionMetadata → JSON（to_dict() 全字段扁平映射，含自定义键）。"""
+    Path(path).write_text(
+        json.dumps(session.to_dict(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def export_session_csv(path, session: SessionMetadata) -> None:
+    """导出 SessionMetadata → 单行宽表 CSV。
+
+    表头基准 = FIELD_TERMS 的 key（逐字、顺序同字典），其后追加未入字典的
+    自定义键（按 values 插入序，稳定）；缺失字段写空串，不臆造数值。
+    """
+    row = session.to_dict()
+    header = [t.key for t in FIELD_TERMS]
+    header += [k for k in row if k not in header]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        w.writerow([row.get(k, "") for k in header])
 
 
 # ---------------- XML ----------------

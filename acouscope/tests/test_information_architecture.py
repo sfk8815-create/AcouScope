@@ -23,7 +23,6 @@ pytest.importorskip("PyQt6")
 
 from PyQt6.QtCore import Qt  # noqa: E402
 from PyQt6.QtWidgets import (  # noqa: E402
-    QApplication,
     QLabel,
     QPushButton,
     QToolBar,

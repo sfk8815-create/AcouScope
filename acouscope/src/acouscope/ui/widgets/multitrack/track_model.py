@@ -305,7 +305,21 @@ class MultitrackSession:
         return self._tracks[i] if i >= 0 else None
 
     def add_path(self, path, *, label: str | None = None) -> TrackModel:
-        """由文件路径新建轨道：读元数据 + 算粗包络（懒加载第一/二级）。"""
+        """由文件路径新建轨道：读元数据 + 算粗包络（懒加载第一/二级）。
+
+        ★ T-1087 M5：拆成 `new_track`（零包络 IO·轨道立即可见）+ `prepare_track`
+        （粗包络·整文件块式读，可交 worker）。本方法口径逐字不变（两步就地跑完），
+        三级懒加载与 LRU 语义未动。
+        """
+        track = self.new_track(path, label=label)
+        self.prepare_track(track)
+        return track
+
+    def new_track(self, path, *, label: str | None = None) -> TrackModel:
+        """登记轨道并只读文件头元数据（**不碰粗包络** ⇒ 零整文件 IO）。
+
+        返回已入列的轨道；包络留给 :meth:`prepare_track`（可在 worker 线程调）。
+        """
         track = TrackModel(
             path,
             label=label,
@@ -316,11 +330,20 @@ class MultitrackSession:
         )
         self._color_seq += 1
         track.load_metadata()
-        track.load_envelope()
         self._tracks.append(track)
         if self._current_id is None:
             self._current_id = track.track_id
         return track
+
+    def prepare_track(self, track: TrackModel) -> bool:
+        """填粗包络（块式读整文件·懒加载第二级）；返回是否就绪。
+
+        纯数据侧动作（不触 UI）⇒ 允许在 worker 线程调用；界面回填由调用方在
+        主线程的 done 回调里做（见 ``MultitrackPanel.add_files``）。
+        """
+        if track is None:
+            return False
+        return track.load_envelope()
 
     def add_track(self, track: TrackModel) -> TrackModel:
         """直接登记已有轨道对象（测试/迁移用）。"""

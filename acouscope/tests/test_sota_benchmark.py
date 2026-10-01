@@ -19,7 +19,6 @@ import tracemalloc
 import numpy as np
 import pytest
 
-from acouscope.analysis.backends.base import PyinBackend
 from acouscope.analysis.pitch import detect_pyin
 
 

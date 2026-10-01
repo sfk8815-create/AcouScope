@@ -7,6 +7,7 @@
 """
 
 import csv
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
@@ -15,13 +16,13 @@ import pytest
 pytest.importorskip("PyQt6")
 
 from acouscope.i18n import get_language, set_language, tr
+from acouscope.analysis.tunings.templates import get_template
 from acouscope.ui.widgets.multitrack import compare_diff
 from acouscope.ui.widgets.multitrack.analysis_source import TrackResultCache
 from acouscope.ui.widgets.multitrack.compare_present import (
     DIFF_BAR_GAP, DIFF_BAR_ROW_H, ComparePresentWidget, TrackSeries,
 )
 from acouscope.ui.widgets.multitrack.track_model import MultitrackSession
-from acouscope.ui.theme import TOKENS
 
 NEW_I18N_KEYS = (
     "multitrack.compare.diff_stats",
@@ -605,3 +606,55 @@ def test_present_source_has_no_hardcoded_hex_or_px_literals():
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", source)
     assert not re.search(r"\b\d+(?:\.\d+)?px\b", source)
     assert "TOKENS[\"semantic\"]" in source
+
+
+# ----------------------------------------------------------------------
+# T-1034a 轮 A：可选 tuning —— 音级归属（仅量化层，未接线）
+# ----------------------------------------------------------------------
+
+
+def test_optional_tuning_absent_keeps_existing_output_identical():
+    """不传 tuning ⇒ 新字段恒为 None，既有字段值级逐字不变（repr/asdict + 逐字段）。"""
+    from dataclasses import fields
+
+    ref, other = _pair(50.0)
+    result = compare_diff.compare_track(ref, other)
+    assert result.degrees is None
+    assert "degrees" not in repr(result)                       # repr=False
+    assert asdict(result)["degrees"] is None                   # 值级：恒为 None
+    # compare=False 之外再强证值级：传与不传 tuning，既有字段逐字段逐字同
+    tuned = compare_diff.compare_track(ref, other, tuning=get_template("12tet"))
+    assert tuned.degrees is not None
+    for spec in fields(result):
+        if spec.name == "degrees":
+            continue
+        assert np.array_equal(getattr(tuned, spec.name), getattr(result, spec.name))
+    # 唯一 app 入口不传 tuning 时也不产音级（链上不可达 ⇒ 无物入缓存）
+    summary = compare_diff.build_diff_summary([ref, other])
+    assert all(track.degrees is None for track in summary.tracks)
+
+
+def test_tuning_given_attaches_verifiable_degree_per_frame():
+    """传 12TET ⇒ 逐帧附音级归属且取值可校验（A4=440 → 0 度；+300c → 第 3 度）。"""
+    tuning = get_template("12tet")
+    ref, other = _pair(300.0)
+    result = compare_diff.compare_track(ref, other, tuning=tuning)
+    assert result.degrees is not None
+    assert result.degrees.shape == (result.pairs,)
+    assert set(np.unique(result.degrees).tolist()) == {3}
+    assert tuning.freq_to_degree(float(other.f0_hz[0])) == 3
+    # 唯一 app 入口转发：build_diff_summary 的逐轨结果同样带音级
+    summary = compare_diff.build_diff_summary([ref, other], tuning=tuning)
+    assert np.all(summary.tracks[0].degrees == 3)
+
+
+def test_non_equal_temperament_degree_is_not_snapped_to_nearest_semitone():
+    """纯律大调：+386.31c（5/4）→ 第 2 音级；同一输入在 12TET 下为第 4 音级 ⇒ 未被吸附。"""
+    just_cents = 1200.0 * np.log2(1.25)                        # 440 * 5/4 = 550 Hz
+    ref, other = _pair(just_cents, frames=10)
+    result = compare_diff.compare_track(ref, other, tuning=get_template("just_major"))
+    assert result.degrees[0] == 2
+    assert result.mean_delta_cent == pytest.approx(just_cents, abs=1e-6)
+    equal = compare_diff.compare_track(ref, other, tuning=get_template("12tet"))
+    assert equal.degrees[0] == 4
+    assert equal.degrees[0] != result.degrees[0]

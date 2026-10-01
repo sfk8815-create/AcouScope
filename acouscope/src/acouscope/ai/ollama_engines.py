@@ -162,22 +162,7 @@ def engine_state() -> tuple[bool, str]:
     return (False, bundled_version() or "")
 
 
-def _ver_tuple(s: str) -> tuple[int, ...]:
-    """'v0.33.3' / '0.34.0-rc1' → 数值元组（不足位补 0）。"""
-    out: list[int] = []
-    for seg in re.split(r"[.\-+]", s.strip().lstrip("vV")):
-        if seg.isdigit():
-            out.append(int(seg))
-        elif out:
-            break
-    while len(out) < 4:
-        out.append(0)
-    return tuple(out[:4])
-
-
-def is_newer(new: str, old: str) -> bool:
-    """new 严格高于 old（语义化版本比较；带预发布后缀按主版本比）。"""
-    return _ver_tuple(new) > _ver_tuple(old)
+from acouscope.utils.versioning import is_newer, ver_tuple as _ver_tuple  # UP-0 提取为公共模块
 
 
 # ---------------------------------------------------------------------------

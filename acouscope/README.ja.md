@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="ライセンス: GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="プラットフォーム">
-  <img src="https://img.shields.io/badge/version-0.99.20260904_Beta-orange" alt="バージョン 0.99.20260904（Beta）">
+  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="バージョン 0.99.20260925（Beta）">
 </p>
 
 <p align="center">
@@ -196,7 +196,7 @@ AcouScope/
 
 ## ロードマップ
 
-- **v0.99.20260904（Beta、現行）** —— 9 つの解析エンジン、3 言語インターフェース、テーマシステム、出版水準の書き出し；4 プラットフォームのインストーラー正式配布とコード署名（Windows Authenticode / Apple 公証）を進行中
+- **v0.99.20260925（Beta、現行）** —— 9 つの解析エンジン、3 言語インターフェース、テーマシステム、出版水準の書き出し；4 プラットフォームのインストーラー正式配布は準備中 —— 本ベータは意図的にコード署名／公証を行っていません。初回起動で止まった場合は公式サイト「問題が起きたときの対処法」の案内に従ってください
 - **v1.0** —— バッチ処理、プラグイン機構、定 Q 変換／ウェーブレット変換、正式リリース
 
 ## 謝辞

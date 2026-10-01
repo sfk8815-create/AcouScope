@@ -580,7 +580,6 @@ class TimbreWidget(QWidget):
         1. 逐帧特征（MFCC + 频谱特征 + HNR）— 以时间对齐
         2. 全局特征（标量）— 以键值对形式追加在末尾
         """
-        import io
 
         times = self._times
         n_frames = len(times)

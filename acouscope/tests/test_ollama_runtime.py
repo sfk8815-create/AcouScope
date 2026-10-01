@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-303b: 内置 Ollama 运行时管理器（假二进制 + monkeypatch；禁真实 ollama / 禁真实网络）。"""
-import os
 import stat
 import sys
 from pathlib import Path

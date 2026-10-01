@@ -53,7 +53,7 @@ _PX_RE = re.compile(r"\b\d+px\b")
 
 
 def _src_py_files() -> list[pathlib.Path]:
-    return sorted(p for p in _SRC.rglob("*.py") if p.is_file())
+    return sorted(p for p in _SRC.rglob("*.py") if p.is_file() and not p.name.startswith("._"))  # AppleDouble 旁车（非 UTF-8），非源码
 
 
 # ----------------------------------------------------------------------

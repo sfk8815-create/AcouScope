@@ -46,7 +46,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtSignal,
 )
-from PyQt6.QtGui import QAction, QImage, QPixmap, QTextCursor
+from PyQt6.QtGui import QImage, QPixmap, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -79,6 +79,48 @@ from acouscope.i18n import tr
 from acouscope.ui.theme import TOKENS, style_when_theme
 from acouscope.ui.widgets.toast import show_toast
 from acouscope.utils.config import data_dir_candidates
+
+
+def _shutdown_qthread(worker, timeout_ms: int = 2000) -> bool:
+    """对称收尾一个 QThread：cancel → wait → 超时则 terminate → deleteLater。
+
+    T-1074 G2（承 T72-04）：旧 closeEvent 仅 cancel()+wait()，worker 若在超时
+    内未退出，面板销毁即触发「QThread: Destroyed while thread is still running」
+    → 未定义行为/可崩。这里对齐主窗模板（main_window.py closeEvent：wait 超时 →
+    terminate() → deleteLater()）补兜底。
+
+    参数:
+        worker: 目标 QThread（None 直接返回 False）；须具备 cancel()/wait()/
+            terminate()/deleteLater()（本模块两类 worker 均满足）。
+        timeout_ms: wait 上限（毫秒）。
+
+    返回:
+        True = 曾触发 terminate() 兜底（worker 未在超时内自行退出）；否则 False。
+    """
+    if worker is None:
+        return False
+    if not worker.isRunning():
+        return False
+    cancel = getattr(worker, "cancel", None)
+    if callable(cancel):
+        try:
+            cancel()
+        except Exception:
+            pass
+    if worker.wait(timeout_ms):
+        return False
+    # 超时未退：强制终止 + 排入删除，杜绝运行中销毁
+    try:
+        worker.terminate()
+        worker.wait(1000)
+    except Exception:
+        pass
+    try:
+        worker.deleteLater()
+    except Exception:
+        pass
+    return True
+
 
 # V099_AI_PANEL_V2：官方释读 system prompt 占位（领域中立最终文案待 T-306b 由
 # TraeCode 定稿后替换本常量；在此之前禁止随版本发布正式产品）。
@@ -1256,6 +1298,10 @@ class AIInterpretDialog(QWidget):
 
         # 输入区附件（T-1018）：[{name, b64, pixmap, box, thumb}]
         self.attached_images: list[dict] = []
+        # T-1079 ⑤：预填锚点——refresh_attached_view 据此判定「草稿未被用户
+        # 改动」并定位预载附件项（身份引用，用户移除后不复活）。
+        self._prefilled_context = ""
+        self._prefill_item: Optional[dict] = None
         self.msg_bubbles: list[_MessageBubble] = []
         self._model_full = ""
         self._follow_bottom = True             # 消息流自动贴底
@@ -1690,12 +1736,28 @@ class AIInterpretDialog(QWidget):
     # 输入草稿（数值上下文预填 + 当前视图截图附件）
     # ------------------------------------------------------------------
 
-    def _prefill_draft(self) -> None:
-        """进入时预填输入草稿：数值上下文文本（可删改）+ 当前视图截图附件。"""
+    def _current_view_attach_name(self) -> str:
+        """「当前视图」标注：基础标签 + 视图名（T-1079 ⑤ 随视图切换重取）。"""
+        name = tr("ai_panel.attach_current_view")
         try:
-            self.input_edit.setPlainText(self.context_getter() or "")
+            view = (self.view_name_getter() or "").strip()
         except Exception:
-            self.input_edit.setPlainText("")
+            view = ""
+        return f"{name} · {view}" if view else name
+
+    def _prefill_draft(self) -> None:
+        """进入时预填输入草稿：数值上下文文本（可删改）+ 当前视图截图附件。
+
+        T-1079 ⑤：记录预填锚点（_prefilled_context / _prefill_item）供
+        refresh_attached_view 使用；本方法自身的入口语义不变。
+        """
+        try:
+            context = self.context_getter() or ""
+        except Exception:
+            context = ""
+        self.input_edit.setPlainText(context)
+        self._prefilled_context = context
+        self._prefill_item = None
         try:
             data = self.image_getter()
         except Exception:
@@ -1705,8 +1767,45 @@ class AIInterpretDialog(QWidget):
         pix = QPixmap()
         if not pix.loadFromData(data):
             return
-        self._attach_pixmap(pix, name=tr("ai_panel.attach_current_view"),
-                            png_bytes=bytes(data))
+        if self._attach_pixmap(pix, name=self._current_view_attach_name(),
+                               png_bytes=bytes(data)):
+            self._prefill_item = self.attached_images[-1]
+
+    def refresh_attached_view(self) -> None:
+        """视图切换 → 刷新预载附件截图、「当前视图」标注与上下文草稿（T-1079 ⑤）。
+
+        供宿主 _on_analysis_changed 在右栏处于 AI 页时调用。三条纪律：
+        草稿正文——用户未改动过才推新上下文，改动过一律不覆盖；
+        附件——仅原位更新当初的预载项，用户已移除则不复活；
+        任一 getter 失败静默保持现状，绝不影响会话。
+        """
+        if self.input_edit.toPlainText() == self._prefilled_context:
+            try:
+                context = self.context_getter() or ""
+            except Exception:
+                context = self._prefilled_context
+            self.input_edit.setPlainText(context)
+            self._prefilled_context = context
+        item = self._prefill_item
+        if item is None or item not in self.attached_images:
+            return
+        try:
+            data = self.image_getter()
+        except Exception:
+            data = None
+        if not data:
+            return
+        pix = QPixmap()
+        if not pix.loadFromData(data):
+            return
+        name = self._current_view_attach_name()
+        item["name"] = name
+        item["b64"] = base64.b64encode(bytes(data)).decode("ascii")
+        item["pixmap"] = pix
+        thumb = item.get("thumb")
+        if thumb is not None:
+            thumb.setPixmap(_scaled_thumb(pix))
+            thumb.setToolTip(name)
 
     def _question_from_text(self, text: str, context: str) -> str:
         """草稿文本 → 提问正文（防数值上下文重复占预算）。
@@ -2600,12 +2699,9 @@ class AIInterpretDialog(QWidget):
         self._prefill_draft()
 
     def closeEvent(self, event):
-        if self._worker is not None and self._worker.isRunning():
-            self._worker.cancel()
-            self._worker.wait(2000)
+        # T-1074 G2（承 T72-04）：cancel→wait→超时 terminate→deleteLater 对称收尾，
+        # 消「QThread: Destroyed while thread is still running」。
+        _shutdown_qthread(self._worker)
         # T-1022：下载任务随面板关闭取消（.part 保留，下次续传）
-        dl = getattr(self, "_dl_worker", None)
-        if dl is not None and dl.isRunning():
-            dl.cancel()
-            dl.wait(2000)
+        _shutdown_qthread(getattr(self, "_dl_worker", None))
         super().closeEvent(event)

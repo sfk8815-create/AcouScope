@@ -10,16 +10,23 @@ qapp（conftest 会话级）+ window + monkeypatch 门控 + HOME=tmp_path
 + 合成音频，window 不 show()，QT_QPA_PLATFORM=offscreen。
 """
 
+import pathlib
+
 import numpy as np
 import pytest
 
 pytest.importorskip("PyQt6")
 
 from acouscope.app.controller import AppController
-from acouscope.i18n import tr
 from acouscope.ui.main_window import MainWindow
 from acouscope.ui.widgets.ai_interpret import AIInterpretDialog
 from acouscope.ui.widgets.panels import InspectorPanel
+
+# 批4d：抽屉实现整档删除（`_v099_drawer_*` 注册族随之失去实现）
+_DRAWER_PY = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src" / "acouscope" / "ui" / "widgets" / "drawer.py"
+)
 
 
 @pytest.fixture
@@ -108,8 +115,9 @@ class TestInspectorPanelIntegration:
         assert window.right_content.currentWidget() is window._ai_host
         assert window._ai_panel.parent() is window._ai_host
         assert window.right_content.widget(1) is window._ai_host
-        # 不再创建右抽屉（AI 改由右栏承载，T-1010/T-1012）
-        assert getattr(window, "_v099_drawer_640", None) is None
+        # 不再创建右抽屉（AI 改由右栏承载，T-1010/T-1012；批4d 抽屉实现整档删除）
+        assert not hasattr(window, "_v099_drawer_640")
+        assert not _DRAWER_PY.exists()
         # 清理：关闭 AI 面板（触发 closeEvent，防 worker 泄漏）
         window._ai_panel.close()
 

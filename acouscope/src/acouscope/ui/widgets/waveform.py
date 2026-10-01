@@ -139,6 +139,31 @@ class VUMeter(QWidget):
         self._paint_peak_db = self._DB_FLOOR
         self.update()
 
+    def stop_animation(self) -> None:
+        """停止 33ms 动画定时器并断开其 timeout 连接（幂等、绝不出错）。
+
+        T-1060 件1（H2）：本定时器以 VUMeter 为 C++ 父对象。若宿主的 Python
+        包装先于 C++ 对象被回收，计时器仍留在 Qt 定时器表里按 33ms 周期派发
+        到失效 slot 代理 → SIGSEGV。故收尾必须**先停表断连**，而不是等 GC
+        时机；停表后电平数值不再刷新（控件已在收尾，无可见行为变化）。
+        """
+        timer = getattr(self, "_anim", None)
+        if timer is None:
+            return
+        try:
+            timer.stop()
+        except RuntimeError:
+            return  # 底层 C++ 已析构
+        try:
+            timer.timeout.disconnect()
+        except (TypeError, RuntimeError):
+            pass  # 无连接/已断开/已析构：一律吞掉
+
+    def closeEvent(self, event):  # noqa: N802 (Qt 命名)
+        """关闭：先停动画定时器（断悬垂投递源），再走默认关闭。"""
+        self.stop_animation()
+        super().closeEvent(event)
+
     def _tick(self):
         dt = self._TICK_S
         # 攻击即时上升，释放按 dB/s 匀速回落
@@ -1671,7 +1696,23 @@ class WaveformWidget(QWidget):
             # 收尾路径兜底：任何一项失败都不影响其余清理
             pass
 
+    def _detach_scene_items(self):
+        """统一收尾协议入口（T-1060 件3）：先停子控件投递源，再收场景 item。
+
+        与 `_cleanup_scene` 的分工：本方法在既有场景收尾之前，先停掉 VU 表的
+        33ms 动画定时器（投递源），保证本控件销毁前其「有父对象的 QTimer」
+        已停表断连。幂等、绝不外抛。
+        """
+        vm = getattr(self, "vu_meter", None)
+        stop = getattr(vm, "stop_animation", None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception:
+                pass  # 收尾路径绝不外抛
+        self._cleanup_scene()
+
     def closeEvent(self, event):
         """窗口关闭：先显式收尾场景 item，再走默认关闭。"""
-        self._cleanup_scene()
+        self._detach_scene_items()
         super().closeEvent(event)

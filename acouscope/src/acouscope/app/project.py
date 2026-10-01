@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 from acouscope.analysis.pitch_grid import PitchGridModel
+from acouscope.utils.log import get_logger
+
+_log = get_logger("app.project")
 
 
 @dataclass
@@ -50,19 +53,30 @@ def _serialize_analysis_results(results: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _deserialize_analysis_results(results: Dict[str, Any]) -> Dict[str, Any]:
+def _deserialize_analysis_results(
+    results: Dict[str, Any], source: str = ""
+) -> Dict[str, Any]:
     """分析结果反序列化（浅拷贝，T-804）。
 
     若 "pitch_grid" 为 dict，尝试 PitchGridModel.from_dict(...) 还原为模型；
     失败（Exception）保留原 dict 不抛出（遗留/损坏文件零崩溃）。
+
+    参数:
+        source: 项目文件路径（仅用于失败日志定位，T-1074 G3④）。
     """
     out = dict(results)
     value = out.get("pitch_grid")
     if isinstance(value, dict):
         try:
             out["pitch_grid"] = PitchGridModel.from_dict(value)
-        except Exception:
-            pass
+        except Exception as e:
+            # T-1074 G3④（承 T72-09）：静默降级补日志痕（带来源路径）；
+            # 返回值语义不变——仍保留原 dict、不外抛（遗留/损坏文件零崩溃）。
+            _log.warning(
+                "pitch_grid 反序列化失败(%s)，保留原 dict: %s",
+                source or "未知来源",
+                e,
+            )
     return out
 
 
@@ -176,7 +190,7 @@ class ProjectManager:
                     path=f["path"],
                     label=f.get("label", ""),
                     analysis_results=_deserialize_analysis_results(
-                        f.get("analysis_results", {})
+                        f.get("analysis_results", {}), source=str(filepath)
                     ),
                     metadata=_load_metadata(f.get("metadata")),
                 )

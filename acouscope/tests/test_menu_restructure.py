@@ -150,9 +150,9 @@ def test_multitrack_action_enabled_by_audio_or_tracks(window):
 
 
 def test_export_report_action_enabled_by_audio(window):
-    """T-1003：「导出报告 PDF…」enable = 有音频（同 _update_measure_actions 口径）。"""
-    act = window.action_export_report
-    assert act.objectName() == "export_report"
+    """T-1109 IM-32：「报告预览…」enable = 有音频（整合后唯一报告菜单入口）。"""
+    act = window.action_report_preview
+    assert act.objectName() == "report_preview"
     assert act.isEnabled() is bool(window.controller.has_audio())
 
 

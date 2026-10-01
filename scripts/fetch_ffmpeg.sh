@@ -20,8 +20,18 @@ FFMPEG_ZIP_SHA256="0d4efcaf6a098430a708e0af694a84792938921fa126162787ae98c6151d7
 FFMPEG_BIN_SHA256="77d2c853f431318d55ec02676d9b2f185ebfdddb9f7677a251fbe453affe025a"
 
 # ---- 路径（由脚本位置推导,避免硬编码用户绝对路径）----
+# 两种布局都认：① 主仓（本脚本在 <repo>/scripts/,资源在 <repo>/acouscope/src/...）
+#              ② 构建 kit（mu_buildkit_export.sh 把本脚本放到 <kit>/tools/,
+#                 资源在 <kit>/src/... —— kit 根等于仓内 acouscope/ 的内容）
+# 找不到任何已知布局时按主仓布局创建（保持原行为）。
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="${SCRIPT_DIR}/../acouscope/src/acouscope/resources/bin"
+if [ -d "${SCRIPT_DIR}/../acouscope/src/acouscope/resources" ]; then
+  TARGET_DIR="${SCRIPT_DIR}/../acouscope/src/acouscope/resources/bin"
+elif [ -d "${SCRIPT_DIR}/../src/acouscope/resources" ]; then
+  TARGET_DIR="${SCRIPT_DIR}/../src/acouscope/resources/bin"
+else
+  TARGET_DIR="${SCRIPT_DIR}/../acouscope/src/acouscope/resources/bin"
+fi
 TARGET="${TARGET_DIR}/ffmpeg"
 
 TMP_DL="${TMPDIR:-/tmp}/ffmpeg80arm.zip.$$"

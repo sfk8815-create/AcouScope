@@ -21,7 +21,6 @@ import time
 from unittest.mock import MagicMock
 
 import numpy as np
-import pytest
 
 
 def _make_player(seconds: float = 1.0, sample_rate: int = 44100) -> "object":

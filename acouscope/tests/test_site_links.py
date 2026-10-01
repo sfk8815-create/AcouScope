@@ -212,12 +212,17 @@ def test_ribbon_site_button_above_help(window, monkeypatch):
 
 
 def test_ribbon_click_site_is_not_quickstart(window, monkeypatch):
-    """网站按钮 ≠ 帮助按钮：点网站走 openUrl 主站，不开快速入门抽屉。"""
+    """网站按钮 ≠ 帮助按钮：点网站走 openUrl 主站，不开快速入门抽屉。
+
+    批4d 加强：弱式 `getattr(..., None) is None` 升级为 `not hasattr`（属性存在即判红），
+    并加断抽屉实现档不存在（防复活）。
+    """
     calls = _spy_open_url(monkeypatch)
     window.ribbon_btn_site.click()
     assert len(calls) == 1
     assert _as_url_text(calls[0]) == SITE_MAIN_URL
-    assert getattr(window, "_info_drawer", None) is None  # 帮助族已走左栏页，无抽屉
+    assert not hasattr(window, "_info_drawer")  # 帮助族已走左栏页，无抽屉（批4d 加强）
+    assert not (_UI_DIR / "widgets" / "drawer.py").exists()  # 批4d：抽屉实现整档删除
 
 
 # ---------------------------------------------------------------------------

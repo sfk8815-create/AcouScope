@@ -33,10 +33,12 @@ from PyQt6.QtGui import QAction, QActionGroup, QKeySequence
 
 from acouscope.app.controller import AppController
 from acouscope.audio.editing import EditingController, EditError
+from acouscope.utils.log import get_logger
 from acouscope.i18n import tr, tr_list, set_language, get_language, available_languages
 from acouscope.ui.shortcuts import sc
 from acouscope.ui.theme import get_icon
-from acouscope.ui.widgets.drawer import open_drawer
+from acouscope.ui.widgets.encourage_button import EncourageButton
+from acouscope.ui.widgets.weixin_group_button import WeixinGroupButton
 from acouscope.ui.widgets.help_dialogs import MANUAL, QUICK_START, _format_shortcuts
 from acouscope.ui.widgets.multitrack.analysis_source import (
     TrackResultCache, resolve_source,
@@ -52,8 +54,14 @@ from acouscope.ui.widgets.task_center import (
     TaskCenter,
     TaskCenterPanel,
 )
-from acouscope.state import ensure_first_run, should_show_sponsor_reminder
+from acouscope.state import (
+    bump_launch_count,
+    ensure_first_run,
+    should_show_sponsor_reminder,
+)
 from acouscope.ui.widgets.transport_bar import format_transport_clock
+
+_log = get_logger("ui.main_window")
 
 
 # CB-011 B-2：左图标栏宽度（Obsidian 风格窄条 44px，几何尺寸字面值；
@@ -63,6 +71,12 @@ _RIBBON_WIDTH = 44
 # T-1017：赞助致谢框延后拍数（毫秒）。正延迟 + 恢复确认 singleShot(0) 保证
 # 二者错峰，不同帧抢焦点；恢复确认若为模态 exec，本拍数须待其关闭后才触发。
 _SPONSOR_PROMPT_DELAY_MS = 800
+
+# UP-2b：启动自动更新检查拍数（毫秒）。两条例由：
+# ⒜ 晚于赞助框拍数（800ms）——保证首次运行征询模态框不被压在非模态赞助框
+#    之后，源序与时间序一致；⒝ 5s 正延迟——使测试套在「show 主窗后无 ≥5s
+#    事件循环」时不会触发真网络（该前提由 UP-2b 判据③-4 现场取证）。
+_UPDATE_CHECK_DELAY_MS = 5000
 
 # T-1044：图表设计器「全局默认」落盘去抖（毫秒）——参数拖动时避免每拍刷盘
 _CHART_DESIGNER_SAVE_DELAY_MS = 500
@@ -191,6 +205,11 @@ class MainWindow(QMainWindow):
 
     fileOpened = pyqtSignal(str)
 
+    # T-1074 G1（承 T72-01）：播放 daemon 线程的错误回调不得直接建 QWidget。
+    # 回调改为 emit 本信号；连接建立在主线程、接收者(self)属主线程 ⇒ Qt 自动
+    # 走 QueuedConnection，show_toast 恒在主线程执行，消跨线程建 widget 的 UB。
+    _mt_player_error = pyqtSignal(str)
+
     def __init__(self, controller: AppController):
         super().__init__()
         self.controller = controller
@@ -266,10 +285,8 @@ class MainWindow(QMainWindow):
 
         # 录音器
         self._recorder = None
-        self._record_settings_panel = None  # 非模态录音设置面板（T-504c 抽屉宿主）
-        self._rec_drawer = None             # 录音设置抽屉（与设置抽屉同宽复用）
-        self._room_acoustics_panel = None   # 房间声学工具面板（T-504d 抽屉宿主）
-        self._room_drawer = None            # 房间声学抽屉（与设置/录音抽屉同宽复用）
+        # T-1054 批4c：record_settings_panel 由 _build_record_settings_page 构建期置位
+        # （其后不得再赋 None，否则面板属性被清空 → accepted 启动录音失效）
         self._record_timer = QTimer(self)
         self._record_timer.timeout.connect(self._update_record_ui)
         self._record_timer.setInterval(33)  # ~30 FPS 平滑滚动
@@ -610,29 +627,141 @@ class MainWindow(QMainWindow):
         if timer is not None and not timer.isActive():
             timer.start()
         QTimer.singleShot(0, self._prompt_restore_autosave)
-        # T-1017：首次运行时间落盘（视为安装时间；已存在则不覆盖），
-        # 再以正延迟排入赞助致谢框判定——与恢复确认错峰，禁同帧抢焦点
+        # T-1017/T-1110：首次运行时间落盘（纯装机记录；已存在则不覆盖），
+        # 启动计数 +1（第 5 次启动起每次均弹）；再以正延迟排入赞助致谢框判定
+        # ——与恢复确认错峰，禁同帧抢焦点
         ensure_first_run()
+        bump_launch_count()
         QTimer.singleShot(_SPONSOR_PROMPT_DELAY_MS, self._maybe_show_sponsor_dialog)
+        # UP-2b：AD-12 自动路径挂载点·每启动至多排一次（`_first_show_done` 闸门
+        # :616-618）·每日至多一次由 `state.should_run_update_check()` 裁决
+        QTimer.singleShot(_UPDATE_CHECK_DELAY_MS,
+                          lambda: self._on_check_updates(manual=False))
 
     def _maybe_show_sponsor_dialog(self) -> None:
-        """启动后（首次运行满 2 小时且未「不再提醒」）弹一次赞助致谢框。
+        """启动后自动弹赞助致谢框——**第 5 次启动起、此后每次启动均弹**（T-1110 反转 #3）。
 
-        - 非模态（QDialog.setModal(False) + show()），不阻塞主界面；
-        - **单次启动只弹一次**：实例标志 ``_sponsor_prompt_shown`` 即足够，
-          无需持久化 ``last_shown``；
+        - 判定闸在 :func:`acouscope.state.should_show_sponsor_reminder`：
+          仅「已支持，不再提醒」永久停弹；否则启动次数达标（≥5）即弹；
+        - 进程内闸门 ``self._sponsor_prompt_shown`` 防同一启动内重复弹（不落盘）；
+        - 非模态（``setModal(False)`` + ``show()``），不阻塞主界面；
         - 触发点由 showEvent 以正延迟 singleShot 排入事件循环，恢复确认
           （singleShot(0) 或模态 exec）必然先行，二者不同帧抢焦点。
         """
         if getattr(self, "_sponsor_prompt_shown", False):
             return
-        self._sponsor_prompt_shown = True
         if not should_show_sponsor_reminder():
             return
+        self._sponsor_prompt_shown = True
         from acouscope.ui.widgets.sponsor_dialog import SponsorDialog
 
         self._sponsor_dialog = SponsorDialog(self)
         self._sponsor_dialog.show()
+
+    def _on_show_sponsor(self) -> None:
+        """帮助菜单常驻入口：打开/复用非模态赞助致谢框（主动打开不消耗自动弹名额）。"""
+        dlg = getattr(self, "_sponsor_dialog", None)
+        if dlg is None or not dlg.isVisible():
+            from acouscope.ui.widgets.sponsor_dialog import SponsorDialog
+
+            dlg = SponsorDialog(self)
+            self._sponsor_dialog = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+
+    def _on_show_weixin_group(self) -> None:
+        """打开/复用非模态微信群二维码窗（T-1112）。"""
+        dlg = getattr(self, "_weixin_dialog", None)
+        if dlg is None or not dlg.isVisible():
+            from acouscope.ui.widgets.weixin_group_dialog import WeixinGroupDialog
+
+            dlg = WeixinGroupDialog(self)
+            self._weixin_dialog = dlg
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+
+    def _on_check_updates(self, manual: bool = True) -> None:
+        """帮助菜单「检查更新」入口（只通知·零下载·零替换）。
+
+        三条语义（逐字）：
+
+        - **节流只约束自动路径**：``manual=True``（菜单点击）绕过节流；
+          ``manual=False``（自动路径）受 :func:`state.should_run_update_check` 每日一次约束。
+        - **开关对两条路径一律生效**：开关为 ``False``（或首次征询答「否」）时，
+          手动入口也**不**发起请求，并给 ``disabled`` 文案（不静默吞掉点击）。
+        - **在飞闸门先于每日节流**（UP-2b）：线程在飞时重入点击**静默 return**
+          （零反馈）；★ 必须排在 :func:`state.should_run_update_check` **之前**——
+          该函数会为自动路径写盘今日日期、消费「当日一次」名额，闸门若在其后，
+          重入点击会白吃掉当日配额（当日再也不会自动检查）。
+
+        未决策（开关键缺失）时先走首次征询；**未答复前不发任何网络请求**。
+        """
+        from acouscope import state
+        from acouscope import update_checker
+
+        # 在飞闸门（UP-2b）：取线程对象的在飞判定（而非「标志位 + 槽内清零」）——
+        # run() 异常退出未 emit 时标志位会永挂（本会话再不发检查）；线程结束后
+        # 该判定自动放行。
+        running = getattr(self, "_update_worker", None)
+        if running is not None and running.isRunning():
+            return
+        if not manual and not state.should_run_update_check():
+            return  # 自动路径：开关关 / 同日已查 ⇒ 静默返回（零 fetch）
+        enabled = state.is_update_check_enabled()
+        if enabled is None:
+            enabled = self._ask_update_check_optin()
+        if enabled is not True:
+            self.statusBar().showMessage(tr("update.disabled"), 8000)
+            return
+        worker = update_checker.UpdateCheckWorker(self)
+        worker.finished_with.connect(self._on_update_checked)
+        self._update_worker = worker
+        worker.start()
+
+    def _ask_update_check_optin(self) -> bool:
+        """首次运行征询（AD-12：默认开 + 只问一次）；答复落盘后返回是否开启。
+
+        ★ 用现盘既有白名单形 ``QMessageBox(self)``（**非**静态 ``.question(``），
+        不破 ``MAINWINDOW_QMESSAGEBOX_CONFIRM_COUNT`` 常量钉。
+        """
+        from acouscope import state
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setWindowTitle(tr("update.ask_title"))
+        box.setText(tr("update.ask_body"))
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        accepted = box.exec() == QMessageBox.StandardButton.Yes
+        state.set_update_check_enabled(accepted)
+        return accepted
+
+    def _on_update_checked(self, code: str, new_version: str) -> None:
+        """更新检查结果 → **非模态**提示（statusBar；零新对话框）。
+
+        ``ok`` 时文案含新版本号与 ``notes_url``，并把链接复制到剪贴板（只给链接与
+        复制，**禁自动打开浏览器**）；失败两态用温和文案（禁「更新失败/重试」字样）。
+        """
+        from acouscope import update_checker
+
+        if code == update_checker.CODE_OK:
+            notes_url = getattr(self._update_worker, "notes_url", "") or ""
+            message = tr("update.status_ok").format(version=new_version)
+            if notes_url:
+                message = f"{message}  {notes_url}"
+                QApplication.clipboard().setText(notes_url)
+            self.statusBar().showMessage(message, 15000)
+        elif code == update_checker.CODE_UP_TO_DATE:
+            self.statusBar().showMessage(tr("update.up_to_date"), 8000)
+        elif code == update_checker.CODE_NO_NETWORK:
+            self.statusBar().showMessage(tr("update.no_network"), 8000)
+        elif code == update_checker.CODE_MALFORMED:
+            self.statusBar().showMessage(tr("update.malformed"), 8000)
+        elif code == update_checker.CODE_DISABLED:
+            self.statusBar().showMessage(tr("update.disabled"), 8000)
 
     # ------------------------------------------------------------------
     # UI 创建
@@ -695,16 +824,19 @@ class MainWindow(QMainWindow):
         self.action_measure_clear.setObjectName("measure_clear")
         self.action_measure_clear.triggered.connect(self._on_measure_clear)
 
-        # T-327 Pε：选区区间统计（无快捷键，避免与既有键位冲突）
+        # T-327 Pε：选区区间统计；T-1090 增量补键 Ctrl+Shift+S（⌘S 已被保存占用）
         self.action_region_stats = QAction(tr("region_stats"), self)
         self.action_region_stats.setObjectName("region_stats")
+        self.action_region_stats.setShortcut("Ctrl+Shift+S")
         self.action_region_stats.triggered.connect(self._on_region_stats)
 
         # T-922：音律标尺叠加层（可勾选；模板经子菜单切换，状态只在会话内）
         self.tuning_ruler_template_key: str | None = None  # None = 未选模板
         self.action_tuning_ruler = QAction(tr("action.tuning_ruler"), self)
         self.action_tuning_ruler.setObjectName("tuning_ruler")
+        self.action_tuning_ruler.setShortcut("F9")
         self.action_tuning_ruler.setCheckable(True)
+        self.action_tuning_ruler.setIcon(get_icon("tuning_ruler"))
         self.action_tuning_ruler.toggled.connect(self._on_tuning_ruler_toggled)
 
         # 房间声学工具（T-1043：持续态抽屉入口 → 开关语义，§五b）
@@ -737,15 +869,6 @@ class MainWindow(QMainWindow):
         self.action_export_audio = QAction("导出音频文件…", self)
         self.action_export_audio.triggered.connect(self._on_export_audio)
 
-        self.action_export_wav = QAction("导出为 WAV", self)
-        self.action_export_wav.triggered.connect(lambda: self._on_export_audio("wav"))
-
-        self.action_export_flac = QAction("导出为 FLAC", self)
-        self.action_export_flac.triggered.connect(lambda: self._on_export_audio("flac"))
-
-        self.action_export_mp3 = QAction("导出为 MP3", self)
-        self.action_export_mp3.triggered.connect(lambda: self._on_export_audio("mp3"))
-
         # AI
         self.action_ai_interpret = QAction(tr("action.ai_interpret"), self)
         self.action_ai_interpret.setShortcut("Ctrl+I")
@@ -770,10 +893,11 @@ class MainWindow(QMainWindow):
         # （ARCH_ui_visual_language §五b）；菜单与工具栏**共用同一 QAction 实例**
         # → 勾选态天然一致，禁写第二套同步逻辑。
         self.action_chart_designer = QAction(tr("action.chart_designer"), self)
+        self.action_chart_designer.setShortcut("F10")
+        self.action_chart_designer.setIcon(get_icon("chart_designer"))
         self.action_chart_designer.setToolTip(tr("action.chart_designer"))
         self.action_chart_designer.setCheckable(True)
         self.action_chart_designer.toggled.connect(self._on_chart_designer)
-        self._register_drawer_entry(self.action_chart_designer, "_chart_designer_drawer")
 
         # 帮助族入口（T-1054 批4b：快速入门/用户手册 → 左栏页 index1/2，与页签钮同组互斥）
         self.action_quickstart = QAction(tr("action.quickstart"), self)
@@ -794,6 +918,14 @@ class MainWindow(QMainWindow):
         # T-1015：访问网站（帮助菜单 / 工具栏 LOGO / 左图标栏网站入口共用）
         self.action_visit_site = QAction(tr("action.visit_site"), self)
         self.action_visit_site.triggered.connect(self._on_visit_site)
+
+        # UP-2：检查更新（帮助菜单；只通知·零下载）。★ 菜单点击 = 手动入口，
+        # 绕过节流但**不绕过开关**（故显式 manual=True，不直接接 triggered 的 bool）。
+        self.action_check_updates = QAction(tr("action.check_updates"), self)
+        self.action_check_updates.setObjectName("actionCheckUpdates")
+        self.action_check_updates.triggered.connect(
+            lambda: self._on_check_updates(manual=True)
+        )
 
         # ------- 波形编辑（Audacity 风格） -------
         self.action_undo = QAction(tr("edit.undo"), self)
@@ -851,14 +983,33 @@ class MainWindow(QMainWindow):
         self.action_new_project.setShortcut("Ctrl+N")
         self.action_new_project.triggered.connect(self._on_new_project)
 
-        # 文件·导出▸报告 PDF（T-1003 接线：槽 = _on_export_report；
-        # enable 由 _update_measure_actions 按「有音频」刷新）
+        # 文件·导出▸报告 HTML（T-1003 接线：槽 = _on_export_report；
+        # T-1109 IM-32：菜单入口收敛至预览页按钮，action 保留供预览页调用）
         self.action_export_report = QAction(tr("action.export_report"), self)
         self.action_export_report.setObjectName("export_report")
         self.action_export_report.triggered.connect(
             lambda _checked=False: self._on_export_report()
         )
         self.action_export_report.setEnabled(False)
+
+        # 文件·导出▸报告 PDF（T-1102 M-B′-β1 接线：槽 = _on_export_report_pdf，
+        # T-1109 IM-32：菜单入口收敛至预览页按钮，action 保留供预览页调用）
+        self.action_export_report_pdf = QAction(tr("action.export_report_pdf"), self)
+        self.action_export_report_pdf.setObjectName("export_report_pdf")
+        self.action_export_report_pdf.triggered.connect(
+            lambda _checked=False: self._on_export_report_pdf()
+        )
+        self.action_export_report_pdf.setEnabled(False)
+
+        # 文件·导出▸报告预览（T-1103 M-B′-β2 + T-1109 IM-32 整合：唯一报告菜单入口，
+        # Ctrl+Shift+P 改挂此处；进 index5 预览页，HTML/PDF/关闭皆从预览页出）
+        self.action_report_preview = QAction(tr("action.report_preview"), self)
+        self.action_report_preview.setObjectName("report_preview")
+        self.action_report_preview.setShortcut("Ctrl+Shift+P")
+        self.action_report_preview.triggered.connect(
+            lambda _checked=False: self._show_report_preview()
+        )
+        self.action_report_preview.setEnabled(False)
 
         # 视图：7 项 checkable 单选（radio 组）——只镜像 analysis_tab_bar 切换路径
         self.view_action_group = QActionGroup(self)
@@ -941,23 +1092,18 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.action_save_project_as)
         file_menu.addSeparator()
 
-        # 导出子菜单：图表 / 音频（wav·flac·mp3）/ 田野元数据 / 报告 PDF（T-1003 留位）
+        # 导出子菜单：图表 / 音频 / 田野元数据 / 报告预览（T-1109 IM-32 整合）
         export_menu = file_menu.addMenu(tr("menu.export"))
         export_menu.addAction(self.action_export)
-        # T-1044 入口①：导出前设计（插在 action_export 邻近）
-        export_menu.addAction(self.action_chart_designer)
         export_menu.addSeparator()
         export_menu.addAction(self.action_export_audio)
-        export_menu.addAction(self.action_export_wav)
-        export_menu.addAction(self.action_export_flac)
-        export_menu.addAction(self.action_export_mp3)
         export_menu.addSeparator()
 
         # V099_EXPORT_UI_V1: 田野元数据导出
         export_metadata_act = export_menu.addAction("导出田野元数据 (IMDI/CSV)")
         export_metadata_act.triggered.connect(self._export_field_metadata)
-        # T-1003 留位：报告 PDF（禁用占位，T-1003 合入后接线）
-        export_menu.addAction(self.action_export_report)
+        # T-1109 IM-32：报告三入口收敛为一条「报告预览…」
+        export_menu.addAction(self.action_report_preview)
 
         file_menu.addSeparator()
         file_menu.addAction(self.action_quit)
@@ -1022,6 +1168,9 @@ class MainWindow(QMainWindow):
         self.menu_tuning_template = tools_menu.addMenu(tr("menu.tuning_template"))
         self.menu_tuning_template.setObjectName("tuningTemplateMenu")
         self._rebuild_tuning_template_menu()
+        # T-1044 入口①：图表设计器（T-1094 由「文件▸导出」归入本菜单·紧随音律标尺一族后
+        # =律/图工具相邻；置于模板子菜单之后以免拆散标尺↔模板配对）。工具栏入口②不变。
+        tools_menu.addAction(self.action_chart_designer)
         tools_menu.addAction(self.action_annotation_mode)  # T-924/925 留位
         tools_menu.addSeparator()
         tools_menu.addAction(self.action_restore_layout)   # 留位（见动作定义处注记）
@@ -1044,7 +1193,14 @@ class MainWindow(QMainWindow):
         help_menu.addSeparator()
         # T-1015：访问网站（快速入门/用户手册之后、关于之前）
         help_menu.addAction(self.action_visit_site)
+        # UP-2：检查更新（访问网站之后、关于之前；顺序写死）
+        help_menu.addAction(self.action_check_updates)
         help_menu.addAction(self.action_about)
+        # T-1082：常驻支持入口（紧邻「关于」之后；复用既有非模态 SponsorDialog）
+        self.action_sponsor = QAction(tr("action.sponsor"), self)
+        self.action_sponsor.setObjectName("actionSponsor")
+        self.action_sponsor.triggered.connect(self._on_show_sponsor)
+        help_menu.addAction(self.action_sponsor)
 
     def _create_toolbar(self):
         """创建工具栏。"""
@@ -1100,8 +1256,9 @@ class MainWindow(QMainWindow):
         # T-1054 批0：主工具栏「工作区开关组」——中央全铺页切换（紧接左右栏开关，
         # 前置分隔符与「面板可见性」两钮分区）。唯一状态源 _set_workspace_page 统管
         # 开关与右键入口（R1），禁出现"右键进批处理后工具栏开关没亮"的分裂状态。
-        # 批处理开关可用（点→index1，再点→回 index0，R2）；3 个全铺页开关为禁用
-        # 占位（页未建：setEnabled(False) + tooltip 注明「待启用」，禁接槽/禁建页，R3）。
+        # 四钮全部启用（点→对应全铺页，再点→回 index0，R2）：批处理 index1 /
+        # 房间模态 index2 / 房间声学 index3 / 图表设计器 index4（T-1054 批4a 收口，
+        # 原「禁用占位」已清零）。
         file_toolbar.addSeparator()
         self.btn_toggle_batch_workspace = _panel_toggle_button(
             file_toolbar, "layers", tr("action.batch"), "toggleBatchWorkspaceBtn"
@@ -1130,7 +1287,9 @@ class MainWindow(QMainWindow):
         self.btn_toggle_chart_designer = _panel_toggle_button(
             file_toolbar, "chart_designer", tr("toolbar.chart_designer"), "toggleChartDesignerBtn"
         )
-        self.btn_toggle_chart_designer.setEnabled(False)  # 设计器全铺页与 T-1045/T-1046 协调另行裁定
+        self.btn_toggle_chart_designer.clicked.connect(
+            lambda _checked=False: self._on_workspace_toggle("chart_designer")
+        )
         file_toolbar.addWidget(self.btn_toggle_chart_designer)
 
         # T-1033 P5：图标优先（逐按钮判据，见报告「改/不改表」）——
@@ -1161,6 +1320,7 @@ class MainWindow(QMainWindow):
         analysis_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
 
         self.btn_ai_interpret = QPushButton(tr("toolbar.ai"))
+        self.btn_ai_interpret.setIcon(get_icon("ai"))
         self.btn_ai_interpret.setToolTip(tr("action.ai_interpret"))
         self.btn_ai_interpret.clicked.connect(self._on_ai_interpret)
         analysis_toolbar.addWidget(self.btn_ai_interpret)
@@ -1169,11 +1329,11 @@ class MainWindow(QMainWindow):
         try:
             backend_widget = self._create_backend_selector()
             analysis_toolbar.addWidget(backend_widget)
-            print("[SOTA] backend selector added to toolbar")
+            _log.debug("[SOTA] backend selector added to toolbar")
         except Exception as _e:
-            import traceback
-            print(f"[SOTA][ERROR] backend selector failed: {_e}")
-            traceback.print_exc()
+            # T-1074 G3①（承 T72-05）：裸 print+traceback.print_exc 纳管日志；
+            # exc_info=True 已含回溯，无需再 import traceback。
+            _log.error("[SOTA][ERROR] backend selector failed: %s", _e, exc_info=True)
 
         # T-922：音律标尺叠加层开关（与分析菜单同 Action，勾选状态共享）
         analysis_toolbar.addAction(self.action_tuning_ruler)
@@ -1202,6 +1362,16 @@ class MainWindow(QMainWindow):
         row_layout.addWidget(self.tip_bar)
         row_layout.addStretch(1)
 
+        # T-1112：常驻「微信群」闪耀按钮（心跳图标左侧·点击开二维码窗·非模态）
+        self.btn_weixin = WeixinGroupButton(self)
+        self.btn_weixin.weixinRequested.connect(self._on_show_weixin_group)
+        row_layout.addWidget(self.btn_weixin)
+
+        # T-1111：常驻「支持一下」心跳按钮（LOGO 左侧·点击开赞助框·非模态）
+        self.btn_encourage = EncourageButton(self)
+        self.btn_encourage.encourageRequested.connect(self._on_show_sponsor)
+        row_layout.addWidget(self.btn_encourage)
+
         # 工作室 LOGO 常驻本行最右：等比缩放、固定尺寸（20px 高，低于
         # 行高 28px 不抬升工具栏）；T-1015：可点击 → 主站
         from acouscope.ui.widgets.about_dialog import ClickableLabel, render_logo
@@ -1229,7 +1399,7 @@ class MainWindow(QMainWindow):
 
         # 轮换 8s；上下文提示临时接管 5s 后恢复轮换
         # tip.1~10 操作提示；tip.11~30 功能提示；tip.31~169 科研轻幽默
-        self._tip_keys = [f"tip.{i}" for i in range(1, 170)]
+        self._tip_keys = [f"tip.{i}" for i in range(1, 61)]
         self._tip_index = 0
         self._tip_timer = QTimer(self)
         self._tip_timer.setInterval(8000)
@@ -1308,12 +1478,25 @@ class MainWindow(QMainWindow):
         self.multitrack_session = MultitrackSession()
         self._multitrack_mode = False
         self._multitrack_player = None       # 懒建（只读复用 AudioPlayer）
+        self._mt_play_timer = QTimer(self)
+        self._mt_play_timer.setInterval(33)
+        self._mt_play_timer.timeout.connect(self._update_multitrack_playhead)
         self._multitrack_sources_cache: list = []
         self.multitrack_panel = MultitrackPanel(self.multitrack_session)
         self.multitrack_panel.hide()
+        self._multitrack_analysis_task_id: str | None = None
         # T-1009：多轨结果缓存域由主窗持有（跨呈现模式切换保留）；呈现带在面板内
         self.multitrack_result_cache = TrackResultCache()
         self.multitrack_panel.set_result_cache(self.multitrack_result_cache)
+        self.multitrack_panel.set_analysis_deliver(self._deliver_multitrack_analysis)
+        # T-1087 M6/M7/M5：对齐 / 差异量化 / 加轨包络 IO 走任务中心（共用投递适配器）
+        self.multitrack_panel.set_align_deliver(self._deliver_multitrack_task)
+        self.multitrack_panel.set_track_prepare_deliver(
+            self._deliver_multitrack_task
+        )
+        self.multitrack_panel.compare_view.set_diff_deliver(
+            self._deliver_multitrack_task
+        )
         self.multitrack_panel.playRequested.connect(self._on_multitrack_play)
         self.multitrack_panel.stopRequested.connect(self._on_multitrack_stop)
         self.multitrack_panel.tracksChanged.connect(self._update_multitrack_status)
@@ -1327,6 +1510,12 @@ class MainWindow(QMainWindow):
         self.multitrack_panel.addFromBrowserRequested.connect(
             self._on_multitrack_add_from_browser
         )
+        # T-1087 M1：轨道区退出钮 → 回单轨主态（复用既有 _exit_multitrack_mode 单点）
+        self.multitrack_panel.exitRequested.connect(self._exit_multitrack_mode)
+        # T-1087 M3（N4 hover）：多轨呈现带的悬停读数上抛状态栏临时段（同单轨 Pδ
+        # 注入器·同一消费槽）。★ 只注 compare_view——波形区 MultitrackView.mouseMove
+        # 无 hover 产出源（PI-T78 R-2），造读数属新增功能（越 `L-3`）。
+        self._inject_hover_readout(self.multitrack_panel.compare_view)
         wave_view_lay.addWidget(self.multitrack_panel, stretch=1)
         # D9：主态拖入 = 打开该文件（多轨态拖入由轨道区容器自行消费）
         self.setAcceptDrops(True)
@@ -1418,6 +1607,20 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 2)
         splitter.setSizes([200, 400])
         splitter.setHandleWidth(6)  # 加宽手柄便于拖动调整波形/分析区比例
+        # T-1093 M-D：中央分隔条画成可辨识色带。**不碰 theme 全局 `QSplitter::handle`
+        # 色值（§十二 R-1）**，改用本控件局部 QSS 覆盖；★ PI-T84 N-7：QSS 设在 handle
+        # 自身不生效，落点＝splitter 本体 + objectName 选择器。色值经 theme.colors()
+        # 运行时插值、由 style_when_theme 随主题切换重设（禁 hex 字面量）。
+        splitter.setObjectName("centralVerticalSplitter")
+        from acouscope.ui.theme import style_when_theme
+
+        style_when_theme(
+            splitter,
+            lambda c: (
+                "QSplitter#centralVerticalSplitter::handle"
+                f" {{ background: {c['border_strong']}; }}"
+            ),
+        )
 
         # T-913：中央批处理模式——原垂直 splitter 外包 central_stack（双页）：
         #   index0 = 现有垂直 splitter（常规模式，行为零变化：波形上/分析面板下）；
@@ -1426,15 +1629,24 @@ class MainWindow(QMainWindow):
         # 保持兼容（restore/save_workspace 与 ws["left"/"right"] 均不受影响）。
         from acouscope.ui.widgets.batch_metadata_module import MetadataBatchModule
         from acouscope.ui.widgets.batch_workspace import BatchWorkspace, register_module
+        from acouscope.ui.widgets.chart_designer import ChartDesignerPanel
         from acouscope.ui.widgets.panels.workspace import (
-            build_workspace_splitter, restore_workspace, save_workspace,
+            build_workspace_splitter, make_layout_save_timer,
+            restore_workspace, save_workspace,
         )
 
         self.central_stack = QStackedWidget()
         self.central_stack.setObjectName("centralStack")
+        # T-1093 B-2：全铺页（index1-4）最小高封顶，口径同 _add_analysis_widget
+        # （宽 0=不限，只压地板）。QStackedLayout 的 minimumSizeHint 恒取**全页并集
+        # 最大**（实测 836×578），未封顶时任一页的自然 min 高都会顶住中央 splitter
+        # 的可用高 ⇒ 切页把波形/分析区分界整体抬上去 = 窗体抖动。封顶后 stack 级
+        # min 由 index0 自然值决定，切页恒定。
+        _full_page_min_h = 200
         self.central_stack.addWidget(splitter)  # index0 常规模式
         self.batch_workspace = BatchWorkspace()
         self.batch_workspace.exitRequested.connect(self._exit_batch_workspace)
+        self.batch_workspace.setMinimumSize(0, _full_page_min_h)  # index1 同口径封顶
         # T-928：批处理 → 任务进度中心聚合桥接（内联进度区保留为批处理专属
         # 明细；聚合条目只呈现阶段文本与终态，不重复进度条）
         self.batch_workspace.set_task_observer(self._on_batch_task_event)
@@ -1456,6 +1668,9 @@ class MainWindow(QMainWindow):
             lay = QVBoxLayout(page)
             lay.setContentsMargins(12, 12, 12, 12)
             lay.addWidget(widget)
+            # T-1093 B-2：外层包壳侧封顶（R3 页面零改造 + R-5 room_modes 本体零改动
+            # 同时成立）；lbl_stats 的 setWordWrap 宽高耦合由此被封死在页内。
+            page.setMinimumSize(0, _full_page_min_h)
             return page
 
         self.room_modes_page = _wrap_room_page(RoomModesWidget())
@@ -1466,6 +1681,47 @@ class MainWindow(QMainWindow):
         _dlg.cancelled.connect(lambda: self._set_workspace_page(0))
         self.room_acoustics_page = _wrap_room_page(_dlg)
         self.central_stack.addWidget(self.room_acoustics_page)  # index3 房间声学页
+
+        # T-1054 批4a：图表设计器 → 中央 index4 全铺页（零抽屉口径）。
+        # 面板**常驻单实例**（构建期一次性，禁每次切页 new）；接线逐字沿用原抽屉
+        # 构造点七项（父对象仍为主窗，_project() 父链上溯不受宿主迁移影响）。
+        self.chart_designer_panel = ChartDesignerPanel(
+            settings=self.controller.settings, parent=self
+        )
+        # 渲染由宿主注入 → 预览与导出走**同一条** _export_current_view 路径
+        self.chart_designer_panel.set_preview_renderer(self._render_chart_designer_preview)
+        self.chart_designer_panel.set_mode_provider(
+            lambda: self.analysis_tab_bar.currentIndex()
+        )
+        self.chart_designer_panel.paramsChanged.connect(self._on_chart_designer_params)
+        self.chart_designer_panel.exportRequested.connect(self._on_chart_designer_export)
+        self.chart_designer_panel.fontSettingsRequested.connect(
+            self._on_chart_designer_font_settings
+        )
+        self.chart_designer_page = _wrap_room_page(self.chart_designer_panel)
+        self.central_stack.addWidget(self.chart_designer_page)  # index4 图表设计器页
+
+        # T-1103 M-B′-β2：报告预览 → 中央 index5 全铺页（常驻单实例，构建期一次性）。
+        # 预览与导出同源：html 走同一 _collect_report_figures + build_report_html；
+        # 版面参数经 options() 透传给 β1 导出侧（_on_export_report_pdf）。
+        from acouscope.ui.report_preview import ReportPreviewPanel
+
+        self.report_preview_panel = ReportPreviewPanel(parent=self)
+        self.report_preview_panel.set_html_provider(self._build_report_preview_html)
+        self.report_preview_panel.exportRequested.connect(self._on_export_report_pdf)
+        # T-1109 IM-32：预览页 HTML 导出 + 关闭按钮接线
+        self.report_preview_panel.exportHtmlRequested.connect(self._on_export_report)
+        self.report_preview_panel.closeRequested.connect(
+            lambda: self._set_workspace_page(0)
+        )
+        # T-1104 M-C′·MC-1：AI 解读入口接线（worker 构造点在 report_ai 模块，
+        # 主窗仅实例化——守三计数 0/0/8）；captions 由预览取数路顺带缓存，
+        # 生成时零重渲染。
+        self.report_preview_panel.aiRequested.connect(self._on_report_ai_requested)
+        self._report_ai_worker = None
+        self._report_preview_captions: tuple[str, ...] = ()
+        self.report_preview_page = _wrap_room_page(self.report_preview_panel)
+        self.central_stack.addWidget(self.report_preview_page)  # index5 报告预览页
 
         ws = build_workspace_splitter(self.central_stack)
         self.ws_splitter = ws["splitter"]
@@ -1478,7 +1734,19 @@ class MainWindow(QMainWindow):
 
         restore_workspace(ws)
         self._ws_state = ws
-        ws["splitter"].splitterMoved.connect(lambda *_: save_workspace(ws))
+        # T-1093 B-2 次要项：opaque 拖拽逐像素发 splitterMoved → 旧实现每像素一次
+        # json.dump（GUI 线程磁盘 IO = 拖拽卡顿）。改为尾部合并：一次拖拽停手只落盘
+        # 一次。★ PI-T84 N-6：节流只在接线层做，**禁沉入 workspace.save_workspace
+        # 本体**（未授权档 test_workspace.py 同步 save→立刻读档，节流会让它红）。
+        # 定时器构造点在 workspace.make_layout_save_timer（本布局模块内聚·父=本窗），
+        # 定时器构造计数现由 tests/_pin_baselines.MAINWINDOW_QTIMER_COUNT（值 8）钉死
+        # （T-1093 工厂移 workspace·保本文件 8 枚·冻结测见 test_chrome_panel_toggles）。
+        self._ws_layout_save_timer = make_layout_save_timer(
+            self, self._save_workspace_layout
+        )
+        ws["splitter"].splitterMoved.connect(
+            lambda *_: self._ws_layout_save_timer.start()
+        )
         ws["left"].collapsedChanged.connect(lambda *_: save_workspace(ws))
         ws["right"].collapsedChanged.connect(lambda *_: save_workspace(ws))
         # T-1010：右栏折叠态 → 工具栏 btn_toggle_right_panel 反同步
@@ -1503,29 +1771,47 @@ class MainWindow(QMainWindow):
         """T-1054 批0/批3：中央全铺页切换唯一状态源（R1）。
 
         切页 + 同步工作区开关组 checked（互斥：至多一个 checked，且与当前页一致；
-        index1=批处理 / index2=房间模态 / index3=房间声学，其余开关恒未勾选）。
-        菜单 action（action_room_modes / action_room_acoustics）勾选态一并同源同步，
-        杜绝"右键进批处理后工具栏开关没亮 / 菜单与工具栏分裂"的分裂状态。
+        index1=批处理 / index2=房间模态 / index3=房间声学 / index4=图表设计器，
+        其余开关恒未勾选）。
+        菜单 action（action_room_modes / action_room_acoustics / action_chart_designer）
+        勾选态一并同源同步，杜绝"右键进批处理后工具栏开关没亮 / 菜单与工具栏分裂"的分裂状态。
         所有进出路径（工具栏开关 / 菜单 action / _open_batch_workspace /
-        _exit_batch_workspace / _on_room_modes / _on_room_acoustics）必须都走本方法。
+        _exit_batch_workspace / _on_room_modes / _on_room_acoustics /
+        _on_chart_designer）必须都走本方法。
         """
         stack = getattr(self, "central_stack", None)
         if stack is None:
             return
         stack.setCurrentIndex(index)
-        active_key = {1: "batch_workspace", 2: "room_modal", 3: "room_acoustic"}.get(index)
+        active_key = {
+            1: "batch_workspace",
+            2: "room_modal",
+            3: "room_acoustic",
+            4: "chart_designer",
+        }.get(index)
         for name in ("batch_workspace", "room_modal", "room_acoustic", "chart_designer"):
             btn = getattr(self, "btn_toggle_" + name, None)
             if btn is not None:
                 btn.setChecked(name == active_key)
         # 菜单 action 同源同步（禁分裂态）。blockSignals 防回环：setChecked 会触发
-        # toggled → _on_room_* 再次进入本方法并覆盖目标页；阻断后由本方法唯一裁决。
-        for name, idx in (("action_room_modes", 2), ("action_room_acoustics", 3)):
+        # toggled → _on_room_* / _on_chart_designer 再次进入本方法并覆盖目标页；
+        # 阻断后由本方法唯一裁决。
+        for name, idx in (
+            ("action_room_modes", 2),
+            ("action_room_acoustics", 3),
+            ("action_chart_designer", 4),
+        ):
             act = getattr(self, name, None)
             if act is not None:
                 act.blockSignals(True)
                 act.setChecked(index == idx)
                 act.blockSignals(False)
+        # T-1054 批4a（M7）：设计器页两条入口（工具栏开关 / 菜单+分析工具栏 action）
+        # 同槽 → 出图统一在本方法内触发，避免"菜单进页不出图"的半成品态。
+        if index == 4:
+            panel = getattr(self, "chart_designer_panel", None)
+            if panel is not None:
+                panel.render_now()
 
     def _on_workspace_toggle(self, workspace: str) -> None:
         """工作区开关组点击（R2：再点收回——点击已激活开关回常规页 index0）。
@@ -1536,7 +1822,12 @@ class MainWindow(QMainWindow):
         stack = getattr(self, "central_stack", None)
         if stack is None:
             return
-        target = {"batch": 1, "room_modal": 2, "room_acoustic": 3}[workspace]
+        target = {
+            "batch": 1,
+            "room_modal": 2,
+            "room_acoustic": 3,
+            "chart_designer": 4,
+        }[workspace]
         # 已在目标页 → 收回 index0；否则进入对应全铺页
         self._set_workspace_page(0 if stack.currentIndex() == target else target)
 
@@ -1611,6 +1902,10 @@ class MainWindow(QMainWindow):
         # T-914：右键「批量更改元数据…」→ 进入批处理页并激活本模块（业务入口）
         self.file_browser.addContextAction(
             tr("batch.meta.action"), self._open_batch_metadata_workspace
+        )
+        # T-1026：右键「加入多轨」→ D7 多选入口（语义 = 已选中文件）
+        self.file_browser.addContextAction(
+            tr("multitrack.add_action"), self._on_multitrack_add_from_browser
         )
         self.left_content.addWidget(self.file_browser)
         # T-1054 批1b：左栏页签条（4 页签）——index1 快速入门 / index2 手册 /
@@ -1765,6 +2060,9 @@ class MainWindow(QMainWindow):
             4: "sidebar.tab.settings",
         }
         header.set_title(tr(keys.get(int(index), "sidebar.tab.files")))
+        # T-1054 批4c（R3 M5）：离开 index3（切页 / setCurrentIndex(0)）→ 录音页收回清账
+        if int(index) != 3:
+            self._on_record_page_retracted()
 
     def _on_right_page_changed(self, index: int) -> None:
         """右栏页签切换 → 面板头标题随动（检查器 / AI 释图 / 图表字体）。"""
@@ -1838,11 +2136,13 @@ class MainWindow(QMainWindow):
         return page
 
     def _build_record_settings_page(self) -> QWidget:
-        """左栏「录音设置」页（index3）：页承载说明 + 「打开录音设置…」按钮（R5）。
+        """左栏「录音设置」页（index3）：内嵌常驻 RecordSettingsDialog（批4c R1）。
 
-        按钮复用既有 `_open_record_settings_drawer` 通路（RecordSettingsDialog + 抽屉）；
+        面板构建期一次性（切页不重建）；accepted/cancelled 沿用既有槽。
         本页不改 `transport_bar.btn_record` 勾选语义（录音运行状态源，T-1043 d5）。
         """
+        from acouscope.ui.widgets.record_settings_dialog import RecordSettingsDialog
+
         page = QWidget()
         page.setObjectName("recordSettingsPage")
         layout = QVBoxLayout(page)
@@ -1851,12 +2151,24 @@ class MainWindow(QMainWindow):
         hint = QLabel(tr("sidebar.tab.record"))
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        btn = QPushButton(tr("sidebar.tab.record"))
-        btn.setObjectName("recordSettingsPageOpenBtn")
-        btn.clicked.connect(self._open_record_settings_drawer)
-        layout.addWidget(btn)
-        layout.addStretch(1)
+        tool_rate = self.transport_bar.cmb_record_rate.currentData()
+        panel = RecordSettingsDialog(
+            self, current_rate=int(tool_rate) if tool_rate else 44100
+        )
+        panel.accepted.connect(self._begin_recording_from_settings)
+        panel.cancelled.connect(self._on_recording_settings_cancelled)
+        self.record_settings_panel = panel
+        layout.addWidget(panel, stretch=1)
         return page
+
+    def _record_page_is_current(self) -> bool:
+        """左栏当前页是否=录音设置页（且左栏展开）：录音入口第二态判据。"""
+        content = getattr(self, "left_content", None)
+        page = getattr(self, "_record_settings_page", None)
+        left = getattr(self, "left_panel", None)
+        if content is None or page is None or left is None:
+            return False
+        return (not left.is_collapsed()) and content.currentWidget() is page
 
     def _show_left_content(self, widget) -> None:
         """切左栏当前内容并展开左栏；展开态下宽度随新内容自适应（非手动宽度）。"""
@@ -1873,6 +2185,18 @@ class MainWindow(QMainWindow):
             self._fit_left_width()
         # T-1043：左栏页签入口勾选态 = 展开 + 当前页（单点收敛，任何路径都同步）
         self._sync_left_ribbon_toggle()
+
+    def _save_workspace_layout(self) -> None:
+        """三栏布局落盘唯一出口（splitterMoved debounce 尾触发 + 退出前补存）。
+
+        save_workspace 自身全程静默（不可写/损坏均不抛），本方法不加第二层吞异常。
+        """
+        ws = getattr(self, "_ws_state", None)
+        if ws is None:
+            return
+        from acouscope.ui.widgets.panels.workspace import save_workspace
+
+        save_workspace(ws)
 
     def _fit_left_width(self) -> None:
         """左栏展开态按内容自适应宽度（用户手动拖拽值优先，不覆盖）。"""
@@ -2000,8 +2324,9 @@ class MainWindow(QMainWindow):
             if reference_applied:
                 settings.reference_hz = new_reference
             settings.save()
-        except Exception:
-            pass
+        except Exception as e:
+            # T-1074 G3③（承 T72-08）：偏好落盘失败不再静默——补日志痕（含回溯）
+            _log.warning("语言/主题/格式/DPI 偏好保存失败: %s", e, exc_info=True)
 
         self.statusBar().showMessage(
             f"{tr('settings.title')} → {new_lang} / {fmt.upper()} / {dpi} dpi", 5000
@@ -2245,6 +2570,105 @@ class MainWindow(QMainWindow):
             self,
             tr("task_center.queue_full").format(n=self.task_center.queue_limit),
             level="error",
+        )
+
+    def _deliver_multitrack_analysis(self, plan, kind, cache):
+        """多轨分析 → 任务中心投递（T-1041a 轮 B；轮 A 投递缝的宿主侧）。
+
+        投递同步返回、句柄待 worker 结束才存在 ⇒ 恒返回 ``[]``（句柄不可补；
+        唯一树内调用方 multitrack_view:540 的 λ 忽略返回值，不构成缺公开面）。
+
+        ★ T-1087 M4（path_A）：``plan`` 是**零 IO 取数计划**，``plan.resolve()``
+        （→ ``resolve_source`` → ``track.load_full()``·整文件同步读）挪进 worker
+        的 ``run`` 内——修前它发生在 ``analyze_all`` 里、submit **之前**（主线程），
+        异步收益被逐轨 IO 吃掉。LRU 驱逐 ``unload_inactive`` 相应**延后**到
+        ``on_done`` 主线程回填之后：worker 期间主线程不再与并发改 ``_data``/``state``
+        的驱逐动作重叠（详见 report「M4 线程安全处置说明」）。
+        """
+        from acouscope.ui.widgets.multitrack.analysis_source import (
+            run_analysis_on_tracks,
+        )
+
+        pending = self._multitrack_analysis_task_id
+        if pending is not None:
+            entry = self.task_center.entry(pending)
+            if entry is not None and not entry.is_terminal():
+                return []                 # 在跑：连点不重复投递（IM-26 双触发）
+
+        def _release_io() -> None:
+            """M4：worker 结束后在主线程做 LRU 驱逐（驻留样本有界）。
+
+            驱逐对象取 ``plan.session``——那才是 worker 真正载入样本的会话（宿主
+            ``self.multitrack_session`` 在回填前可能已被换音频/重开项目替换）。
+            """
+            plan.session.unload_inactive()
+
+        def on_done(handles) -> None:
+            done = sum(1 for h in handles if h.ok)
+            if done:
+                show_toast(self, tr("multitrack.compare.analyzed").format(n=done))
+            else:
+                show_toast(
+                    self, tr("multitrack.compare.analyze_failed"), level="warning"
+                )
+            self._multitrack_analysis_task_id = None
+            _release_io()
+            self.multitrack_panel.refresh_presentation()
+
+        def on_fail(_error) -> None:
+            self._multitrack_analysis_task_id = None
+            _release_io()
+
+        def on_cancelled() -> None:
+            self._multitrack_analysis_task_id = None
+            _release_io()
+            self.multitrack_panel.refresh_presentation()  # 收口「末刻取消」竞态
+
+        def work(reporter):
+            # ★ 本函数在 worker 线程执行（task_center._TaskThread）：取数 IO 与
+            # 逐轨分析全在此，主线程只负责排期与回填。
+            sources = plan.resolve()
+            return run_analysis_on_tracks(
+                sources, kind, cache=cache, cancel=lambda: reporter.cancelled
+            )
+
+        title = tr("task_center.title.multitrack").format(n=len(plan))
+        entry = self.task_center.submit(
+            title,
+            work,
+            on_done=on_done,
+            on_fail=on_fail,
+            on_cancelled=on_cancelled,
+        )
+        if entry is None:
+            return []   # 队列超限/关停：taskRejected 已弹 toast（:2305）⇒ 禁双弹
+        self._multitrack_analysis_task_id = entry.task_id
+        return []
+
+    def _deliver_multitrack_task(self, title, work, on_done, on_settle):
+        """多轨后台任务的通用投递（T-1087 M6/M7/M5 同构包裹）。
+
+        只调 ``task_center.submit`` 公开 API（内核零改）；``work(reporter)`` 在
+        worker 线程跑，终态一律先 ``on_settle()``（解在途门闩）再 ``on_done(result)``
+        主线程回填。队列超限/关停 → 返回 None（``taskRejected`` 已弹 toast ⇒ 禁双弹）。
+
+        面板侧三个入口共用本适配器：``set_align_deliver``（M6 开头对齐）、
+        ``ComparePresentWidget.set_diff_deliver``（M7 差异量化）、
+        ``set_track_prepare_deliver``（M5 加轨包络 IO）。
+        """
+        def done(result) -> None:
+            on_settle()
+            on_done(result)
+
+        def settle_only(_error=None) -> None:
+            on_settle()
+
+        return self.task_center.submit(
+            title,
+            work,
+            on_done=done,
+            on_fail=settle_only,
+            on_cancelled=settle_only,
         )
 
     def _on_batch_task_event(self, event: str, payload: dict) -> None:
@@ -2668,6 +3092,15 @@ class MainWindow(QMainWindow):
             _sc = mgr.register_global(_aid, _label, _key, _cb, self)
             _sc.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
+        # T-1087 M1（真机目测 #7）：多轨态进出键位。★ 不走 QAction.setShortcut——
+        # test_menu_restructure:149 冻结 action_multitrack_compare 键位为空（该档
+        # 不在本件授权面）⇒ 按 2753 起同族口径以 QShortcut 注册，触发一次
+        # action.toggle()，态源仍是该可勾选动作（_on_multitrack_toggled 单入口）。
+        mgr.register_global(
+            "multitrack_mode", tr("shortcut.multitrack_mode"), "Ctrl+M",
+            lambda: self.action_multitrack_compare.toggle(), self,
+        )
+
     def _on_record_shortcut(self):
         """录音全局快捷键（R）入口：等价于点击传输条录音按钮（●/■）。
 
@@ -2866,6 +3299,10 @@ class MainWindow(QMainWindow):
             seg.set_temporary_text(text)
         elif getattr(self, "_measure_active", False) and self._measure_status_text:
             seg.set_temporary_text(self._measure_status_text)
+        elif getattr(self, "_multitrack_mode", False):
+            # T-1087 M3：多轨态鼠标离开呈现带 ⇒ 临时段回到 D4「轨 N/M · 健康提示」，
+            # 不清空（清空后只有切轨/加轨才再出现，状态栏看起来像坏了）。
+            self._update_multitrack_status()
         else:
             seg.clear_temporary()
 
@@ -2897,10 +3334,18 @@ class MainWindow(QMainWindow):
             from acouscope.ui.widgets.batch_workspace import registered_modules
 
             batch_action.setEnabled(bool(registered_modules()))
-        # T-1003：「导出报告 PDF…」enable = 有音频（无音频触发时 toast info 防御）
+        # T-1003：「导出报告…」enable = 有音频（无音频触发时 toast info 防御）
         report_action = getattr(self, "action_export_report", None)
         if report_action is not None:
             report_action.setEnabled(bool(self.controller.has_audio()))
+        # T-1102：「导出报告 PDF…」enable = 有音频（与 HTML 快导同源）
+        pdf_action = getattr(self, "action_export_report_pdf", None)
+        if pdf_action is not None:
+            pdf_action.setEnabled(bool(self.controller.has_audio()))
+        # T-1103：「报告预览…」enable = 有音频（与导出 PDF 同闸同源）
+        preview_action = getattr(self, "action_report_preview", None)
+        if preview_action is not None:
+            preview_action.setEnabled(bool(self.controller.has_audio()))
         # T-1004：「多轨对比…」enable = 有音频或会话已有轨（进入轨道区的前提）
         multitrack_action = getattr(self, "action_multitrack_compare", None)
         if multitrack_action is not None:
@@ -3380,20 +3825,17 @@ class MainWindow(QMainWindow):
                 btn.blockSignals(False)
             show_toast(self, tr("multitrack.readonly"), level="info")
             return
-        # T-1043（§五b）：录音设置抽屉开着时，再点同入口 = 关闭抽屉
-        # （不进入停止/保存路径；抽屉经接受后本分支不成立 → 录音中再点仍为停止）
+        # T-1054 批4c（R2）：录音设置页常驻左栏 index3；再点同入口 = 收回左栏页
+        # （不进入停止/保存路径；录音运行态本分支不成立 → 录音中再点仍为停止）
         if not checked:
-            rec_drawer = getattr(self, "_rec_drawer", None)
-            rec_panel = getattr(self, "_record_settings_panel", None)
-            if (rec_drawer is not None and rec_drawer.is_open()
-                    and rec_panel is not None and not rec_panel.was_accepted()):
-                rec_drawer.close_drawer()
+            if self._record_page_is_current() and not self._record_timer.isActive():
+                self._on_left_page_toggled(False, 3)
                 self.transport_bar.set_record_button_state(False)
                 return
         recorder = self._get_recorder()
 
         if checked:
-            self._open_record_settings_drawer()
+            self._on_left_page_toggled(True, 3)
         else:
             # 停止录音并保存
             self.waveform_widget.end_live_capture()
@@ -3478,41 +3920,15 @@ class MainWindow(QMainWindow):
                 show_toast(self, "没有录制到音频数据。", level="info")
                 self._pending_recording = None
 
-    def _open_record_settings_drawer(self) -> None:
-        """打开非模态录音设置抽屉（既有 RecordSettingsDialog + 抽屉，R5 复用通路）。
-
-        打开非模态录音设置抽屉（路径/格式/采样率/深度，参考 Audacity）。
-        T-504c：去模态化——每次打开新建面板实例（与 _on_settings 同模式，
-        免状态复位），accepted/cancelled 信号驱动启动/复位。
-        由 transport_bar.btn_record 勾选路径与左栏录音设置页按钮（T-1054 批1b）
-        共用；本方法本身不动 btn_record 勾选态（录音运行状态源属 T-1043 d5）。
-        """
-        from acouscope.ui.widgets.record_settings_dialog import RecordSettingsDialog
-
-        tool_rate = self.transport_bar.cmb_record_rate.currentData()
-        panel = RecordSettingsDialog(
-            self, current_rate=int(tool_rate) if tool_rate else 44100
-        )
-        panel.accepted.connect(self._begin_recording_from_settings)
-        panel.cancelled.connect(self._on_recording_settings_cancelled)
-        self._record_settings_panel = panel
-
-        # 与设置抽屉同宽（560）→ 复用同一抽屉实例，零冲突
-        drawer = open_drawer(self, panel, width=560)
-        if drawer is not self._rec_drawer:
-            # 首次绑定：防重复连接（复用实例时 closed 信号不重连）
-            drawer.closed.connect(self._on_recording_drawer_closed)
-        self._rec_drawer = drawer
-
     def _begin_recording_from_settings(self):
-        """录音设置面板 accepted：关闭抽屉并启动录音。
+        """录音设置面板 accepted：收回左栏页（R4-F）并启动录音。
 
+        收回经唯一槽 `_on_left_page_toggled(False, 3)`（= 原 `close_drawer()` 等价）；
         承载原模态流 accepted 分支的启动逻辑；recorder.start 失败回滚
         与原一致：toast + 按钮复位 + pending 清空。
         """
-        if self._rec_drawer is not None:
-            self._rec_drawer.close_drawer()
-        panel = self._record_settings_panel
+        self._on_left_page_toggled(False, 3)
+        panel = self.record_settings_panel
         if panel is None:
             self.transport_bar.set_record_button_state(False)
             return
@@ -3554,17 +3970,34 @@ class MainWindow(QMainWindow):
         self._update_edit_actions()
 
     def _on_recording_settings_cancelled(self):
-        """录音设置面板取消（点取消按钮）：不启动录音，按钮复位。"""
+        """录音设置面板取消（点取消按钮）：未录音 → 按钮复位；录音中 → 走停止流程。
+
+        M6：页常驻后取消按钮在**录音运行态**仍可达（原抽屉流程不可达）⇒ 若只
+        复位按钮会留下「按钮灭着但录音在跑」分裂态；此处改为经既有停止/保存
+        流程（`_on_record_toggle(False)`）停录 + 复位，运行状态源仍为 btn_record。
+        """
+        if self._record_timer.isActive() or self._recording_active():
+            self._on_record_toggle(False)
+            self.transport_bar.set_record_button_state(
+                self._recording_active()
+            )
+            return
         self.transport_bar.set_record_button_state(False)
 
-    def _on_recording_drawer_closed(self):
-        """抽屉关闭（外部点击/Escape/close_drawer）：面板未 accept → 复位。
+    def _on_record_page_retracted(self) -> None:
+        """左栏录音页被外部路径收回/切走 → 未在录音则复位 ● 。
 
-        已 accept 时录音已启动，此回调为 no-op；面板未打开时同样 no-op。
+        原 `_on_recording_drawer_closed` 的页语义等价（R3 M5）：面板头录音钮再点、
+        工具栏左栏开关、切换左栏页、`left_content.setCurrentIndex(0)` 等外部路径
+        不再有抽屉 closed 兜底，故在既有唯一同步槽收敛（禁四处重复贴代码）。
         """
-        panel = self._record_settings_panel
-        if panel is not None and not panel.was_accepted():
-            self.transport_bar.set_record_button_state(False)
+        timer = getattr(self, "_record_timer", None)
+        if self._record_page_is_current() or (timer is not None and timer.isActive()):
+            return
+        tb = getattr(self, "transport_bar", None)
+        if tb is None or not tb.btn_record.isChecked():
+            return
+        self.transport_bar.set_record_button_state(False)
 
     def _on_record_level(self, level: float):
         """录音电平回调（波形 VU 表显示）。"""
@@ -4005,15 +4438,78 @@ class MainWindow(QMainWindow):
         self._pending_view_index = index
         self._build_analysis_view(index)
 
+    # T-1060 件2：常驻分析视图子控件属性名（销毁 / 关窗收尾遍历的唯一来源）
+    _ANALYSIS_VIEW_ATTRS = (
+        "_spectrum_widget", "_spectrogram_widget", "_pitch_widget",
+        "_formant_widget", "_timbre_widget",
+        "_spectrogram3d_widget", "_realtime_panel",
+    )
+
+    @staticmethod
+    def _detach_view_widget(w) -> None:
+        """调用画布控件的统一收尾入口 `_detach_scene_items()`（幂等、不绝外抛）。
+
+        未实现该协议的控件直接跳过（第二段 T-1060b 覆盖其余 5 个画布控件）。
+        """
+        fn = getattr(w, "_detach_scene_items", None)
+        if not callable(fn):
+            return
+        try:
+            fn()
+        except Exception:
+            pass  # 收尾路径绝不外抛
+
+    def _finalize_analysis_view_widgets(self) -> None:
+        """关窗收尾：遍历常驻分析视图子控件（含主波形），断开场景 item / 信号 /
+        事件过滤器，并停掉其子控件定时器等投递源。
+
+        ★ 必须在任何事件泵（task_center drain / 裸 processEvents）**之前**执行：
+        否则悬垂投递会先被派发 → SIGSEGV（T-1060 / PI-T7 实测路径）。
+        幂等；对未实现收尾协议的控件跳过，不改任何可见行为。
+        """
+        targets: list = []
+        seen: set = set()
+        wf = getattr(self, "waveform_widget", None)
+        if wf is not None:
+            seen.add(id(wf))
+            targets.append(wf)
+        for attr in self._ANALYSIS_VIEW_ATTRS:
+            w = getattr(self, attr, None)
+            if w is not None and id(w) not in seen:
+                seen.add(id(w))
+                targets.append(w)
+        for w in self._view_widgets.values():
+            if id(w) not in seen:
+                seen.add(id(w))
+                targets.append(w)
+        for w in targets:
+            self._detach_view_widget(w)
+
     def _invalidate_analysis_views(self):
         """销毁全部常驻分析视图（换音频/关闭时调用），回提示页。"""
         self._analysis_gen += 1
         # T-1004：换音频/项目 → 多轨会话清空并退出多轨态（轨源与 controller
         # 当前文件语义脱节时不再保留；退出为零残留视图态回退）。
         self._reset_multitrack_state()
-        for attr in ("_spectrum_widget", "_spectrogram_widget", "_pitch_widget",
-                     "_formant_widget", "_timbre_widget",
-                     "_spectrogram3d_widget", "_realtime_panel"):
+
+        # T-1060 件2：销毁顺序 = 先 detach（断场景/信号/事件过滤器 + 停子定时器）
+        # → 再 drop Python 引用 → 最后 deleteLater()。旧序（先 delattr 后
+        # deleteLater）会留下「Python 包装已丢、C++ 对象仍在投递」的悬垂窗口。
+        stale: list = []
+        seen: set = set()
+        for attr in self._ANALYSIS_VIEW_ATTRS:
+            w = getattr(self, attr, None)
+            if w is not None and id(w) not in seen:
+                seen.add(id(w))
+                stale.append(w)
+        for w in self._view_widgets.values():
+            if id(w) not in seen:
+                seen.add(id(w))
+                stale.append(w)
+        for w in stale:
+            self._detach_view_widget(w)
+
+        for attr in self._ANALYSIS_VIEW_ATTRS:
             if hasattr(self, attr):
                 delattr(self, attr)
 
@@ -4172,10 +4668,16 @@ class MainWindow(QMainWindow):
             self._multitrack_player.set_level_callback(
                 self._on_multitrack_level
             )
-            self._multitrack_player.set_error_callback(
-                lambda msg: show_toast(self, str(msg), level="error")
-            )
+            # T-1074 G1（承 T72-01）：回调在播放 daemon 线程触发；改 emit 信号，
+            # 由主线程 QueuedConnection 收到后再建 toast，杜绝跨线程建 QWidget。
+            # 连接在本 getter 内建立（受 is None 守卫，仅一次，无重复 emit）。
+            self._mt_player_error.connect(self._on_mt_player_error)
+            self._multitrack_player.set_error_callback(self._mt_player_error.emit)
         return self._multitrack_player
+
+    def _on_mt_player_error(self, msg: str) -> None:
+        """主线程侧接收多轨播放错误（T-1074 G1）：在此建 toast 恒安全。"""
+        show_toast(self, str(msg), level="error")
 
     def _on_multitrack_play(self, track_id: str) -> None:
         """播放当前轨：懒加载全量样本 → 复用播放器；音量按需临时缩放（D10）。"""
@@ -4191,8 +4693,10 @@ class MainWindow(QMainWindow):
         player.load(payload, track.sample_rate or 44100)
         player.play()
         self.multitrack_panel.set_playing(track_id)
+        self._mt_play_timer.start()
 
     def _on_multitrack_stop(self) -> None:
+        self._mt_play_timer.stop()
         if self._multitrack_player is not None:
             self._multitrack_player.stop()
         panel = getattr(self, "multitrack_panel", None)
@@ -4225,6 +4729,27 @@ class MainWindow(QMainWindow):
         if panel is not None and hasattr(panel, "view"):
             panel.view.set_playhead(value)
 
+    def _update_multitrack_playhead(self) -> None:
+        p = self._multitrack_player
+        if p is None or not p.is_playing():
+            self._mt_play_timer.stop()
+            return
+        panel = getattr(self, "multitrack_panel", None)
+        if panel is None:
+            return
+        tid = panel.playing_id()
+        track = self.multitrack_session.get(tid) if tid else None
+        if track is None:
+            self._mt_play_timer.stop()
+            return
+        offset_s = float(getattr(track, "offset_ms", 0.0) or 0.0) / 1000.0
+        shared = p.get_position() + offset_s
+        panel.view.set_playhead(shared)
+        if hasattr(panel, "compare_view") and panel.compare_view is not None:
+            panel.compare_view.set_playhead(shared)
+        if not p.is_playing():
+            self._mt_play_timer.stop()
+
     def _on_multitrack_selection(self, value) -> None:
         """D1：共享时间选区；两态选区源互不迁移（域隔离），本任务只记录视图态。"""
         self._multitrack_selection = value
@@ -4233,6 +4758,8 @@ class MainWindow(QMainWindow):
         """文件列表多选 → 加入多轨（D7 多选入口；白名单过滤在容器内）。"""
         fb = getattr(self, "file_browser", None)
         paths = [p for p in (fb.selected_paths() if fb is not None else []) if p]
+        if not paths:
+            paths = self._multitrack_add_fallback()
         if not paths:
             show_toast(self, tr("multitrack.no_selection"), level="info")
             return
@@ -4248,6 +4775,34 @@ class MainWindow(QMainWindow):
             return
         if not self._multitrack_mode:
             self._enter_multitrack_mode()
+
+    def _multitrack_add_fallback(self) -> list[str]:
+        """「加入多轨」无选中时的两级兜底（T-1087 M2·真机目测 #5）。
+
+        #5 根因：入口读的是**折叠左栏**里的 FileBrowser 选中项，用户看不见列表，
+        点按钮只得到一句 toast。故按可见性升级：
+
+        1. 左栏折叠 ⇒ 先展开文件列表（`_show_left_content` 单点：切页 + 展开 +
+           宽度自适应 + 页签勾选同步），本次点击不改轨集（列表即刻可选）；
+        2. 左栏已展开仍无选中 ⇒ 列表这一路已帮不上忙 ⇒ 开系统文件框直选。
+
+        折叠态**不**弹框：那是 #5 的常态，弹框反而绕过项目列表（与 D7 多选口径
+        相左），且会让既有「无选中仅提示」契约（test_multitrack_mode）改道进模态。
+        """
+        left = getattr(self, "left_panel", None)
+        fb = getattr(self, "file_browser", None)
+        if left is not None and fb is not None and left.is_collapsed():
+            self._show_left_content(fb)
+            return []
+        from PyQt6.QtWidgets import QFileDialog
+
+        from acouscope.audio.io import AudioIO
+
+        globs = " ".join(f"*{ext}" for ext in sorted(AudioIO.SUPPORTED_FORMATS))
+        paths, _selected = QFileDialog.getOpenFileNames(
+            self, tr("multitrack.add_dialog_title"), "", f"Audio ({globs})",
+        )
+        return [str(p) for p in (paths or []) if p]
 
     def _update_multitrack_status(self) -> None:
         """状态栏（D4）：轨 N/M · 当前轨名 + 健康提示（已加载 N 轨 · 约 X MB）。"""
@@ -4577,6 +5132,17 @@ class MainWindow(QMainWindow):
         if ins is not None:
             ins.set_view_name(self._current_view_name())
 
+        # T-1079 ⑤：右栏在 AI 页 → 面板预载截图/标注/未改动草稿随视图切换刷新
+        # （镜像上方 set_view_name 范式；RuntimeError 吞「面板已销毁」，同 T-1011
+        # reload_config 收尾语义）。
+        panel_ai = getattr(self, "_ai_panel", None)
+        if (panel_ai is not None
+                and self.right_content.currentWidget() is self._ai_host):
+            try:
+                panel_ai.refresh_attached_view()
+            except RuntimeError:
+                pass
+
         # T-906：传输条全局化，同一视图切换路径调用点保留（恒可见语义；
         # CB-016-1 蓝条移除，CB-009 叠加层同步方法已整删）
         self._sync_transport_visibility(index)
@@ -4683,12 +5249,36 @@ class MainWindow(QMainWindow):
         # 参考频率与音分/音名显示同一口径（dsp.units 只读消费）
         return build_overlay_lines(tuning, ref_hz=get_reference_hz())
 
+    def _current_tuning(self):
+        """当前生效律制（T-1034a 轮 B 唯一取用点）：关闭/未选模板 → None。
+
+        模板恒为 440（templates 不传 reference_freq）⇒ 取用点统一注入当前 A4
+        （只读 dsp.units，不写参考频率）；未选模板禁回退 12TET（律制语义
+        不得在用户未选择时凭空出现）。
+        """
+        if not self.action_tuning_ruler.isChecked():
+            return None
+        key = getattr(self, "tuning_ruler_template_key", None)
+        if key is None:
+            return None
+        import dataclasses
+
+        from acouscope.analysis.tunings.templates import get_template
+        from acouscope.dsp.units import get_reference_hz
+
+        try:
+            tuning = get_template(key)
+        except KeyError:
+            return None
+        return dataclasses.replace(tuning, reference_freq=float(get_reference_hz()))
+
     def _apply_tuning_overlay(self) -> None:
         """推给视图：开启 → 仅当前可见视图；关闭 → 清空全部已建视图（零残留）。
 
         不激活任何其它视图，也不触发分析结果重算。
         """
         lines = self._build_tuning_overlay_lines()
+        tuning = self._current_tuning()
         targets = []
         if lines is None:
             targets.extend(getattr(self, "_view_widgets", {}).values())
@@ -4700,6 +5290,11 @@ class MainWindow(QMainWindow):
             setter = getattr(widget, "set_tuning_overlay", None)
             if callable(setter):
                 setter(None if lines is None else list(lines))
+        # T-1034a 轮 B：当前生效律制推给对比呈现（compare 视图不在上述 fan-out 内）
+        panel = getattr(self, "multitrack_panel", None)
+        presentation = getattr(panel, "presentation", None)
+        if callable(presentation):
+            presentation().set_tuning(tuning)
 
     def _on_menu_analyze_region(self):
         """T-1002 菜单项「分析此区域」→ 取当前波形选区，交 T-915 同一槽。
@@ -4876,8 +5471,11 @@ class MainWindow(QMainWindow):
                         signal_data=get_frame_at_position(pos),
                     )
                     self.lbl_status.setText(f"FFT 频谱 ({fft_size} 点 FFT, 位置: {pos:.3f}s)")
-                except Exception:
-                    pass
+                except Exception as e:
+                    # T-1074 G3②（承 T72-07）：指针联动高频路径，补 _log.warning
+                    # 消静默吞；此路径不宜弹 toast（会随指针移动刷屏），与姊妹
+                    # on_window_changed 的 toast 分工：高频联动记日志、显式切换弹提示。
+                    _log.warning("FFT 频谱联动更新失败: %s", e)
 
             # 绑定到主窗口实例
             self._update_fft_from_position = _update_fft_from_position
@@ -5189,9 +5787,12 @@ class MainWindow(QMainWindow):
 
 
     def _export_field_metadata(self):
-        """V099_EXPORT_UI_V1: 导出田野元数据（IMDI/CSV）。"""
+        """V099_EXPORT_UI_V1: 导出田野元数据（JSON/IMDI XML/CSV）。"""
         from PyQt6.QtWidgets import QFileDialog
-        if not hasattr(self, "_current_audio_path") or not self._current_audio_path:
+        # T-1035b：当前音频路径的真实来源 = AppController（原 `_current_audio_path`
+        # 属性全仓无任何赋值点，旧守卫 `hasattr(self, ...)` 恒为真 → 本功能长期不可达）。
+        current = self.controller.current_file if self.controller.has_audio() else None
+        if not current:
             show_toast(self, "请先加载音频文件", level="warning")
             return
         default_name = "field_metadata"
@@ -5202,33 +5803,36 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            from acouscope.analysis.annotation import SessionMetadata
-            # 构建元数据
-            meta = SessionMetadata(
-                identifier=getattr(self, "_current_audio_path", ""),
-                title="AcouScope 田野录音",
-                creator="",
-                date="",
-                location="",
-                context="",
-                genre="",
-            )
+            from acouscope.annotation import export
+            from acouscope.annotation.metadata import SessionMetadata
+
+            # 构建元数据：只填应用内确实拿得到的值（不臆造）。
+            #   Identifier  ← 控制器当前文件路径
+            #   技术字段    ← 控制器已加载的 AudioInfo（采样率/位深/格式/声道/时长）
+            #   Creator / Date / Location / GenreContext 应用内无来源 → 留空
+            info = self.controller.audio_info
+            meta = SessionMetadata()
+            meta.set("Identifier", str(current))
+            meta.set("Title", "AcouScope 田野录音")
+            if info is not None:
+                meta.set("SamplingRate", info.sample_rate)
+                meta.set("BitDepth", info.bit_depth)
+                meta.set("Format", info.format)
+                meta.set("Channels", info.channels)
+                meta.set("Duration", round(float(info.duration), 3))
             if path.endswith(".json"):
-                import json
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(meta.to_dict(), f, ensure_ascii=False, indent=2)
+                export.export_session_json(path, meta)
             elif path.endswith(".xml"):
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(meta.to_imdi_xml())
+                export.export_session_xml(path, meta)
             elif path.endswith(".csv"):
-                meta.to_csv(path)
+                export.export_session_csv(path, meta)
             show_toast(self, f"元数据已导出至:\n{path}", level="success")
         except Exception as e:
             show_toast(self, str(e), level="error")
 
     # ------------------------------------------------------------------
-    # T-1003：分析报告 PDF 导出（文件 ▸ 导出 ▸ 导出报告 PDF…）
-    # 非模态：QFileDialog 系统保存框（既有导出同款豁免）→ 后台线程拼版 → toast。
+    # T-1003/T-1100：分析报告 HTML 导出（文件 ▸ 导出 ▸ 导出报告…）
+    # 非模态：QFileDialog 系统保存框（既有导出同款豁免）→ 后台线程拼装 → toast。
     # 禁新建对话框类 / 禁模态进度窗。
     # ------------------------------------------------------------------
 
@@ -5265,7 +5869,7 @@ class MainWindow(QMainWindow):
         """报告插图：波形（主）+ 当前分析视图，均走既有渲染管线。
 
         主线程执行：``_export_current_view`` 需读取活动控件状态（控件缺失时
-        还会补算 + sendPostedEvents），不可下放工作线程；只有 PDF 拼版在后台。
+        还会补算 + sendPostedEvents），不可下放工作线程；只有 HTML 生成落盘在后台。
         选区存在时当前视图即选区渲染结果 → 图题按选区时间范围标注。
         """
         import tempfile
@@ -5327,7 +5931,7 @@ class MainWindow(QMainWindow):
             pass
 
     def _on_export_report(self):
-        """导出分析报告 PDF：页眉（题名 + 元数据）+ 波形 + 当前分析视图。"""
+        """导出分析报告（自包含 HTML）：题名 + 元数据/降级技术信息 + 波形 + 当前分析视图。"""
         from acouscope.ui import report_export
 
         if not self.controller.has_audio():
@@ -5340,14 +5944,14 @@ class MainWindow(QMainWindow):
             self,
             tr("report.dialog_title"),
             report_export.default_report_name(stem),
-            "PDF (*.pdf)",
+            tr("report.filter_html"),
         )
         if not filepath:
             return
 
         target = Path(filepath)
-        if target.suffix.lower() != ".pdf":
-            target = target.with_suffix(".pdf")
+        if target.suffix.lower() != ".html":
+            target = target.with_suffix(".html")
 
         relocated = False
         if not self._dir_writable(target.parent):
@@ -5380,14 +5984,13 @@ class MainWindow(QMainWindow):
             def run(self_):
                 try:
                     self_.done.emit(
-                        report_export.export_report(
+                        report_export.export_report_html(
                             target,
                             title=stem,
                             metadata=metadata,
                             figures=figures,
                             tech_info=tech_info,
                             font_family=cjk,
-                            dpr=float(self.devicePixelRatioF()),
                         )
                     )
                 except Exception as e:  # noqa: BLE001
@@ -5412,7 +6015,7 @@ class MainWindow(QMainWindow):
         worker.start()
 
     def _on_report_done(self, saved, relocated: bool = False):
-        """后台拼版完成：状态栏 + 成功 toast（改存路径时附说明）。"""
+        """后台 HTML 生成完成：状态栏 + 成功 toast（改存路径时附说明）。"""
         QApplication.restoreOverrideCursor()
         self.lbl_status.setText(tr("report.exported").format(path=saved).replace("\n", " "))
         message = tr("report.exported").format(path=saved)
@@ -5421,10 +6024,242 @@ class MainWindow(QMainWindow):
         show_toast(self, message, level="success")
 
     def _on_report_failed(self, message: str):
-        """后台拼版失败：状态栏复位 + 失败 toast（error）。"""
+        """后台 HTML 生成失败：状态栏复位 + 失败 toast（error）。"""
         QApplication.restoreOverrideCursor()
         show_toast(self, tr("report.failed").format(error=message), level="error")
         self.lbl_status.setText(tr("status.ready"))
+
+    def _on_export_report_pdf(self):
+        """导出分析报告 PDF（T-1102 M-B′-β1）：与 HTML 快导同源——同一取数 +
+        同一 ``build_report_html``，产物交 ``report_pdf.render_report_pdf`` 同步
+        渲染（默认 A4 纵向·边距 16·dpi 300）。不引线程（禁自行开线程绕 pin）。"""
+        from acouscope.ui import report_export, report_pdf
+
+        if not self.controller.has_audio():
+            show_toast(self, tr("msg.no_audio"), level="info")
+            return
+
+        current = self.controller.current_file
+        stem = Path(current).stem if current is not None else "audio"
+        initial = Path(report_export.default_report_name(stem)).with_suffix(".pdf")
+        filepath, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("report.pdf_dialog_title"),
+            str(initial),
+            tr("report.filter_pdf"),
+        )
+        if not filepath:
+            return
+
+        target = Path(filepath)
+        if target.suffix.lower() != ".pdf":
+            target = target.with_suffix(".pdf")
+
+        if not self._dir_writable(target.parent):
+            # macOS TCC 可能拒绝进程写入桌面/下载等目录：自动改存（同 HTML 路）
+            target = self._fallback_export_path(target)
+
+        try:
+            figures = self._collect_report_figures()
+        except Exception as e:  # noqa: BLE001
+            self._cleanup_report_tmp()
+            show_toast(
+                self,
+                tr("report.failed").format(error=f"{type(e).__name__}: {e}"),
+                level="error",
+            )
+            self.lbl_status.setText(tr("status.ready"))
+            return
+
+        try:
+            metadata = self._report_metadata()
+            tech_info = self._report_tech_info()
+            _latin, cjk = self._current_chart_fonts()  # 报告正文字族（同 HTML 路）
+            self.lbl_status.setText(tr("report.exporting"))
+            # T-1103 M-B′-β2：版面参数取预览面板透传（预览导出同源）；
+            # 面板缺席时 {} / "" 回落 α 默认（A4 纵 / 16 毫米 / dpi 300）——β1 兼容。
+            panel = getattr(self, "report_preview_panel", None)
+            opt = panel.options() if panel is not None else {}
+            # T-1104 M-C′·MC-1：AI 段与预览同源透传（面板缺席回落 ""=零 AI 节）
+            ai_text = panel.ai_text() if panel is not None else ""
+            html = report_export.build_report_html(
+                title=stem,
+                metadata=metadata,
+                figures=figures,
+                tech_info=tech_info,
+                degraded_reason="",
+                font_family=cjk,
+                ai_text=ai_text,
+            )
+            saved = report_pdf.render_report_pdf(html, target, **opt)
+        except Exception as e:  # noqa: BLE001
+            show_toast(
+                self,
+                tr("report.failed").format(error=f"{type(e).__name__}: {e}"),
+                level="error",
+            )
+            self.lbl_status.setText(tr("status.ready"))
+            return
+        finally:
+            self._cleanup_report_tmp()
+
+        show_toast(
+            self, tr("report.exported").format(path=saved).replace("\n", " "),
+            level="success",
+        )
+        self.lbl_status.setText(tr("status.ready"))
+
+    def _build_report_preview_html(self) -> str:
+        """报告预览 HTML 产串（T-1103 M-B′-β2·面板 provider 回调）。
+
+        与导出同一条取数 + 同一 ``build_report_html``；异常上抛由面板 catch
+        （预览失败不动宿主）。图已 base64 内嵌进串，临时目录建串后即释放。
+        """
+        from acouscope.ui import report_export
+
+        figures = self._collect_report_figures()
+        # T-1104：顺带缓存图题（AI 消息取数用·零重渲染既有管线）
+        self._report_preview_captions = tuple(
+            str(f.caption or "") for f in figures
+        )
+        try:
+            current = self.controller.current_file
+            stem = Path(current).stem if current is not None else "audio"
+            _latin, cjk = self._current_chart_fonts()  # 报告正文字族（同导出路）
+            panel = getattr(self, "report_preview_panel", None)
+            return report_export.build_report_html(
+                title=stem,
+                metadata=self._report_metadata(),
+                figures=figures,
+                tech_info=self._report_tech_info(),
+                degraded_reason="",
+                font_family=cjk,
+                # T-1104 M-C′·MC-1：AI 段与导出同源透传（面板缺席回落 ""）
+                ai_text=panel.ai_text() if panel is not None else "",
+            )
+        finally:
+            self._cleanup_report_tmp()
+
+    def _on_report_ai_requested(self) -> None:
+        """生成报告 AI 解读（T-1104 M-C′·MC-1）。
+
+        禁自动外发：仅用户点按触发；无音频 / 无 provider 配置 → toast 即止。
+        只经公共 API（``load_ai_config`` / ``interpreter.make_provider`` /
+        ``provider.chat``）消费 AI 域，零复用释图面板私有件。T-1107 MC-3：
+        本地档（ollama/llama_cpp）传懒启动入参与 provider 工厂，引擎经公共
+        ``get_runtime()`` 在 worker 线程内起，就绪后按动态端口重建 provider。
+        幂等防重：已有 worker 在跑直接 return。三终态（done/failed/cancelled）
+        各有 toast——降级不静默；worker 收尾在 closeEvent。
+        """
+        from acouscope.ai import interpreter
+        from acouscope.ui.report_ai import ReportAiWorker, build_report_ai_messages
+        from acouscope.ui.widgets.ai_interpret import load_ai_config
+
+        if not self.controller.has_audio():
+            show_toast(self, tr("msg.no_audio"), level="info")
+            return
+        worker = getattr(self, "_report_ai_worker", None)
+        if worker is not None and worker.isRunning():
+            return
+
+        cfg = load_ai_config()
+        # 三档路由最小镜像（只读公共键）：provider 缺省且为内置档 → 内置 ollama；
+        # 其余档缺 provider/地址 → 视为无可用配置，止于 toast（禁自动外发）。
+        v2 = cfg.get("ai_v2") if isinstance(cfg.get("ai_v2"), dict) else {}
+        kind = str(cfg.get("provider", "") or "").strip()
+        if not kind and v2.get("source") in (None, "", "builtin"):
+            kind = "ollama"
+        if not cfg or not kind:
+            show_toast(self, tr("report.ai_unavailable"), level="info")
+            return
+        url = str(cfg.get("url", "") or "").strip()
+        if kind in ("custom",) and not url:
+            show_toast(self, tr("report.ai_unavailable"), level="info")
+            return
+        key = str(cfg.get("key", "") or "").strip()
+        model = str(cfg.get("model", "") or "").strip()
+
+        def _make_provider():
+            # 镜像 ai_interpret._make_provider 的动态端口注入：本地档未手填
+            # URL 时，仅当运行时就绪才注入其 base_url（except 忽略回落默认）。
+            provider_url = url
+            if kind in ("ollama", "llama_cpp") and not provider_url:
+                try:
+                    if kind == "llama_cpp":
+                        from acouscope.ai.llama_runtime import get_runtime
+                    else:
+                        from acouscope.ai.ollama_runtime import get_runtime
+                    rt = get_runtime()
+                    if rt.state == "ready" and rt.base_url:
+                        provider_url = rt.base_url
+                except Exception:
+                    pass
+            return interpreter.make_provider(kind, provider_url, key, model)
+
+        provider = _make_provider()
+        # T-1107 MC-3：本地档懒启动开关（镜像 ai_interpret 决策规则；外部
+        # Ollama 开关打开时不启内置引擎）。阻塞只发生在 worker 线程。
+        ensure_runtime = kind in ("ollama", "llama_cpp") and not (
+            kind == "ollama" and bool(v2.get("external_ollama")))
+        llama_model_id = str(v2.get("llama_model_id", "") or "") or None
+        messages = build_report_ai_messages(
+            metadata=self._report_metadata(),
+            tech_info=self._report_tech_info(),
+            figure_captions=getattr(self, "_report_preview_captions", ()),
+        )
+        panel = self.report_preview_panel
+        w = self._report_ai_worker = ReportAiWorker(
+            provider,
+            messages,
+            parent=self,
+            ensure_runtime=ensure_runtime,
+            runtime_kind=kind if ensure_runtime else None,
+            llama_model_id=llama_model_id,
+            provider_factory=_make_provider if ensure_runtime else None,
+        )
+        chunks: list[str] = []
+
+        # T-1106 M-C′·MC-2：重生成前清旧文 + 置灰按钮 + 「生成中」占位回填展示位
+        panel.set_ai_text("")
+        panel.set_ai_busy(True)
+        panel.set_ai_text(tr("report.ai_generating"))
+
+        def _on_chunk(piece):
+            chunks.append(piece)
+            panel.set_ai_text("".join(chunks))  # 逐段回填（非等全文）
+
+        def _finished(full):
+            panel.set_ai_busy(False)
+            panel.set_ai_text(full or "".join(chunks))
+            show_toast(self, tr("report.ai_done"), level="success")
+
+        def _failed(error):
+            panel.set_ai_busy(False)
+            panel.set_ai_text("")
+            show_toast(
+                self, tr("report.ai_failed").format(error=error), level="error"
+            )
+
+        def _cancelled():
+            panel.set_ai_busy(False)
+            show_toast(self, tr("report.ai_cancelled"), level="info")
+
+        def _clear():
+            if self._report_ai_worker is w:
+                self._report_ai_worker = None
+
+        w.chunk.connect(_on_chunk)
+        w.finished_ok.connect(_finished)
+        w.failed.connect(_failed)
+        w.cancelled.connect(_cancelled)
+        w.finished.connect(_clear)
+        show_toast(self, tr("report.ai_generating"), level="info")
+        w.start()
+
+    def _show_report_preview(self) -> None:
+        """进报告预览页（index5）并刷新（T-1103 M-B′-β2）。"""
+        self._set_workspace_page(5)
+        self.report_preview_panel.refresh()
 
 
 # ============================================================
@@ -5452,16 +6287,16 @@ class MainWindow(QMainWindow):
         """
         from PyQt6.QtWidgets import QComboBox, QLabel, QWidget, QHBoxLayout, QSizePolicy
         widget = QWidget()
-        widget.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        widget.setMinimumWidth(240)  # T207_FIX_V1: 防 QToolBar 压缩容器为 0 宽
+        # T-1083 M-2：Fixed→Preferred 让右簇随窗宽收缩，minimumWidth 保底防压至 0 宽
+        widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        widget.setMinimumWidth(180)  # T207_FIX_V1: 防 QToolBar 压缩容器为 0 宽
         layout = QHBoxLayout()
         layout.setContentsMargins(6, 0, 6, 0)
         layout.setSpacing(4)
         label = QLabel("音高算法:")
         combo = QComboBox()
         combo.setMinimumWidth(140)
-        combo.setFixedWidth(150)  # T207_FIX_V1
-        combo.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        combo.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         combo.addItem("pYIN (流式)", "pYIN")
         combo.addItem("SwiftF0 (深度)", "SwiftF0")
         combo.addItem("RMVPE (人声)", "RMVPE")
@@ -6054,15 +6889,6 @@ class MainWindow(QMainWindow):
         """
         self._set_workspace_page(3 if checked else 0)
 
-    def _on_room_drawer_cancelled(self):
-        """房间声学抽屉关闭（面板“关闭”按钮 cancelled / 抽屉 closed 殊途同归）。
-
-        close_drawer 幂等：两路信号均汇于此，重复触发无副作用。
-        批3 后房间类入口不再开抽屉，本方法保留供其它抽屉路径兼容调用。
-        """
-        if self._room_drawer is not None:
-            self._room_drawer.close_drawer()
-
     def _on_ai_interpret(self):
         """AI 释图（菜单/工具栏/检查器入口）：右栏切「AI 释图」tab（T-1010）。
 
@@ -6271,8 +7097,9 @@ class MainWindow(QMainWindow):
             settings.chart_font_latin = latin
             settings.chart_font_cjk = cjk
             settings.save()
-        except Exception:
-            pass
+        except Exception as e:
+            # T-1074 G3③（承 T72-08）：图表字体偏好落盘失败补日志痕
+            _log.warning("图表字体偏好保存失败: %s", e, exc_info=True)
 
         # 同步已打开的 3D 视图
         widget = self._live_widget("_spectrogram3d_widget")
@@ -6299,56 +7126,22 @@ class MainWindow(QMainWindow):
         self._on_right_page_toggled(bool(checked), 2)
 
     # ------------------------------------------------------------------
-    # T-1044：图表设计器（导出前设计交互：非模态抽屉 + 实时预览 + 四组参数）
+    # T-1044：图表设计器（导出前设计交互：中央 index4 全铺页 + 实时预览 + 四组参数）
+    # T-1054 批4a：抽屉通路退役（零抽屉口径），入口 = 工作区开关组 / 菜单 action。
     # ------------------------------------------------------------------
 
-    def _on_chart_designer(self, checked: bool = True):
-        """打开/关闭图表设计器抽屉（开关语义：再点同入口 = 关闭，§五b）。
-
-        入口两处（文件▸导出▸图表设计器… / 分析工具栏）**共用同一 QAction 实例**
-        → 勾选态天然一致；抽屉宽度 ~860（预览 + 参数并置）。
-        """
-        if not checked:
-            drawer = getattr(self, "_chart_designer_drawer", None)
-            if drawer is not None and drawer.is_open():
-                drawer.close_drawer()
-            return
-        try:
-            from acouscope.ui.widgets.chart_designer import (
-                DRAWER_WIDTH,
-                ChartDesignerPanel,
-            )
-            from acouscope.ui.widgets.drawer import open_drawer
-
-            panel = ChartDesignerPanel(settings=self.controller.settings, parent=self)
-            # 渲染由宿主注入 → 预览与导出走**同一条** _export_current_view 路径
-            panel.set_preview_renderer(self._render_chart_designer_preview)
-            panel.set_mode_provider(lambda: self.analysis_tab_bar.currentIndex())
-            panel.paramsChanged.connect(self._on_chart_designer_params)
-            panel.exportRequested.connect(self._on_chart_designer_export)
-            panel.fontSettingsRequested.connect(self._on_chart_designer_font_settings)
-            drawer = open_drawer(self, panel, width=DRAWER_WIDTH)
-            self._chart_designer_drawer = drawer
-            self._bind_drawer_sync(drawer)
-            self._sync_drawer_entry(drawer, self.action_chart_designer)
-            self._on_chart_designer_params()  # 装载会话态（持久化第①层：内存）
-            panel.render_now()                # 打开即出图（跳过防抖）
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self._set_entry_checked(self.action_chart_designer, False)
-            show_toast(
-                self,
-                f"无法打开图表设计器:\n{type(e).__name__}: {e}",
-                level="error",
-            )
+    def _on_chart_designer(self, checked: bool = True) -> None:
+        """图表设计器入口（T-1054a：改中央全铺页 index4；抽屉通路已退役）。"""
+        if checked:
+            self._set_workspace_page(4)
+        else:
+            stack = getattr(self, "central_stack", None)
+            if stack is not None and stack.currentIndex() == 4:
+                self._set_workspace_page(0)
 
     def _chart_designer_panel(self):
-        """当前打开的设计器面板（未打开返回 None）。"""
-        drawer = getattr(self, "_chart_designer_drawer", None)
-        if drawer is None or not drawer.is_open():
-            return None
-        return drawer.content()
+        """图表设计器面板（T-1054 批4a：常驻单实例；未构建返回 None）。"""
+        return getattr(self, "chart_designer_panel", None)
 
     def _current_chart_designer_params(self) -> dict:
         """会话态参数（持久化第①层；未打开过设计器则为空 dict = 既有行为）。"""
@@ -6385,8 +7178,9 @@ class MainWindow(QMainWindow):
             if params.get("dpi"):
                 settings.default_dpi = int(params["dpi"])
             settings.save()
-        except Exception:
-            pass
+        except Exception as e:
+            # T-1074 G3③（承 T72-08）：图表设计器参数落盘失败补日志痕
+            _log.warning("图表设计器参数保存失败: %s", e, exc_info=True)
 
     def _on_chart_designer_export(self) -> None:
         """设计器「导出…」→ 既有导出单路径（选择保存位置）。"""
@@ -6397,7 +7191,11 @@ class MainWindow(QMainWindow):
         self._set_entry_checked(self.action_chart_font, True)
 
     def _build_chart_exporter(self):
-        """按会话参数建 `FigureExporter`（预览与导出**同一条构造路径**）。"""
+        """按会话参数建 `FigureExporter`（预览与导出**同一条构造路径**）。
+
+        T-1045（裁决最小豁免）：仅本函数 + `_export_current_view` 允许转发内容外壳/
+        参考线/AT-01 新参（ref_ink/子标题/来源/脚注/闸门）；其余 main_window 禁碰。
+        """
         from acouscope.visualization.exporters import FigureExporter
 
         latin, cjk = self._current_chart_fonts()
@@ -6409,6 +7207,13 @@ class MainWindow(QMainWindow):
             width=params.get("width"),
             height=params.get("height"),
             grid=params.get("grid", True),
+            ref_ink=params.get("ref_ink"),
+            subtitle=params.get("subtitle"),
+            source=params.get("source"),
+            footer=params.get("footer"),
+            at01_gate=bool(params.get("at01_gate")),
+            ref_values=params.get("ref_values"),
+            ref_linestyle=params.get("ref_linestyle", "--"),
         )
 
     def _chart_designer_dpi(self) -> int:
@@ -6861,14 +7666,34 @@ class MainWindow(QMainWindow):
         T-1044：`dpi` / `preview` 为 keyword-only（默认 = 既有行为）。
         设计器预览即走本方法（同源），仅 `dpi=72` + `preview=True`（重图降采样）。
         """
+        # T-1046（件3）：报告/预览/导出同源 —— 会话参数覆写传入 exporter 的内容外壳/
+        # 参考线。报告侧 exporter 自建（_collect_report_figures，不经 _build_chart_exporter），
+        # 故在此统一覆写；直接导出路径为幂等（值与本函数同一参数源）。
+        params = self._current_chart_designer_params()
+        if params:
+            exporter.subtitle = params.get("subtitle")
+            exporter.source = params.get("source")
+            exporter.footer = params.get("footer")
+            exporter.at01_gate = bool(params.get("at01_gate"))
+            exporter.ref_values = (
+                list(params["ref_values"]) if params.get("ref_values") else None
+            )
+            exporter.ref_linestyle = params.get("ref_linestyle", "--")
+            if params.get("ref_ink"):
+                exporter.ink["ref_line"] = params["ref_ink"]
+
         data = self.controller.audio_data
         sr = self.controller.sample_rate
         base = path.stem
         dpi = self._export_dpi() if dpi is None else int(dpi)
 
+        # T-1045（裁决撞名口径）：用户设了标题 → 用用户文本；否则回落 base（产物不变）
+        user_title = (self._current_chart_designer_params().get("title") or "").strip()
+        caption = user_title or base
+
         if mode == 0:  # 波形
             times = np.arange(len(data), dtype=np.float32) / np.float32(sr)
-            return exporter.export_waveform(times, data, path, fmt=fmt, dpi=dpi, title=base)
+            return exporter.export_waveform(times, data, path, fmt=fmt, dpi=dpi, title=caption)
 
         if mode == 1:  # FFT 频谱
             widget = self._live_widget("_spectrum_widget")
@@ -6884,7 +7709,7 @@ class MainWindow(QMainWindow):
             # 否则无论窗口如何设置，导出永远是同一张全频段 dB 图
             view = widget.get_view_export()
             return exporter.export_spectrum(
-                view["x"], view["y"], path, fmt=fmt, dpi=dpi, title=base,
+                view["x"], view["y"], path, fmt=fmt, dpi=dpi, title=caption,
                 xlabel=view["xlabel"], ylabel=view["ylabel"],
                 markers=view["markers"],
                 xlim=view["xlim"], ylim=view["ylim"],
@@ -6914,7 +7739,7 @@ class MainWindow(QMainWindow):
             return exporter.export_spectrogram(
                 freqs, times, matrix,
                 path, fmt=fmt, dpi=dpi,
-                title=base, vmin=vmin, vmax=vmax,
+                title=caption, vmin=vmin, vmax=vmax,
             )
 
         if mode == 3:  # 音高
@@ -6927,7 +7752,7 @@ class MainWindow(QMainWindow):
                 raise ValueError("音高检测失败，无法导出")
 
             return exporter.export_pitch_contour(
-                widget._times, widget._f0, path, fmt=fmt, dpi=dpi, title=base
+                widget._times, widget._f0, path, fmt=fmt, dpi=dpi, title=caption
             )
 
         if mode == 4:  # 共振峰
@@ -6940,7 +7765,7 @@ class MainWindow(QMainWindow):
                 raise ValueError("共振峰分析失败，无法导出")
 
             return exporter.export_formants(
-                widget._times, widget._freqs, path, fmt=fmt, dpi=dpi, title=base
+                widget._times, widget._freqs, path, fmt=fmt, dpi=dpi, title=caption
             )
 
         if mode == 5:  # 音色（MFCC 热图）
@@ -6959,7 +7784,7 @@ class MainWindow(QMainWindow):
                 times, mfcc = times[::step], mfcc[::step]
             return exporter.export_mfcc(
                 times, mfcc, path,
-                fmt="png", dpi=dpi, title=base,
+                fmt="png", dpi=dpi, title=caption,
             )
 
         if mode == 6:  # 3D 频谱图 / 瀑布图
@@ -7079,16 +7904,6 @@ class MainWindow(QMainWindow):
     # 语义源：ARCH_ui_visual_language §五b（判据 N1）/ §五-6（激活态）
     # ------------------------------------------------------------------
 
-    def _register_drawer_entry(self, entry, drawer_attr: str) -> None:
-        """登记「持续态界面」入口（开关语义）；drawer_attr = 所驱抽屉的实例属性名。
-
-        同一抽屉实例可有多个入口（如快速入门：菜单 action + ribbon ?）→ 互斥勾选。
-        """
-        entries = getattr(self, "_drawer_entries", None)
-        if entries is None:
-            entries = self._drawer_entries = []
-        entries.append((entry, drawer_attr))
-
     @staticmethod
     def _set_entry_checked(entry, checked: bool) -> None:
         """写入口勾选态（blockSignals 防回环；值相同则不动，杜绝信号风暴）。"""
@@ -7096,42 +7911,6 @@ class MainWindow(QMainWindow):
             entry.blockSignals(True)
             entry.setChecked(bool(checked))
             entry.blockSignals(False)
-
-    def _drawer_entries_of(self, drawer) -> list:
-        """该抽屉实例对应的全部已登记入口（属性未指向该实例的除外）。"""
-        return [
-            entry
-            for entry, attr in getattr(self, "_drawer_entries", [])
-            if getattr(self, attr, None) is drawer
-        ]
-
-    def _bind_drawer_sync(self, drawer) -> None:
-        """抽屉 closed → 入口反同步（同一实例只连一次）。"""
-        bound = getattr(self, "_drawer_sync_bound", None)
-        if bound is None:
-            bound = self._drawer_sync_bound = set()
-        if id(drawer) in bound:
-            return
-        bound.add(id(drawer))
-        drawer.closed.connect(lambda: self._clear_drawer_entries(drawer))
-
-    def _sync_drawer_entry(self, drawer, opened=None) -> None:
-        """打开路径：仅 opened 勾选，同抽屉实例的其它入口取消勾选。
-
-        opened=None → 保留当前已勾选的那一个入口（打开时触发者必然已勾选，
-        即 toggled(True) / clicked(True)），供共用同一抽屉的入口自动判定本次触发者。
-        """
-        entries = self._drawer_entries_of(drawer)
-        target = opened
-        if target is None:
-            target = next((e for e in entries if e.isChecked()), None)
-        for entry in entries:
-            self._set_entry_checked(entry, entry is target)
-
-    def _clear_drawer_entries(self, drawer) -> None:
-        """关闭路径（抽屉 closed）：该实例全部入口取消勾选。"""
-        for entry in self._drawer_entries_of(drawer):
-            self._set_entry_checked(entry, False)
 
     def _left_page_entries(self) -> tuple:
         """左栏页签入口 → 页索引（files=0 / quickstart=1 / manual=2 / record=3 / settings=4）。
@@ -7166,6 +7945,10 @@ class MainWindow(QMainWindow):
         current = content.currentIndex()
         for entry, index in self._left_page_entries():
             self._set_entry_checked(entry, (not is_collapsed) and current == index)
+        # T-1054 批4c（R3 M5）：左栏折叠 / 当前页非 index3 → 录音页收回清账
+        # （面板头录音钮再点、工具栏左栏开关等外部路径均汇入本出口）
+        if is_collapsed or current != 3:
+            self._on_record_page_retracted()
 
     def _collapse_left_panel(self) -> None:
         """左栏折叠为窄条（页签入口「再点收回」路径，与右栏折叠语义对称）。"""
@@ -7270,6 +8053,12 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """关闭窗口事件。"""
+        # T-1093 M-C：splitterMoved 落盘已改为尾部合并 → 退出前补存一次，
+        # 防「拖完立刻退出」丢末次布局（定时器未及触发）。
+        _save_timer = getattr(self, "_ws_layout_save_timer", None)
+        if _save_timer is not None:
+            _save_timer.stop()
+            self._save_workspace_layout()
         # T-1004：多轨态退出（停播放器 + 释放驻留样本；幂等，早期无会话时跳过）
         self._reset_multitrack_state()
         # 保存窗口大小（设置写入失败不得阻断退出——macOS 权限拒绝时曾崩溃）
@@ -7299,9 +8088,10 @@ class MainWindow(QMainWindow):
                     )
                     ok, msg = save_audio_file(merged, rec.get_sample_rate(), tmp_path)
                     if ok:
-                        print(f"[AcouScope] 退出时检测到录音未停止，已自动保存: {msg}")
+                        # T-1074 G3①（承 T72-06）：退出录音自动保存纳管日志（GUI stdout 不可达）
+                        _log.info("退出时检测到录音未停止，已自动保存: %s", msg)
                     else:
-                        print(f"[AcouScope] 退出时录音自动保存失败: {msg}")
+                        _log.error("退出时录音自动保存失败: %s", msg)
         except Exception:
             pass
 
@@ -7317,6 +8107,15 @@ class MainWindow(QMainWindow):
             if not worker.wait(3000):
                 worker.terminate()
                 worker.deleteLater()
+
+        # T-1060 件2：常驻分析视图子控件统一收尾（断场景/信号/事件过滤器 +
+        # 停子定时器）——**必须先于任何事件泵**（下方 task_center drain 会
+        # 消费挂起投递，若子控件计时器仍在册派发即命中悬垂 slot → SIGSEGV）。
+        # 幂等、绝不外抛、不改可见行为（仅收尾路径触发）。
+        try:
+            self._finalize_analysis_view_widgets()
+        except Exception:
+            pass
 
         # T-928：任务进度中心收尾（取消排队 + 等待/终止在跑线程）
         try:
@@ -7338,6 +8137,16 @@ class MainWindow(QMainWindow):
             dl.terminate()
             dl.wait(3000)
             dl.deleteLater()
+
+        # T-1104 M-C′·MC-1：报告 AI 解读线程收尾（仿既有线程先例：先礼貌
+        # cancel 让 provider 内 is_cancelled 收敛，wait 超时才 terminate——
+        # QThread 运行中被销毁会崩溃）。
+        _aiw = getattr(self, "_report_ai_worker", None)
+        if _aiw is not None and _aiw.isRunning():
+            _aiw.cancel()
+            if not _aiw.wait(2000):
+                _aiw.terminate()
+                _aiw.deleteLater()
 
         # T-1010：右栏 AI 释图面板（右栏 tab②，每次入口新建实例）close →
         # 触发面板 closeEvent（cancel + wait worker）；左栏设置面板同理

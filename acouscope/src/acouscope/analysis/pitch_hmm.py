@@ -19,6 +19,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from acouscope.analysis.pitch import is_native_enabled
+
 PITCH_HMM_CLEANROOM_V1 = "1"
 MIN_FREQ = 61.735  # MIDI 35，网格基频
 N_BPS = 5          # bins per semitone（20 cent 分辨率）
@@ -51,6 +53,21 @@ class PitchHMM:
         transition_width: int = 13,
         yin_trust: float = 0.5,
     ):
+        if is_native_enabled():
+            import acouscope_core as _core
+
+            self.min_freq = float(min_freq)
+            self.n_bps = int(n_bps)
+            self.n_pitch = int(n_semitones) * int(n_bps)
+            self.n_state = 2 * self.n_pitch
+            self.self_trans = float(self_trans)
+            self.width = int(transition_width)
+            self.yin_trust = float(yin_trust)
+            self.grid_freqs, self._log_w, self._log_self, self._log_cross = _core.hmm_grid(
+                self.min_freq, self.n_pitch, self.n_bps, self.width, self.self_trans
+            )
+            self._radius = self.width // 2
+            return
         self.min_freq = float(min_freq)
         self.n_bps = int(n_bps)
         self.n_pitch = int(n_semitones) * int(n_bps)  # 345
@@ -73,6 +90,12 @@ class PitchHMM:
     # ------------------------------------------------------------------
     def observation(self, cands: list[tuple[float, float]]) -> np.ndarray:
         """单帧观测概率 (n_state,)：前 n_pitch 有声、后 n_pitch 清音。"""
+        if is_native_enabled():
+            import acouscope_core as _core
+
+            return _core.hmm_observation(
+                cands, self.n_pitch, self.n_state, self.yin_trust, self.min_freq
+            )
         obs = np.zeros(self.n_state, dtype=np.float64)
         s = float(sum(p for _, p in cands))
         if s > 0 and cands:
@@ -94,6 +117,13 @@ class PitchHMM:
         返回 (new_delta_log, bp_d, bp_v)：bp_d/bp_v 为回溯所需
         （源音高偏移 d 与源有声行号，形状 (2, n_pitch)）。
         """
+        if is_native_enabled():
+            import acouscope_core as _core
+
+            return _core.hmm_viterbi_step(
+                delta_log, obs_log, self.n_pitch, self._radius,
+                self._log_w, self._log_self, self._log_cross,
+            )
         n = self.n_pitch
         r = self._radius
         neg_inf = -np.inf
@@ -124,6 +154,25 @@ class PitchHMM:
         fixed_lag=int：固定滞后在线平滑（滞后 fixed_lag 帧，尾帧收尾补齐）；
         fixed_lag=None：全序列 Viterbi（需存储全部回溯指针，O(帧数) 内存）。
         """
+        if is_native_enabled() and fixed_lag is None:
+            import acouscope_core as _core
+
+            return PitchHMMResult(
+                *_core.hmm_decode_full(
+                    cand_lists, self.n_pitch, self.n_state, self.yin_trust, self.min_freq,
+                    self.grid_freqs, self._radius, self._log_w, self._log_self, self._log_cross,
+                )
+            )
+        if is_native_enabled() and fixed_lag is not None:
+            import acouscope_core as _core
+
+            return PitchHMMResult(
+                *_core.hmm_decode_lag(
+                    cand_lists, self.n_pitch, self.n_state, self.yin_trust, self.min_freq,
+                    self.grid_freqs, self._radius, self._log_w, self._log_self, self._log_cross,
+                    fixed_lag,
+                )
+            )
         n_frames = len(cand_lists)
         f0_out = np.full(n_frames, np.nan)
         voiced_out = np.zeros(n_frames, dtype=bool)

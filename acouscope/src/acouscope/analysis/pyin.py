@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import numpy as np
 
+from acouscope.analysis.pitch import is_native_enabled
+
+ENV_NATIVE = "ACOUSCOPE_NATIVE"
+
 PYIN_MARKER = "PYIN_CLEANROOM_V1"
 PYIN_MIN_FREQ = 61.735  # HMM 音高网格基频（MIDI 35），20 cent 网格下界
 
@@ -31,6 +35,10 @@ def difference_function(frame: np.ndarray) -> np.ndarray:
     注意：不可用全帧线性自相关替代（其窗长随 tau 收缩，会使 d(tau) 出现
     人为的零截断假谷底）。
     """
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.difference_function(frame)
     x = np.asarray(frame, dtype=np.float64)
     n = x.size
     w = n // 2
@@ -51,6 +59,10 @@ def cumulative_mean_normalized(d: np.ndarray) -> np.ndarray:
 
     （YIN 步骤 2；tau=0 处定义为 1）
     """
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.cumulative_mean_normalized(d)
     w = d.size
     dnorm = np.ones(w, dtype=np.float64)
     csum = np.cumsum(d[1:])
@@ -61,6 +73,10 @@ def cumulative_mean_normalized(d: np.ndarray) -> np.ndarray:
 
 def local_minima(dnorm: np.ndarray, tau_min: int, tau_max: int) -> np.ndarray:
     """[tau_min, tau_max) 内 d' 的局部谷底索引（谷值 < 左邻 且 <= 右邻）。"""
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.local_minima(dnorm, tau_min, tau_max)
     lo, hi = max(1, tau_min), min(tau_max, dnorm.size - 1)
     if hi - lo < 2:
         return np.array([], dtype=int)
@@ -71,9 +87,20 @@ def local_minima(dnorm: np.ndarray, tau_min: int, tau_max: int) -> np.ndarray:
 
 def parabolic_interpolate(dnorm: np.ndarray, tau: int) -> float:
     """抛物线插值细化周期（亚采样精度）。"""
-    if tau <= 0 or tau >= dnorm.size - 1:
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.parabolic_interpolate(dnorm, tau)
+    # IM-28 (B) CMNDF 反倾斜：三点各除自身 tau 因子（去 d·tau/cumsum 的 ×tau
+    # 倾斜，cumsum 局部常数一阶近似）⇒ 消除上端 f0 系统性正偏。tau<=1 守卫防
+    # (tau-1) 除零。Rust 侧 parabolic_interpolate 必须与此逐字同式（R3 对等）。
+    if tau <= 1 or tau >= dnorm.size - 1:
         return float(tau)
-    a, b, c = dnorm[tau - 1], dnorm[tau], dnorm[tau + 1]
+    a, b, c = (
+        dnorm[tau - 1] / float(tau - 1),
+        dnorm[tau] / float(tau),
+        dnorm[tau + 1] / float(tau + 1),
+    )
     denom = 2.0 * (a - 2.0 * b + c)
     if abs(denom) < 1e-12:
         return float(tau)
@@ -86,6 +113,10 @@ def parabolic_interpolate(dnorm: np.ndarray, tau: int) -> float:
 # 当前 venv 的 scipy 与 numpy 组合不可用（实测 import 即崩），故零 scipy 依赖。
 def _betacf(a: float, b: float, x: float, max_iter: int = 300) -> float:
     """正则化不完全 Beta 的连分式核（Lentz 加速收敛）。"""
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core._betacf(a, b, x, max_iter)
     tiny = 1e-300
     qab, qap, qam = a + b, a + 1.0, a - 1.0
     c = 1.0
@@ -122,6 +153,10 @@ def _betacf(a: float, b: float, x: float, max_iter: int = 300) -> float:
 
 def _beta_cdf(x: float, a: float, b: float) -> float:
     """Beta(a, b) 分布 CDF = I_x(a, b)（标准数学定义，连续分式求值）。"""
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core._beta_cdf(x, a, b)
     from math import exp, lgamma, log
 
     if x <= 0.0:
@@ -140,6 +175,10 @@ def _beta_cdf(x: float, a: float, b: float) -> float:
 
 def _beta_cdf_arr(xs: np.ndarray, a: float, b: float) -> np.ndarray:
     """Beta CDF 的逐元素版本（候选数量级小，标量循环即可）。"""
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core._beta_cdf_arr(xs, a, b)
     arr = np.asarray(xs, dtype=np.float64)
     out = [_beta_cdf(float(v), a, b) for v in arr.ravel()]
     return np.array(out).reshape(arr.shape)
@@ -165,6 +204,10 @@ def pyin_frame(
     被选中当且仅当 d'_i < t <= b_i，b_i = min(tau 序在前的谷底 d' 值)，
     p_i = BetaCDF(b_i) - BetaCDF(d'_i)。
     """
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.pyin_frame(frame, sr, fmin, fmax, beta_mean, beta_a)
     d = difference_function(frame)
     dnorm = cumulative_mean_normalized(d)
     tau_min = max(2, int(sr / fmax))
@@ -232,6 +275,10 @@ def pyin_candidates(
         (times, cand_lists, voiced_probs)
         times[i] = (i*hop + frame_size//4) / sr（pYIN 帧中心语义）
     """
+    if is_native_enabled():
+        import acouscope_core as _core
+
+        return _core.pyin_candidates(np.ascontiguousarray(signal, dtype=np.float64), sr, frame_size, hop_length, fmin, fmax, beta_mean)
     signal = np.asarray(signal, dtype=np.float64)
     if signal.size < frame_size:
         return np.array([]), [], np.array([])

@@ -10,6 +10,8 @@
 一律经变量拼接 _FONT_BTN，避免出现完整字面量（对齐 CB-011 cmb_analysis 清零口径）。
 """
 
+import pathlib
+
 import pytest
 
 pytest.importorskip("PyQt6")
@@ -22,6 +24,12 @@ from acouscope.ui.main_window import MainWindow
 
 # 旧工具栏字体按钮名（经拼接，不在本文件出现完整字面量）
 _FONT_BTN = "btn_" + "chart_font"
+
+# 批4d：抽屉实现整档删除（`_v099_drawer_*` 注册族随之失去实现）
+_DRAWER_PY = (
+    pathlib.Path(__file__).resolve().parents[1]
+    / "src" / "acouscope" / "ui" / "widgets" / "drawer.py"
+)
 
 
 @pytest.fixture
@@ -66,7 +74,13 @@ def test_action_chart_font_in_settings_menu(window):
 
 
 def test_action_chart_font_switches_right_chart_font_page(window):
-    """验收③：action_chart_font 触发 → 右栏切「图表字体」页（单宿主，不开 420 抽屉）。"""
+    """验收③：action_chart_font 触发 → 右栏切「图表字体」页（单宿主，不开 420 抽屉）。
+
+    批4d 加强：弱式 `getattr(..., None) is None` 升级为 `not hasattr`（属性存在即判红），
+    并加断抽屉实现档不存在（防复活）。
+    """
     window.action_chart_font.trigger()
     assert window.right_content.currentWidget() is window._chart_font_page
-    assert getattr(window, "_v099_drawer_420", None) is None
+    assert not hasattr(window, "_v099_drawer_420")
+    assert not hasattr(window, "_v099_drawer_640")
+    assert not _DRAWER_PY.exists()          # 批4d：抽屉实现整档删除

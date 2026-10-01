@@ -47,7 +47,6 @@ from acouscope.dsp.units import (
     freq_unit_label,
     mag_unit_label,
     hz_to_note_name,
-    A4_FREQ,
 )
 
 from acouscope.ui import theme
@@ -102,6 +101,19 @@ class _PlotInteraction(QObject):
         self._press_button = None
 
         self.plot_widget.viewport().installEventFilter(self)
+
+    def detach(self) -> None:
+        """摘掉 viewport 事件过滤器（幂等、绝不出错）——收尾断环用。"""
+        try:
+            viewport = self.plot_widget.viewport()
+        except RuntimeError:
+            return  # 控件已销毁
+        if viewport is None:
+            return
+        try:
+            viewport.removeEventFilter(self)
+        except RuntimeError:
+            pass
 
     def _to_view(self, event):
         """事件像素坐标转数据坐标。"""
@@ -547,9 +559,14 @@ class SpectrumWidget(QWidget):
         self.keyboard_widget.hideAxis("left")
         self.keyboard_widget.hideAxis("right")
         self.keyboard_widget.hideAxis("top")
-        self.keyboard_widget.getAxis("bottom").setStyle(tickTextOffset=2)
-        self.keyboard_widget.getAxis("bottom").setTicks([])  # 键盘本身就是刻度
+        # ★ T-1042c：音名改画进键床内（§2.1-②，竖横同一套）→ 隐藏音名轴，
+        # 键床铺满整个部件可见区（键床覆盖率 ≥0.95 的像素判据 e 依赖此项）。
+        self.keyboard_widget.hideAxis("bottom")
         self.keyboard_widget.setXLink(self.plot_widget)  # X 轴与频谱图联动
+        # ★ T-1042c 缺陷 C：关闭键盘自身自动量程 —— 否则每次重建键床时，X 范围被
+        # 键床包围盒「撑开」（实测 20.5–108.5 → 12.2–108.5），键床左端便与视图错位、
+        # 露出键带底（中线背景段 40 像素）。关闭后 X 范围严格等于宿主（联动源）范围。
+        self.keyboard_widget.enableAutoRange(x=False, y=False)
         self.keyboard_widget.setContentsMargins(0, 0, 0, 0)
         self.splitter_plot.addWidget(self.keyboard_widget)
         theme.on_theme_change(self._on_canvas_theme)
@@ -763,12 +780,13 @@ class SpectrumWidget(QWidget):
 
     def _x_axis_label(self) -> str:
         """导出用 X 轴完整标签（与窗口显示一致）。"""
+        from acouscope.dsp.units import get_reference_hz
         return {
             "hz": "频率 (Hz)",
             "khz": "频率 (kHz)",
             "midi": "MIDI 音高",
             "piano": "MIDI 音高",
-            "cents": "音分（相对 A4=440Hz）",
+            "cents": f"音分（相对 A4={get_reference_hz():.0f}Hz）",
             "mel": "Mel 标度",
         }.get(self._freq_unit, "频率")
 
@@ -854,7 +872,8 @@ class SpectrumWidget(QWidget):
         elif self._freq_unit == "piano":
             self.plot_widget.setLabel("bottom", "频率", units="Hz")
         elif self._freq_unit == "cents":
-            self.plot_widget.setLabel("bottom", "音分（相对 A4=440Hz）")
+            from acouscope.dsp.units import get_reference_hz
+            self.plot_widget.setLabel("bottom", f"音分（相对 A4={get_reference_hz():.0f}Hz）")
         elif self._freq_unit == "mel":
             self.plot_widget.setLabel("bottom", "Mel")
         else:
@@ -1812,8 +1831,10 @@ class SpectrumWidget(QWidget):
         # 音符显示（基于 Hz）
         note_name = hz_to_note_name(freq_hz)
         if note_name != "--":
-            midi_round = round(69 + 12 * np.log2(freq_hz / A4_FREQ))
-            ref_freq = A4_FREQ * (2 ** ((midi_round - 69) / 12))
+            from acouscope.dsp.units import hz_to_midi, midi_to_hz
+            # 音名与音分同基准：均走当前 A4（hz_to_midi/midi_to_hz 默认口径）
+            midi_round = round(float(hz_to_midi(freq_hz)))
+            ref_freq = float(midi_to_hz(midi_round))
             cents = 1200 * np.log2(freq_hz / ref_freq) if freq_hz > 0 else 0
             self.lbl_note.setText(f"音符: {note_name} ({cents:+.0f} 音分)")
         else:
@@ -1887,29 +1908,41 @@ class SpectrumWidget(QWidget):
         if not self._keyboard_visible:
             return
 
-        midi_start = max(int(np.floor(min_midi)), 0)
-        midi_end = min(int(np.ceil(max_midi)), 127)
+        # ★ T-1042c 缺陷 C：键床须铺满键盘**实际可见范围**——横排键盘经 X 联动后自身
+        # 范围可比宿主略宽（实测 12.2–108.5 vs 宿主 20.5–108.5），只按宿主范围布键
+        # 会在左端露出键带底（中线背景段 40 像素 → 「键床断裂」复发）。
+        kx0, kx1 = self.keyboard_widget.plotItem.vb.viewRange()[0]
+        midi_start = max(int(np.floor(min(min_midi, kx0))), 0)
+        midi_end = min(int(np.ceil(max(max_midi, kx1))), 127)
         if midi_start >= midi_end:
             return
 
-        from acouscope.dsp.units import midi_is_white_key, midi_is_black_key, midi_note_name
+        from acouscope.dsp.units import midi_is_white_key, midi_is_black_key
+        from acouscope.ui.widgets.freq_axis import (
+            PianoKeyboardStrip, make_seam_pen, rounded_end_rect,
+        )
 
-        WHITE_HEIGHT = 4.0
-        BLACK_HEIGHT = 2.2
-        BLACK_BOTTOM = WHITE_HEIGHT - BLACK_HEIGHT
-        BLACK_WIDTH = 0.60  # 黑键沿 MIDI 的宽度；/ 白键宽 1.0 = 0.60 ∈ [0.58, 0.60]（与竖排同规）
+        # T-1042b：横排键面与竖排**同一常量/同一取值来源**（竖横不得割裂）：
+        # 白键高 = 竖排 WHITE_W（4.0）；黑键长比 0.46、半音方向 0.55、圆角 r 全部同源。
+        WHITE_HEIGHT = PianoKeyboardStrip.WHITE_W            # 白键纵向高
+        BLACK_HEIGHT = PianoKeyboardStrip.BLACK_W            # 黑键长（纵向）同源 = 4.0×0.46
+        BLACK_WIDTH = PianoKeyboardStrip.BLACK_H             # 黑键半音方向同源 = 0.55
+        BLACK_TOP = WHITE_HEIGHT - BLACK_HEIGHT              # 贴上（黑键贴顶缘）
+        WHITE_KEY_R = PianoKeyboardStrip.WHITE_KEY_R
+        BLACK_KEY_R = PianoKeyboardStrip.BLACK_KEY_R
 
-        # 键面令牌（T-1042）：白键/黑键/键带底/白键缝一律取 TOKENS["keys"]（物理面），
-        # 源码不散落 hex、不再用任何语义反馈色（去金色）。分层 + 去强描边 + 黑键圆角，横竖同套。
+        # 键面令牌（T-1042b）：白键/黑键/白键缝一律取 TOKENS["keys"]（单套物理色，明暗同款）；
+        # 键带底/gutter 随骨架 bg2（仅作底板）。源码不散落 hex、不再用任何语义反馈色（去金色）。
         faces = theme.key_faces()
-        strip_brush = pg.mkBrush(faces["strip"])
+        strip_brush = pg.mkBrush(theme.colors()["bg2"])
         key_white = pg.mkBrush(faces["white"])
         # 白键间分隔：keys.white_seam（比白键暗），禁 border（壳色会亮于键面 → 「格子纸」）
-        seam_pen = pg.mkPen(faces["white_seam"], width=0.15)
+        # T-1079 ①：cosmetic 设备像素宽，与竖排同源（make_seam_pen），任意缩放缝可见
+        seam_pen = make_seam_pen(pg.mkPen(faces["white_seam"], width=0.15))
         key_black = pg.mkBrush(faces["black"])
         no_pen = pg.mkPen(None)
 
-        # 键带底：铺满本段键盘（gutter，比黑键更暗让键「浮」出来），先于白键层。
+        # 键带底：铺满本段键盘（gutter，随骨架 bg2），先于白键层。
         if midi_end >= midi_start:
             strip = pg.QtWidgets.QGraphicsRectItem(
                 midi_start - 0.5, 0, (midi_end - midi_start) + 1.0, WHITE_HEIGHT
@@ -1920,23 +1953,35 @@ class SpectrumWidget(QWidget):
             self.keyboard_widget.addItem(strip)
             self._keyboard_items.append(strip)
 
-        # 白键（直角；真实白键为直角不加圆角）
+            # ★ 键床底：keys.white 连续铺满整条（T-1042c §3-ter-1，横排=满高）——
+            # 白键不再画成互不接触的块，黑键行剩余区域也是白键面（观感=键盘，非「豆腐块」）。
+            bed = pg.QtWidgets.QGraphicsRectItem(
+                midi_start - 0.5, 0, (midi_end - midi_start) + 1.0, WHITE_HEIGHT
+            )
+            bed.setBrush(key_white)
+            bed.setPen(no_pen)
+            bed.setZValue(-10)
+            self.keyboard_widget.addItem(bed)
+            self._keyboard_items.append(bed)
+
+        # 白键（全高、底缘小圆角——远离黑键的自由端，同竖排「右端圆角」语义）
         for midi in range(midi_start, midi_end + 1):
             if midi_is_white_key(midi):
-                rect = pg.QtWidgets.QGraphicsRectItem(midi - 0.5, 0, 1.0, WHITE_HEIGHT)
-                rect.setBrush(key_white)
-                rect.setPen(seam_pen)
-                self.keyboard_widget.addItem(rect)
-                self._keyboard_items.append(rect)
+                path = rounded_end_rect(
+                    midi - 0.5, 0, 1.0, WHITE_HEIGHT, WHITE_KEY_R, end="top",
+                )
+                item = pg.QtWidgets.QGraphicsPathItem(path)
+                item.setBrush(key_white)
+                item.setPen(seam_pen)
+                self.keyboard_widget.addItem(item)
+                self._keyboard_items.append(item)
 
-        # 黑键（居中偏右语义等价、较窄、顶层、圆角、无描边）
-        radius = BLACK_WIDTH * 0.17  # 圆角 ≈ 黑键窄向 17%（ARCH §五c 建议 15–20%），与竖排同规
+        # 黑键（贴上、右缘贴键缝、顶缘圆角（自由端）、顶层、无描边）
         for midi in range(midi_start, midi_end + 1):
             if midi_is_black_key(midi):
-                path = pg.QtGui.QPainterPath()
-                path.addRoundedRect(
-                    midi - BLACK_WIDTH / 2, BLACK_BOTTOM, BLACK_WIDTH, BLACK_HEIGHT,
-                    radius, radius,
+                path = rounded_end_rect(
+                    midi + 0.5 - BLACK_WIDTH, BLACK_TOP,
+                    BLACK_WIDTH, BLACK_HEIGHT, BLACK_KEY_R, end="bottom",
                 )
                 item = pg.QtWidgets.QGraphicsPathItem(path)
                 item.setBrush(key_black)
@@ -1947,16 +1992,22 @@ class SpectrumWidget(QWidget):
 
         self.keyboard_widget.setYRange(0, WHITE_HEIGHT, padding=0)
 
-        c_ticks = []
+        # ★ 音名画进键床内（T-1042c §2.1-②，竖横同一套）：文案沿用现有音名形态，
+        # 色取 keys.label；自由端（键床下缘）一侧落位，避开贴上的黑键。原「音名轴」已隐藏。
+        base_font, bold_font = PianoKeyboardStrip._name_fonts()
         for midi in range(midi_start, midi_end + 1):
-            if midi % 12 == 0:
-                label = midi_note_name(midi)
-                if midi == 60:
-                    label = "C4(中央C)"
-                c_ticks.append((float(midi), label))
-        self.keyboard_widget.getAxis("bottom").setTicks([c_ticks])
-        self.keyboard_widget.getAxis("bottom").setStyle(tickTextOffset=2, tickLength=4)
-        self.keyboard_widget.showAxis("bottom")
+            if midi % 12 != 0:
+                continue
+            is_center = midi == 60
+            txt = pg.TextItem(
+                PianoKeyboardStrip.note_label(midi), color=faces["label"],
+                anchor=(0.5, 0.0), border=None, fill=None,
+            )
+            txt.textItem.setFont(bold_font if is_center else base_font)
+            txt.setPos(float(midi), WHITE_HEIGHT * PianoKeyboardStrip.LABEL_INSET)
+            txt.setZValue(30)
+            self.keyboard_widget.addItem(txt)
+            self._keyboard_items.append(txt)
 
     def _toggle_piano_keyboard(self, visible: bool):
         """切换钢琴键盘显示。"""
@@ -1971,3 +2022,86 @@ class SpectrumWidget(QWidget):
             for item in self._keyboard_items:
                 self.keyboard_widget.removeItem(item)
             self._keyboard_items = []
+
+    # ------------------------------------------------------------------
+    # T-1060 件3：统一收尾（模板 = waveform.py `_cleanup_scene`/`closeEvent`）
+    # 本控件析构图：PlotWidget→scene→{curve, curve_hold, _peak_marker, v_line,
+    # h_line, 标记线/标签}，另有键床 PlotWidget 的键面 item 与两个事件过滤器
+    # （viewport 交互过滤器 + 标记表键盘过滤器）。无显式收尾路径时，进程近尾
+    # 由 Python GC 以「不同于 Qt 场景删除顺序」回收这些包装 → 场景析构遍历
+    # 可能触碰已半释放的 C++ 项。这里先逐项移出场景 + 断 item 信号 + 摘事件
+    # 过滤器，消除析构序依赖。只加收尾，不改任何事件/交互/绘制路径。
+    # ------------------------------------------------------------------
+
+    _DETACH_SINGLE_ITEMS = ("curve", "curve_hold", "_peak_marker", "v_line", "h_line")
+
+    def _detach_scene_items(self) -> None:
+        """统一收尾：断场景 item / 信号 / 事件过滤器（幂等、绝不外抛）。
+
+        收尾后仍保留**纯值快照**（标记数据 `_manual_peaks` / 峰值行等），
+        class 契约「close 后可读」不回退；仅清理 Qt 包装与连接：
+        逐项 `removeItem` → 断 item 信号 → 摘事件过滤器 → 清空 item 容器。
+        """
+        plot_widget = getattr(self, "plot_widget", None)
+        if plot_widget is None:
+            return
+
+        items = []
+        for attr in self._DETACH_SINGLE_ITEMS:
+            item = getattr(self, attr, None)
+            if item is not None:
+                items.append(item)
+        items.extend([i for i in (getattr(self, "_mark_items", None) or []) if i is not None])
+
+        # 断 item → 本控件的信号（先断后移除）
+        for attr in ("v_line", "h_line"):
+            line = getattr(self, attr, None)
+            if line is None:
+                continue
+            try:
+                line.sigPositionChanged.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+
+        for item in items:
+            try:
+                plot_widget.removeItem(item)
+            except RuntimeError:
+                pass  # 底层 C++ 已析构（控件正在销毁途中）
+            except Exception:
+                pass  # 双移除/缺登记等一律吞掉：收尾路径绝不外抛
+
+        # 键床 item（本控件持有的键面包装；第二段 T-1060b 覆盖键面控件本体）
+        kb = getattr(self, "keyboard_widget", None)
+        if kb is not None:
+            for item in list(getattr(self, "_keyboard_items", None) or []):
+                try:
+                    kb.removeItem(item)
+                except RuntimeError:
+                    pass
+                except Exception:
+                    pass
+            self._keyboard_items = []
+
+        # 摘事件过滤器（断「控件 ← 视口/标记表」的环）
+        interaction = getattr(self, "_interaction", None)
+        detach = getattr(interaction, "detach", None)
+        if callable(detach):
+            try:
+                detach()
+            except Exception:
+                pass
+        table = getattr(self, "marks_table", None)
+        if table is not None:
+            try:
+                table.removeEventFilter(self)
+            except RuntimeError:
+                pass
+
+        # 清空 item 容器（纯值快照不在此列，保持可读）
+        self._mark_items = []
+
+    def closeEvent(self, event):  # noqa: N802 (Qt 命名)
+        """窗口关闭：先显式收尾场景 item，再走默认关闭。"""
+        self._detach_scene_items()
+        super().closeEvent(event)

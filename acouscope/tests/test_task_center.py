@@ -57,6 +57,7 @@ from acouscope.ui.widgets.task_center import (
     format_duration,
 )
 from acouscope.utils.config import Settings
+from tests._pin_baselines import ICONS_LOGICAL_NAME_COUNT
 
 _SRC = Path(__file__).resolve().parent.parent / "src" / "acouscope"
 _TC_PY = _SRC / "ui" / "widgets" / "task_center.py"
@@ -841,8 +842,8 @@ class TestStatic:
         assert "exec(" not in _TC_PY.read_text(encoding="utf-8")
 
     def test_no_new_icon_names(self):
-        """图标名冻结（30 名）：toggle 用既有名；T-1025 授权新增 9 名（多轨 6 + 批0 前置 3）。"""
-        assert len(theme.ICONS) == 30
+        """图标名冻结（31 名）：toggle 用既有名；T-1025 授权新增 9 名（多轨 6 + 批0 前置 3）；T-1084 授权新增 tuning_ruler。"""
+        assert len(theme.ICONS) == ICONS_LOGICAL_NAME_COUNT
         assert "gauge" not in theme.ICONS
         assert "layers" in theme.ICONS
         src = _MW_PY.read_text(encoding="utf-8")

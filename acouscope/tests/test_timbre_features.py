@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """音色特征补全的数值验证测试。"""
 import numpy as np
-import pytest
 
 from acouscope.analysis import TimbreAnalyzer
 

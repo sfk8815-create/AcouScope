@@ -10,7 +10,7 @@ T-1012 真机反馈修订（ARCH §六）：
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 from acouscope.ui import theme

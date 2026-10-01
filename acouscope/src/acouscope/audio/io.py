@@ -4,7 +4,8 @@
 Offline-First 设计：
 - FFmpeg 二进制内置（resources/bin/ffmpeg），无需用户配置系统环境变量
 - 直接调用 ffmpeg 解码非无损格式（mp3/m4a/aac/wma/opus），不依赖 pydub/ffprobe
-- PyInstaller 打包后自动从 .app/Contents/Resources/bin/ffmpeg 解析
+- PyInstaller 打包后从包内 resources 位置解析（frozen 模式 __file__ 被合成为
+  sys._MEIPASS/acouscope/audio/io.py，与开发模式同一相对布局；Windows 用 ffmpeg.exe）
 """
 
 from __future__ import annotations
@@ -26,22 +27,16 @@ def _get_ffmpeg_path() -> str | None:
     """解析内置 FFmpeg 二进制路径。
 
     优先级：
-    1. PyInstaller 打包模式：sys._MEIPASS / bin / ffmpeg
-    2. 开发模式：acouscope/resources/bin/ffmpeg
-    3. 系统 PATH 中的 ffmpeg（最后回退）
+    1. 随包位置（开发模式与冻结模式共用同一相对布局）：
+       acouscope/resources/bin/ffmpeg（Windows 为 ffmpeg.exe）
+       ★ 候选名必须带平台后缀：Windows 可执行文件恒带 .exe，
+         旧实现两档候选都写无后缀 "ffmpeg"，在 Windows 上 exists() 恒 False（WIN-1 根因）。
+    2. 系统 PATH 中的 ffmpeg（最后回退）
     """
-    # 1. PyInstaller 模式
-    if hasattr(sys, "_MEIPASS"):
-        candidate = Path(sys._MEIPASS) / "bin" / "ffmpeg"
-        if candidate.exists() and os.access(candidate, os.X_OK):
-            return str(candidate)
-
-    # 2. 开发模式：resources/bin/ffmpeg
-    dev_path = Path(__file__).resolve().parent.parent / "resources" / "bin" / "ffmpeg"
-    if dev_path.exists() and os.access(dev_path, os.X_OK):
-        return str(dev_path)
-
-    # 3. 系统 PATH
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    bundled = Path(__file__).resolve().parent.parent / "resources" / "bin" / ffmpeg_name
+    if bundled.is_file() and os.access(bundled, os.X_OK):
+        return str(bundled)
     return shutil.which("ffmpeg")
 
 

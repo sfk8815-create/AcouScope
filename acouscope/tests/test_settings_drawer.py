@@ -42,13 +42,24 @@ def test_switch_to_tab_still_works(qapp):
     d.switch_to_tab("ai")          # 不抛异常即可
 
 
-def test_embedded_in_drawer(qapp):
-    from acouscope.ui.widgets.drawer import open_drawer
+def test_embedded_in_page_host(qapp):
+    """非模态嵌入：设置面板可装入右栏内容页宿主容器且非模态。
+
+    抽屉（open_drawer）已整体退役，等价断言改为普通 QWidget 子件装入宿主。
+    """
+    from PyQt6.QtWidgets import QVBoxLayout
+
     host = QWidget()
     host.resize(1200, 800)
     host.show()
-    drawer = open_drawer(host, SettingsDialog(), width=500)
-    assert drawer.is_open()
+    panel = SettingsDialog()
+    layout = QVBoxLayout(host)
+    layout.addWidget(panel)
+    qapp.processEvents()
+    assert not isinstance(panel, QDialog)     # 非模态面板（非对话框）
+    assert panel.parent() is host             # 装入宿主容器
+    assert panel.isModal() is False           # 非模态语义保留
+    assert panel.isVisibleTo(host)            # 宿主显示时面板随之可见
 
 
 def test_sources_de_modalized():
@@ -57,7 +68,10 @@ def test_sources_de_modalized():
     ai = (UI / "widgets" / "ai_interpret.py").read_text(encoding="utf-8")
     assert ".exec(" not in ai
     mw = (UI / "main_window.py").read_text(encoding="utf-8")
-    assert "from acouscope.ui.widgets.drawer import" in mw
+    # 批4c：录音设置抽屉退役 → main_window 无 open_drawer 调用/import；
+    # 批4d：抽屉基础设施本体（drawer.py）亦整体删除 → 反向断言文件不存在
+    assert "open_drawer" not in mw
+    assert not (UI / "widgets" / "drawer.py").exists()
 
 
 # ----------------------------------------------------------------------

@@ -13,7 +13,7 @@ From import to publication-grade figures — with every core analysis algorithm 
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="License: GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="Platform">
-  <img src="https://img.shields.io/badge/version-0.99.20260904_Beta-orange" alt="Version 0.99.20260904 (Beta)">
+  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="Version 0.99.20260925 (Beta)">
 </p>
 
 <p align="center">
@@ -200,9 +200,9 @@ AcouScope/
 
 ## Roadmap
 
-- **v0.99.20260904 (Beta, current)** — nine analysis engines, trilingual interface, theme system,
-  publication-grade export; official installer releases for four targets with code signing
-  (Windows Authenticode / Apple notarisation) in progress
+- **v0.99.20260925 (Beta, current)** — nine analysis engines, trilingual interface, theme system,
+  publication-grade export; official installer releases for four targets in preparation — this beta
+  ships **unsigned by design**: see the website's "What to do if something goes wrong" for first-launch guidance
 - **v1.0** — batch processing, plugin mechanism, constant-Q transform / wavelet transform, general
   availability
 

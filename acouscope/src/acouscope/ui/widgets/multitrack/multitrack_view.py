@@ -436,6 +436,22 @@ class RemoveUndoBar(QWidget):
         self.expired.emit()
 
 
+class _InlineReporter:
+    """无宿主投递器时的假 reporter（就地驱动到终态·``cancelled`` 恒 False）。
+
+    与 ``task_center.TaskReporter`` 同鸭子类型（``cancelled`` / ``stage`` /
+    ``progress``），使"未接任务中心"与"真异步"两条路共用同一 work/on_done 形状。
+    """
+
+    cancelled = False
+
+    def stage(self, text: str) -> None:
+        pass
+
+    def progress(self, value: float) -> None:
+        pass
+
+
 class MultitrackPanel(QWidget):
     """多轨态容器：区域标题 + 轨道头列 + 波形区 + 移除撤销条 + 拖放加轨。"""
 
@@ -446,6 +462,8 @@ class MultitrackPanel(QWidget):
     playheadMoved = pyqtSignal(float)
     selectionChanged = pyqtSignal(object)
     addFromBrowserRequested = pyqtSignal()
+    # T-1087 M1（真机目测 #7）：轨道区「退出」请求（宿主接回单轨主态）
+    exitRequested = pyqtSignal()
 
     def __init__(self, session=None, parent=None):
         super().__init__(parent)
@@ -455,6 +473,16 @@ class MultitrackPanel(QWidget):
         self._playing_id: str | None = None
         # T-1009：多轨结果缓存域（T-1008；由主窗注入，跨模式切换保留）
         self._cache = None
+        # T-1041a 轮 A：投递缝（None ⇒ 原同步路径，行为逐字不变）
+        self._deliver = None
+        # T-1087 M6：对齐投递缝 + 在途门闩 + 终态结果（fire-and-forget 后唯一取用面）
+        self._align_deliver = None
+        self._align_inflight = False
+        self._align_entry = None
+        self._align_result = None
+        # T-1087 M5：加轨包络 IO 投递缝（None ⇒ 就地同步读）
+        self._prepare_deliver = None
+        self._prepare_inflight = False
         self._syncing_selection = False
         self._syncing_range = False
 
@@ -486,15 +514,22 @@ class MultitrackPanel(QWidget):
         self.btn_align.setToolTip(tr("multitrack.align.tip"))
         self.btn_align.clicked.connect(lambda _checked=False: self.auto_align())
         top.addWidget(self.btn_align)
-        # T-1009：「一图 / 多图」呈现模式切换（文字标签；图标补齐留待 IM-10）
+        # T-1009：「一图 / 多图」呈现模式切换（文字标签）；T-1098 IM-10 补两枚模式图标。
+        # QToolButton 默认 IconOnly——挂上图标后文字会被吞，故显式 TextBesideIcon 保图标与文字并存。
         self.btn_mode_single = QToolButton(self)
         self.btn_mode_single.setObjectName("trackPresentSingle")
+        self.btn_mode_single.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.btn_mode_single.setIcon(theme.get_icon("mode_single"))
         self.btn_mode_single.setText(tr("multitrack.compare.mode_single"))
         self.btn_mode_single.setToolTip(tr("multitrack.compare.mode_single_tip"))
         self.btn_mode_single.setCheckable(True)
         self.btn_mode_single.setChecked(True)
         self.btn_mode_grid = QToolButton(self)
         self.btn_mode_grid.setObjectName("trackPresentGrid")
+        self.btn_mode_grid.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.btn_mode_grid.setIcon(theme.get_icon("mode_grid"))
         self.btn_mode_grid.setText(tr("multitrack.compare.mode_grid"))
         self.btn_mode_grid.setToolTip(tr("multitrack.compare.mode_grid_tip"))
         self.btn_mode_grid.setCheckable(True)
@@ -514,6 +549,16 @@ class MultitrackPanel(QWidget):
         self.undo_bar.undoRequested.connect(self._on_undo)
         self.undo_bar.expired.connect(self._on_undo_expired)
         top.addWidget(self.undo_bar)
+        # T-1087 M1：退出钮（复用现成 theme.close 图标·零新增 ICONS）；模式级动作
+        # 置于工具栏最右，与「加入多轨 / 自动对齐」的轨级动作分列。
+        self.btn_exit = QToolButton(self)
+        self.btn_exit.setObjectName("trackExitMode")
+        self.btn_exit.setIcon(theme.get_icon("close"))
+        self.btn_exit.setToolTip(tr("multitrack.exit.tip"))
+        self.btn_exit.clicked.connect(
+            lambda _checked=False: self.exitRequested.emit()
+        )
+        top.addWidget(self.btn_exit)
         outer.addLayout(top)
 
         self.scroll = QScrollArea(self)
@@ -595,6 +640,22 @@ class MultitrackPanel(QWidget):
     def result_cache(self):
         return self._cache
 
+    def set_analysis_deliver(self, fn) -> None:
+        """注入逐轨分析投递回调（T-1041a 轮 A）。
+
+        ``fn(plan, kind, cache) -> Any``：``plan`` 为 ``SourcePlan``（**零 IO** 的
+        取数计划·T-1087 M4），宿主据此在 **worker 线程** ``plan.resolve()`` 取数后
+        调用 ``run_analysis_on_tracks``（可接 ``cancel``/``runner``），并把结果落入
+        传入的 ``cache``；收尾的 done 统计 / toast / 刷新 / 返回值一律由宿主承担
+        （宿主持有本面板，可调公开的 ``refresh_presentation()``）。
+        ``fn=None`` ⇒ 恢复原同步路径（未注入时行为逐字不变）。
+        """
+        self._deliver = fn
+
+    def analysis_deliver(self):
+        """当前投递回调（None 表示走原同步路径；T-1041a 轮 A）。"""
+        return self._deliver
+
     def present_mode(self) -> str:
         return self.compare_view.mode()
 
@@ -609,9 +670,14 @@ class MultitrackPanel(QWidget):
         self.compare_view.refresh()
 
     def analyze_all(self, *, kind: str = PITCH_KIND, runner=None):
-        """逐轨分析（T-1008 调度）：结果入多轨缓存域后刷新呈现；返回句柄列表。"""
+        """逐轨分析（T-1008 调度）：结果入多轨缓存域后刷新呈现；返回句柄列表。
+
+        ★ T-1087 M4：向宿主投递的是 **取数计划**（``SourcePlan``·零 IO），
+        ``resolve_source``/``load_full`` 随任务进 worker 线程；主线程只排期。
+        未注入投递回调（裸面板/单测）⇒ 仍按原同步路径就地取数并跑完。
+        """
         from acouscope.ui.widgets.multitrack.analysis_source import (
-            TrackResultCache, resolve_source, run_analysis_on_tracks,
+            SourcePlan, TrackResultCache, run_analysis_on_tracks,
         )
 
         session = self._session
@@ -621,11 +687,16 @@ class MultitrackPanel(QWidget):
         cache = self._cache if self._cache is not None else TrackResultCache()
         self._cache = cache
         self.compare_view.set_result_cache(cache)
-        sources = [
-            resolve_source(None, session=session, track_id=track.track_id)
-            for track in session.tracks()
-        ]
-        handles = run_analysis_on_tracks(sources, kind, cache=cache, runner=runner)
+        plan = SourcePlan(session, session.tracks())
+        deliver = self._deliver
+        if deliver is not None:
+            # T-1041a 轮 A：已注入 ⇒ 走投递缝，不再执行同步调用（禁双跑）。
+            # done 统计 / toast / refresh / 返回句柄均移交宿主（宿主在 on_done
+            # 调 panel.refresh_presentation()）；返回值即投递回调的返回值。
+            return deliver(plan, kind, cache)
+        handles = run_analysis_on_tracks(
+            plan.resolve(), kind, cache=cache, runner=runner
+        )
         done = sum(1 for handle in handles if handle.ok)
         if done:
             self._toast(tr("multitrack.compare.analyzed").format(n=done))
@@ -693,6 +764,29 @@ class MultitrackPanel(QWidget):
     # 开头对齐（T-1006 M2）：自动对齐 + 手动微调（只改偏移元数据）
     # ------------------------------------------------------------------
 
+    def set_align_deliver(self, fn) -> None:
+        """注入对齐投递器（T-1087 M6）。
+
+        ``fn(title, work, on_done, on_settle) -> Any``：宿主把 ``work(reporter)``
+        （纯计算·内含逐轨 ``load_full`` 与帧能量循环）交任务中心 **worker 线程**
+        执行，终态在主线程回调 ``on_done(result)`` 并随后 ``on_settle()``。
+        ``fn=None`` ⇒ 用假 reporter **就地**驱动到终态（未接宿主的裸面板/离屏单测）；
+        两条路共用同一 ``work``/``on_done`` 形状，仅线程不同。
+        """
+        self._align_deliver = fn
+
+    def align_deliver(self):
+        """当前对齐投递器（None = 就地驱动）。"""
+        return self._align_deliver
+
+    def align_result(self):
+        """最近一次对齐的终态结果（未跑过 → None）。★ fire-and-forget 后的取用面。"""
+        return self._align_result
+
+    def align_inflight(self) -> bool:
+        """对齐任务是否在途（防抖连点依据）。"""
+        return self._align_inflight
+
     def auto_align(
         self,
         *,
@@ -702,19 +796,52 @@ class MultitrackPanel(QWidget):
     ):
         """一键自动对齐全部轨（幂等覆盖）；无有效起点时不改任何偏移。
 
-        同步执行：T-928 任务中心未合入 → 本任务降级为同步跑（报告已注明）。
+        ★ T-1087 M6（指挥裁）：**fire-and-forget 真异步**——逐轨 ``load_full`` +
+        ``align.frame_db_curve`` 帧循环（8 轨 × 3min ≈ 10⁵ 帧）交任务中心 worker，
+        主线程只排期；偏移与轨道头由 ``on_done`` → :meth:`apply_align_result` 回填。
+        返回值随之从 ``AlignResult`` 改为**投递句柄**（就地驱动时为 None）；
+        需要结果请读 :meth:`align_result`。在途期间的连点不重复投递（IM-26）。
         """
         if self._session is None or len(self._session) == 0:
             self._toast(tr("multitrack.align.no_tracks"), level="info")
             return None
-        result = align_session(
-            self._session,
-            gate_db=gate_db,
-            min_speech_ms=min_speech_ms,
-            reference_id=reference_id,
+        if self._align_inflight:
+            return self._align_entry               # ★ 反证守卫：连点不重投
+        session = self._session
+
+        def work(reporter):
+            return align_session(
+                session,
+                gate_db=gate_db,
+                min_speech_ms=min_speech_ms,
+                reference_id=reference_id,
+            )
+
+        def on_done(result) -> None:
+            self._align_result = result
+            if result is not None:
+                self.apply_align_result(result)
+
+        def on_settle() -> None:
+            self._align_inflight = False
+            self._align_entry = None
+
+        deliver = self._align_deliver
+        if deliver is None:
+            on_done(work(_InlineReporter()))
+            on_settle()
+            return None
+
+        self._align_inflight = True
+        entry = deliver(
+            tr("task_center.title.multitrack_align").format(n=len(session)),
+            work, on_done, on_settle,
         )
-        self.apply_align_result(result)
-        return result
+        if entry is None:                            # 队列超限/关停：taskRejected 已提示
+            on_settle()
+            return None
+        self._align_entry = entry
+        return entry
 
     def apply_align_result(self, result) -> None:
         """把对齐结果驱动到轨道头显示与共享时间轴（偏移只改元数据，零音频改动）。"""
@@ -761,18 +888,66 @@ class MultitrackPanel(QWidget):
 
         show_toast(self, message, level=level)
 
+    def set_track_prepare_deliver(self, fn) -> None:
+        """注入加轨 IO 投递器（T-1087 M5）。
+
+        ``fn(title, work, on_done, on_settle) -> Any``：``work(reporter)`` 里跑
+        ``session.prepare_track``（粗包络 = 整文件块式读），终态主线程 ``on_done``
+        回填轨道头/呈现。``fn=None`` ⇒ 就地同步算（裸面板 / 离屏单测口径不变）。
+        """
+        self._prepare_deliver = fn
+
+    def track_prepare_deliver(self):
+        """当前加轨投递器（None = 就地同步算）。"""
+        return self._prepare_deliver
+
+    def track_prepare_inflight(self) -> bool:
+        """加轨包络任务是否在途。"""
+        return self._prepare_inflight
+
     def add_files(self, paths) -> tuple[list[str], list[str]]:
-        """白名单过滤后追加轨道；返回 (已加入, 被拒) 路径列表。"""
+        """白名单过滤后追加轨道；返回 (已加入, 被拒) 路径列表。
+
+        ★ T-1087 M5：轨道登记 + 文件头元数据留在主线程（列表立即可见、时长可得），
+        粗包络那次**每轨整文件块式读**改交 worker（多轨大文件加轨不再秒级冻结）；
+        包络就绪后由 ``on_done`` 在主线程 ``refresh()`` 回填轨头峰值/呈现。
+        """
         from acouscope.audio.io import AudioIO
 
         supported, rejected = [], []
         for path in paths:
             ext = str(path).lower().rsplit(".", 1)[-1]
             (supported if f".{ext}" in AudioIO.SUPPORTED_FORMATS else rejected).append(path)
-        for path in supported:
-            self._session.add_path(path)
-        if supported:
+        if self._session is None or not supported:
+            return supported, rejected
+        tracks = [self._session.new_track(path) for path in supported]
+        deliver = self._prepare_deliver
+        if deliver is None:
+            for track in tracks:
+                self._session.prepare_track(track)
             self.refresh()
+            return supported, rejected
+
+        def work(_reporter):
+            return [
+                track.track_id for track in tracks
+                if self._session.prepare_track(track)
+            ]
+
+        def on_done(_ready) -> None:
+            self.refresh()
+
+        def on_settle() -> None:
+            self._prepare_inflight = False
+
+        self._prepare_inflight = True
+        entry = deliver(
+            tr("task_center.title.multitrack_add").format(n=len(tracks)),
+            work, on_done, on_settle,
+        )
+        if entry is None:
+            on_settle()
+        self.refresh()             # 先呈列（尚无包络），包络到位后再刷一次
         return supported, rejected
 
     def remove_track(self, track_id: str) -> None:

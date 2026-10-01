@@ -27,6 +27,29 @@ from logging.handlers import RotatingFileHandler
 _CONFIGURED = False
 
 
+def reset_logging() -> None:
+    """移除并关闭 acouscope 根 logger 的既有 handler，回到「未配置」状态。
+
+    测试隔离（GUI_backlog #13）：模块级 ``_log = get_logger(__name__)`` 会在
+    测试收集（import）阶段就把 RotatingFileHandler 绑定到**真实**
+    ``get_data_dir()``；此后 autouse 夹具再 monkeypatch 数据目录也无效——
+    ``_configure_root`` 的 ``_CONFIGURED`` 幂等标志会直接早退，旧 handler
+    继续写真实用户目录。
+
+    故测试的隔离夹具须先调用本函数，再触发一次 ``get_logger()``，使日志
+    handler 重新绑定到重定向后的临时目录（生产路径不调用本函数，语义不变）。
+    """
+    global _CONFIGURED
+    root = logging.getLogger("acouscope")
+    for handler in list(root.handlers):
+        root.removeHandler(handler)
+        try:
+            handler.close()
+        except Exception:
+            pass
+    _CONFIGURED = False
+
+
 def _configure_root() -> None:
     """初始化 acouscope 根 logger（幂等）。"""
     global _CONFIGURED
@@ -57,7 +80,11 @@ def _configure_root() -> None:
 
         log_path = get_data_dir() / "acouscope.log"
         file_handler = RotatingFileHandler(
-            log_path, maxBytes=512 * 1024, backupCount=3, encoding="utf-8"
+            log_path,
+            maxBytes=512 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+            delay=True,  # 首次写入才打开/创建文件，避免 import 期即触碰数据目录
         )
         file_handler.setFormatter(fmt)
         root.addHandler(file_handler)

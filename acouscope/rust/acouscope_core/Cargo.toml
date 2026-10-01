@@ -1,0 +1,18 @@
+[package]
+name = "acouscope_core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.83"
+
+[lib]
+name = "acouscope_core"
+# "cdylib" is necessary to produce a shared library for Python to import from.
+crate-type = ["cdylib"]
+
+[dependencies.pyo3]
+version = "0.29.2"
+# abi3-py310 => stable ABI, min CPython 3.10 (transitively enables pyo3's `abi3`)
+features = ["abi3-py310"]
+
+[dependencies.numpy]
+version = "0.29"

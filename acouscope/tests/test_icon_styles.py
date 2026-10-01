@@ -103,7 +103,7 @@ def test_catalog_covers_every_logical_name_in_every_style():
     missing = [(s, n) for s in _DERIVED for n in _names() if not _file(s, n).exists()]
     unexpected = [m for m in missing if m[1] not in _FALLBACK_WHITELIST]
     assert unexpected == [], f"三套缺资源（未入白名单）：{unexpected}"
-    assert _FALLBACK_WHITELIST == (), "本波应为零回落（全 30 名 × 3 套齐备）"
+    assert _FALLBACK_WHITELIST == (), "本波应为零回落（全 31 名 × 3 套齐备）"
 
 
 def test_generic_style_backfills_stop_play_record():

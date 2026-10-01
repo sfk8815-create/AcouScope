@@ -24,7 +24,7 @@ import pytest
 
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtWidgets import QFileDialog, QFrame, QPushButton
+from PyQt6.QtWidgets import QFileDialog
 
 from acouscope.app.controller import AppController
 from acouscope.i18n import tr
@@ -37,6 +37,7 @@ from acouscope.visualization.mpl_style import (
     JOURNAL_TEMPLATES,
     palette_cycle,
 )
+from tests._pin_baselines import ICONS_LOGICAL_NAME_COUNT
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SRC = _REPO_ROOT / "src" / "acouscope"
@@ -285,32 +286,35 @@ def test_report_figure_path_still_works(window, monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_entry_is_switch_and_drawer_has_visible_close(window):
-    """⑨ 入口为开关（再点即关）+ 抽屉有可见 ✕（drawerCloseBtn，复用既有构件）。"""
+def test_entry_is_switch_and_page_has_visible_exit(window):
+    """⑨ 入口为开关（再点即关）+ 全铺页可见出口 = 工作区开关组（T-1054 批4a）。
+
+    抽屉头 ✕ 随抽屉通路退役（零抽屉口径）⇒ 可见关闭出口改由工作区开关组承担：
+    进页后该钮 checked（可见点亮），再点即收回 index0 且勾选态清零。
+    """
     act = window.action_chart_designer
+    btn = window.btn_toggle_chart_designer
     assert act.isCheckable() is True
 
     act.trigger()
-    drawer = window._chart_designer_drawer
-    assert drawer.is_open() is True
-    header = drawer.findChild(QFrame, "drawerHeader")
-    assert header is not None
-    btn = drawer.findChild(QPushButton, "drawerCloseBtn")
-    assert btn is not None and not btn.isHidden() and btn.toolTip()
+    assert window.central_stack.currentIndex() == 4
+    assert window.central_stack.currentWidget() is window.chart_designer_page
+    assert btn.isEnabled() is True and btn.isChecked() is True    # 可见出口（开关点亮）
 
     act.trigger()  # 同一入口再点 = 关闭（幂等 toggle）
-    assert drawer.is_open() is False
     assert act.isChecked() is False
+    assert window.central_stack.currentIndex() == 0
+    assert btn.isChecked() is False
 
 
 def test_two_entries_share_one_action(window):
-    """⑨ 两处入口（文件▸导出 与 分析工具栏）**共用同一 QAction 实例**。"""
+    """⑨ 两处入口（工具▸图表设计器 与 分析工具栏）**共用同一 QAction 实例**。"""
     from PyQt6.QtWidgets import QMenu
 
     act = window.action_chart_designer
     hosts = [m for m in window.findChildren(QMenu) if any(a is act for a in m.actions())]
     assert hosts, "菜单入口缺失"
-    assert any(m.title() == tr("menu.export") for m in hosts), [m.title() for m in hosts]
+    assert any(m.title() == tr("menu.tools") for m in hosts), [m.title() for m in hosts]
 
     analysis_tb = window.btn_ai_interpret.parent()
     assert any(a is act for a in analysis_tb.actions()), "分析工具栏入口缺失"
@@ -318,19 +322,21 @@ def test_two_entries_share_one_action(window):
     assert [a for a in analysis_tb.actions() if a is act].__len__() == 1
 
 
-def test_close_button_releases_entry(window):
-    """⑨ 可见 ✕ 关闭 → 入口勾选态反同步（T-1043 注册表复用，零新造）。"""
+def test_visible_exit_releases_entry(window):
+    """⑨ 可见出口（工作区开关组再点）→ 入口勾选态反同步（唯一状态源，零新造）。"""
     window.action_chart_designer.trigger()
-    drawer = window._chart_designer_drawer
-    drawer.btn_close.click()
-    assert drawer.is_open() is False
+    assert window.central_stack.currentIndex() == 4
+    assert window.action_chart_designer.isChecked() is True
+    window.btn_toggle_chart_designer.click()        # 可见出口：开关组再点 → 收回
+    assert window.central_stack.currentIndex() == 0
+    assert window.btn_toggle_chart_designer.isChecked() is False
     assert window.action_chart_designer.isChecked() is False
 
 
 def test_preview_and_export_share_one_path(window, monkeypatch, tmp_path):
     """⑧ 预览与导出同源：同一 `_export_current_view` 路径 + 同一 exporter 构造。"""
     window.action_chart_designer.trigger()
-    panel = window._chart_designer_drawer.content()
+    panel = window.chart_designer_panel
     panel.cmb_palette.setCurrentIndex(panel.cmb_palette.findData("colorblind"))
     assert window._current_chart_designer_params()["palette"] == "colorblind"
 
@@ -370,7 +376,7 @@ def test_preview_and_export_share_one_path(window, monkeypatch, tmp_path):
 def test_preview_refreshes_on_param_change(window, tmp_path):
     """验收口径 1：改一项 → 预览刷新（`previewUpdated` 有断言）。"""
     window.action_chart_designer.trigger()
-    panel = window._chart_designer_drawer.content()
+    panel = window.chart_designer_panel
     seen: list = []
     panel.previewUpdated.connect(seen.append)
 
@@ -412,17 +418,19 @@ def test_step0_strategy_landed(window, qapp):
 
 
 def test_panel_four_groups_three_segment_and_range_hints(qapp):
-    """§五-7 三段式 + §五-8 参数范围可见性（禁裸数字框）：四组 + 端点提示。"""
+    """§五-7 三段式 + §五-8 参数范围可见性（禁裸数字框）：六组 + 端点提示。"""
     from acouscope.ui.widgets.chart_designer import ChartDesignerPanel, _ParamField
     from acouscope.ui.widgets.panels import SectionHeader
 
     panel = ChartDesignerPanel(settings=None)
     titles = [s.title() for s in panel.findChildren(SectionHeader)]
     assert titles == [
+        tr("chart_designer.group.content"),   # T-1045 P2：内容外壳
         tr("chart_designer.group.layout"),
         tr("chart_designer.group.palette"),
         tr("chart_designer.group.font"),
         tr("chart_designer.group.export"),
+        tr("chart_designer.group.reference"),  # T-1045 P2：参考线
     ]
     fields = panel.findChildren(_ParamField)
     assert len(fields) >= 6, "三段式参数列缺失"
@@ -446,7 +454,7 @@ def test_panel_four_groups_three_segment_and_range_hints(qapp):
 def test_two_layer_persistence(window, monkeypatch):
     """持久化两层：① 会话（内存）② 全局默认（Settings + 落盘）；项目级留 P3。"""
     window.action_chart_designer.trigger()
-    panel = window._chart_designer_drawer.content()
+    panel = window.chart_designer_panel
     panel.cmb_palette.setCurrentIndex(panel.cmb_palette.findData("colorblind"))
     panel.spn_dpi.setValue(600)
 
@@ -517,7 +525,7 @@ def test_static_discipline_new_code():
 
     main_text = _MAIN_WINDOW.read_text(encoding="utf-8")
     assert not _HEX.findall(main_text), "main_window 新增块含硬编码 hex"
-    assert len(theme.ICONS) == 30, "禁新增 theme.ICONS 逻辑名（T-1025 授权扩容 21→30：track/add_track/solo/mute/align/volume/room_modal/room_acoustic/chart_designer）"
+    assert len(theme.ICONS) == ICONS_LOGICAL_NAME_COUNT, "禁新增 theme.ICONS 逻辑名（扩容须授权·扩容史集中登记见 tests/_pin_baselines.py）"
 
 
 # ---------------------------------------------------------------------------

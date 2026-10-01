@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """图表字体设置面板（西文/中文分开设置，供各功能模块共用入口）。
 
-UI 宪法条 3（对话框最小化）：本体为 QWidget，由右侧抽屉
-（`acouscope.ui.widgets.drawer.open_drawer`）非模态承载——无 exec 调用、无模态
-按钮盒、不阻塞主窗工作区。
+UI 宪法条 3（对话框最小化）：本体为 QWidget，由右侧栏页面宿主非模态承载
+——无 exec 调用、无模态按钮盒、不阻塞主窗工作区。
+（T-1054 批4d：原抽屉机制已整体退役并删除，本面板现装入右栏内容页。）
 
 原「确定 / 取消」语义改为**即时生效**：选择变化即发 `fontChanged(latin, cjk)`，
 由调用侧（主窗 / 3D 视图）负责持久化与重绘；`latin()` / `cjk()` 仍可随时读当前值。
@@ -24,9 +24,6 @@ from PyQt6.QtWidgets import (
 from acouscope.ui import theme
 
 AUTO_LABEL = "自动（按语言推荐）"
-
-# 抽屉宽度：与录音设置(360) / 设置·帮助(560) / AI 释图(640) 互不复用同一实例
-DRAWER_WIDTH = 420
 
 
 class ChartFontDialog(QWidget):

@@ -23,7 +23,6 @@ pytest.importorskip("PyQt6")
 from acouscope.ai import ollama_engines as oe
 from acouscope.ai import ollama_runtime as rt
 from acouscope.ai.ollama_runtime import OllamaRuntime, find_ollama_binary
-from acouscope.i18n import tr  # noqa: E402
 
 _SRC = Path(__file__).resolve().parents[1] / "src" / "acouscope"
 

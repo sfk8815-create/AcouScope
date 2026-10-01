@@ -86,7 +86,6 @@ class EchoBackend:
             confidence=conf,
             fmin=fmin,
             fmax=fmax,
-            cent_ref=440.0,
         ), float(np.mean(np.abs(doubled)))
 
 

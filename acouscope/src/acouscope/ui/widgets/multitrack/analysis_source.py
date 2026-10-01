@@ -149,6 +149,37 @@ def resolve_source(controller, *, session=None, track_id=None) -> AnalysisSource
     return _default_source(controller)
 
 
+class SourcePlan(list):
+    """逐轨「取数计划」（**零 IO**）：待取轨道的有序列表 + 会话引用。
+
+    T-1087 M4：``resolve_source`` → ``track.load_full()`` 是整文件同步 IO。历史上
+    它发生在 ``analyze_all`` 里、**submit 之前**（主线程），把投递到任务中心的
+    异步收益整个吃掉（未驻留轨越多越明显）。改为向宿主投递本计划，``resolve()``
+    只在工作线程调用 ⇒ 主线程只做排期。
+
+    继承 ``list``：投递方面前仍是"这一序列要取哪几轨"（``len`` / 迭代 / 每项
+    ``track_id`` 口径与改前收到的 sources 一致），样本载入则延后到 :meth:`resolve`。
+    """
+
+    def __init__(self, session, tracks):
+        super().__init__(tracks)
+        self.session = session
+
+    def resolve(self) -> list[AnalysisSource]:
+        """按计划逐轨解析取数源。
+
+        ★ 含懒加载第三级（整文件读）⇒ **只应在 worker 线程调用**；主线程调用即
+        退化为 M4 修前的阻塞口径。
+        """
+        return [
+            resolve_source(None, session=self.session, track_id=track.track_id)
+            for track in self
+        ]
+
+    def __repr__(self) -> str:  # pragma: no cover - 调试辅助
+        return f"SourcePlan(n={list.__len__(self)}, ids={[t.track_id for t in self]!r})"
+
+
 class TrackResultCache:
     """多轨逐轨结果缓存（**独立域**）。
 

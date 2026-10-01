@@ -5,6 +5,12 @@
 检测只读（输入逐位不变）、多轨偏移表（默认最早发声轨 / 显式参考轨 / 未检出跳过）、
 **音频数据零改动（前后逐位一致 + 同一对象）**、自动对齐幂等重跑、
 轨道头 ±1ms/±10ms 微调与对齐状态、微调即时驱动共享时间轴、i18n 三语键、静态纪律。
+
+★ T-1087 M6（指挥裁·扩授权改测）：``auto_align`` 由同步执行改经任务中心
+fire-and-forget，返回值随之从 ``AlignResult`` 变投递句柄 ⇒ 本档对返回值的
+两处断言（原 :277/:339）改「假 reporter 驱动到终态 → 从 ``align_result()``
+再断」；**偏移/总时长/轨道头反映等原判据逐条保留**（真异步面另由
+``test_multitrack_align_t1087.py`` 以主窗 + 真任务中心覆盖）。
 """
 
 import pathlib
@@ -274,12 +280,16 @@ def test_panel_auto_align_updates_headers_and_baseline(qapp):
     total_before = session.total_duration()
 
     assert panel.btn_align.toolTip() == tr("multitrack.align.tip")
-    result = panel.auto_align()
+    # T-1087 M6（指挥裁）：auto_align 改 fire-and-forget ⇒ 返回值不再是 AlignResult。
+    # 本例面板未接宿主 ⇒ 由假 reporter 就地驱动到终态，再从 align_result() 取终态；
+    # 原判别力（偏移合成 / 轨道头反映 / 总时长 / 共享时间轴）逐条保留、未削弱。
+    assert panel.auto_align() is None                            # 未投递 ⇒ 无句柄
+    result = panel.align_result()
     assert result.reference_id == tracks["/tmp/early.wav"].track_id
     late = tracks["/tmp/late.wav"].track_id
     assert session.get(late).offset_ms == pytest.approx(-300)
     header = panel.header_column.header_for(late)
-    assert header.offset_ms() == pytest.approx(-300)                     # 轨道头即时反映
+    assert header.offset_ms() == pytest.approx(-300)                 # 终态回填驱动轨道头
     assert header.lbl_align.text() == tr("multitrack.align.onset").format(ms=300)
     assert session.total_duration() == pytest.approx(total_before - 0.3, abs=1e-6)
     assert panel.view.view_range() == pytest.approx((0.0, session.total_duration()))
@@ -336,7 +346,8 @@ def test_panel_auto_align_all_silent_reports_and_keeps_offsets(qapp):
     session.set_offset_ms(tid, 42.0)
     panel = MultitrackPanel(session)
     panel.set_session(session)
-    result = panel.auto_align()
+    panel.auto_align()                                        # T-1087 M6：终态经回填
+    result = panel.align_result()
     assert result.reference_id is None and result.offsets == {}
     assert session.get(tid).offset_ms == pytest.approx(42.0)             # 全静默：偏移不变
     assert panel.header_column.header_for(tid).align_state() == "none"

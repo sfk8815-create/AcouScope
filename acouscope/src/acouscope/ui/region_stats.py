@@ -6,7 +6,7 @@
 - 能量：对音频样本片段做 RMS/峰值（dB + 线性）——纯数值统计，
   不触发任何 STFT/音高/共振峰分析（禁重算铁律）。
 - 音高：对 (times, f0) 时间轴做帧中心归属切片（[t0, t1] 含边界），
-  仅在 voiced（f0>0）帧上计算均值/中位/最小/最大/范围与 A4=440
+  仅在 voiced（f0>0）帧上计算均值/中位/最小/最大/范围与相对当前 A4
   12TET 音分均值；unvoiced 计入分母（voiced 占比口径同 T-905）。
 
 本模块不做 i18n / UI，返回数值 dict；格式化成文案由 main_window 负责。
@@ -18,7 +18,6 @@ from typing import Optional
 
 import numpy as np
 
-_A4 = 440.0
 _EPS = 1e-12
 
 
@@ -59,8 +58,9 @@ def region_peak(samples: np.ndarray) -> tuple[Optional[float], Optional[float]]:
 
 
 def _cents(f0: np.ndarray) -> np.ndarray:
-    """A4=440 12TET 音分（仅对 f0>0 调用方保证）。"""
-    return 1200.0 * np.log2(f0 / _A4)
+    """相对当前 A4 的 12TET 音分（仅对 f0>0 调用方保证）。"""
+    from acouscope.dsp import units
+    return units.hz_to_cents(f0)
 
 
 def pitch_stats(

@@ -243,6 +243,16 @@ def _isolate_app_data_dir(tmp_path, monkeypatch):
 
     monkeypatch.setattr(_oll, "get_data_dir", lambda: tmp_path)
 
+    # GUI_backlog #13：日志 handler 在收集（import）阶段、本夹具运行之前，已按
+    # 真实 get_data_dir() 绑定到 log._CONFIGURED；上面的 monkeypatch 对日志无效，
+    # 模块级 logger / 直接 logging.getLogger 的模块（proxy·routing 等）仍会写真实
+    # 用户目录（IM-04 证据失真的共同上游）。此处先重置再按重定向目录重建 handler，
+    # 保证测试期任何日志只写 tmp_path。
+    import acouscope.utils.log as _log
+
+    _log.reset_logging()
+    _log.get_logger("tests")  # 触发 _configure_root，重绑到 tmp_path
+
 
 # ---------------------------------------------------------------------------
 # T-904 L1：孤儿 worker 进程兜底回收（tracked registry 模式）

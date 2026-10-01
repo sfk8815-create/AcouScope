@@ -64,6 +64,20 @@ class SessionMetadata:
         missing = [k for k in REQUIRED_KEYS if not self.values.get(k)]
         return missing
 
+    def to_dict(self) -> dict:
+        """全字段扁平映射（FIELD_TERMS 标准键序 + 自定义键）。
+
+        与 to_imdi() 的嵌套结构相对：本方法只做一层扁平映射（不做标准槽位
+        分流）。FIELD_TERMS 的标准键一律出现、缺省为空串占位；非 FIELD_TERMS
+        的自定义键按 values 插入序无损追加（稳定）。供 JSON 导出与 CSV 表头
+        共用，不臆造任何数值。
+        """
+        flat = {t.key: self.get(t.key) for t in FIELD_TERMS}
+        for k, v in self.values.items():
+            if k not in flat:
+                flat[k] = v
+        return flat
+
     def to_imdi(self) -> dict:
         """无损映射到 IMDI Session 结构。
 

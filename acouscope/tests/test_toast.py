@@ -4,7 +4,7 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QWidget, QDialog, QLabel
+from PyQt6.QtWidgets import QWidget, QDialog
 from acouscope.ui.widgets.toast import ToastWidget, show_toast, LEVELS
 
 

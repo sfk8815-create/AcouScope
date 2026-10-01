@@ -529,22 +529,53 @@ class TaskCenter(QObject):
             if entry is not None and not entry.is_terminal():
                 self._settle(entry, STATE_CANCELLED)
                 self.taskCancelled.emit(entry)
+        # T-1060 件2：先「停」再 drain —— 线程均已 wait/terminate 收敛；drain 之后
+        # 再断开 finished 连接，关闭「迟到排队投递」窗口。
+        # ⚠ 实测（/tmp 探针 t1060_probe_drain）：**断开必须放在 drain 之后**——先断
+        # 连会让在途 queued finished 投递失效（不再被消费）→ `_on_thread_finished`
+        # 不执行、线程包装留在册＝T-928 悬垂窗口复现。故顺序为「停 → drain → 断」。
         if drain:
             self._drain_pending()
+        self._disconnect_thread_signals()
+
+    def _disconnect_thread_signals(self) -> None:
+        """断开仍在册线程的 `finished` 连接（幂等、绝不出错）。
+
+        仅断连接，**不**清线程句柄（句柄仍由 `_on_thread_finished` 收尾）；
+        调用点必须在 `_drain_pending()` 之后（见上面实测说明）。
+        """
+        for thread in list(self._threads.values()):
+            try:
+                thread.finished.disconnect()
+            except (TypeError, RuntimeError):
+                pass
 
     def _drain_pending(self) -> None:
-        """消费在途 `finished` 投递（主线程内单次 processEvents）。
+        """消费在途 `finished` 投递（**限定事件类型**的挂起投递消费）。
 
         坑点（T-928 实测复现）：线程已结束但 `finished` 投递仍在队列时，
-        若 QThread 的 Python 包装先被释放，后续 processEvents 会命中悬垂
-        投递 → SIGSEGV。收尾时显式消费一次即可闭合该窗口。
+        若 QThread 的 Python 包装先被释放，后续事件派发会命中悬垂投递 →
+        SIGSEGV。收尾时显式消费一次即可闭合该窗口。
+
+        ★ T-1060 件2：**不再用裸 `app.processEvents()`**——无差别事件泵会把
+        定时器（`QTimer::timerEvent`）等与收尾无关的挂起投递一并派发，C3 崩溃
+        正落在此行的下游。改为 `QCoreApplication.sendPostedEvents(None, 43)`
+        （`QEvent.Type.MetaCall`）：只消费 queued **调用**投递，定时器/绘制/
+        网络事件一概不在此派发。
+        实测（/tmp 探针 t1060_probe_drain）：`finished` 的 queued 投递 receiver
+        既不是线程对象也不是本中心（PyQt 内部槽代理），无法按 receiver 精确
+        限定 → 采用事件类型限定；`finished` 一条不少（T-928 语义不回退）。
         """
+        from PyQt6.QtCore import QCoreApplication, QEvent
         from PyQt6.QtWidgets import QApplication
 
         app = QApplication.instance()
         if app is None or QThread.currentThread() is not app.thread():
             return
-        app.processEvents()
+        try:
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.MetaCall)
+        except RuntimeError:
+            pass  # 控件销毁途中：收尾路径不抛
 
     # -- 内部 ---------------------------------------------------------------
 

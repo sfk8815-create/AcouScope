@@ -24,6 +24,14 @@ from acouscope.utils.log import get_logger
 
 _log = get_logger("audio.player")
 
+# T-1074 G5（承 T72-03）：写 QIODevice 前用 shiboken6.isValid 预检 C++ 对象是否
+# 仍存活，把已知「关窗竞态→写已删设备」从反复 ERROR 降级为一次性 debug；缺
+# shiboken6 时优雅降级 None（跳过预检，仍由既有 except 兜底，语义不回退）。
+try:
+    from shiboken6 import isValid as _qt_isValid
+except ImportError:  # pragma: no cover - 环境无 shiboken6 时的降级
+    _qt_isValid = None
+
 
 class AudioPlayer:
     """音频播放器。
@@ -85,7 +93,7 @@ class AudioPlayer:
 
         # 尝试 QtMultimedia
         try:
-            from PyQt6.QtMultimedia import QAudioSink, QAudioFormat, QMediaDevices
+            from PyQt6.QtMultimedia import QMediaDevices
             # 验证有可用设备
             devices = QMediaDevices.audioOutputs()
             if devices:
@@ -255,6 +263,16 @@ class AudioPlayer:
 
     def _resample_chunk(self, data: np.ndarray, target_length: int) -> np.ndarray:
         """用线性插值重采样音频块。"""
+        import os as _os
+        if _os.environ.get("ACOUSCOPE_NATIVE", "0") == "1":
+            try:
+                import acouscope_core as _core
+
+                return _core.resample_chunk_native(
+                    data.astype(np.float64), target_length
+                ).astype(data.dtype)
+            except ImportError:
+                pass  # 缺 .so：静默降级下方 numpy 插值（只吞 ImportError）
         if len(data) == target_length:
             return data
         if len(data) == 0 or target_length == 0:
@@ -431,6 +449,16 @@ class AudioPlayer:
             while total_written < data_len:
                 if self._stop_flag.is_set() or not self._is_playing:
                     break
+
+                # T-1074 G5（承 T72-03）：写前预检 QIODevice C++ 对象是否仍存活。
+                # 关窗/stop 竞态下设备可能已被 deleteLater 回收；直接写会抛
+                # RuntimeError 记 ERROR（09-08 曾同源刷屏 14 条）。预检命中即走
+                # 致命收尾、记一次性 debug，消噪；既有 except 仍作 TOCTOU 兜底。
+                dev = self._output_device
+                if dev is None or (_qt_isValid is not None and not _qt_isValid(dev)):
+                    _log.debug("Qt 输出设备已回收，播放线程收尾（关窗竞态，非故障）")
+                    self._fatal_stream_error("Qt output device deleted")
+                    return False
 
                 try:
                     written = self._output_device.write(audio_bytes[total_written:])

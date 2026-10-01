@@ -56,6 +56,7 @@ Thumbs.db
 
 # Project specific
 *.spec
+!AcouScope.spec      # T-1043b：本 spec 是**手维的构建配方**（版本单源化 + Info.plist），必须纳入版本库
 build/
 dist/
 *.wav
@@ -63,3 +64,8 @@ dist/
 *.flac
 *.ogg
 dist-nuitka/
+
+# T-1061a：maturin 构建产物（临时，不入库）
+dist-maturin/
+# Rust 构建产物（cargo/maturin 生成；T-1061c 移出版本控制）
+target/

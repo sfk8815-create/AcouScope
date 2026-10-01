@@ -3,7 +3,7 @@
 import sys
 sys.path.insert(0, "src")
 import pytest
-from acouscope.ai.backends import LLMBackend, get_backend
+from acouscope.ai.backends import get_backend
 
 
 def test_factory_kinds():

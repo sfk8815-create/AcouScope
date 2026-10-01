@@ -4,6 +4,7 @@
 #   ./scripts/run_bg.sh <任务名> <命令...>       启动
 #   ./scripts/run_bg.sh stop <任务名>            停止该任务最新一次运行
 #   ./scripts/run_bg.sh tail <任务名>            查看最新日志（转调 debug_status.sh tail）
+# 说明: 后台命令 cwd 恒为仓根（PROJECT_ROOT），与调用者所在目录无关
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,8 +57,8 @@ fi
 [ $# -ge 2 ] || { echo "用法: $0 <任务名> <命令...>" >&2; exit 2; }
 shift
 
-# 预检：命令必须存在（防 EXIT=127）
-if [ ! -x "$1" ] && ! command -v "$1" >/dev/null 2>&1; then
+# 预检：命令必须存在（防 EXIT=127）—— 与后台执行同口径，在 PROJECT_ROOT 下判断
+if ! ( cd "$PROJECT_ROOT" && { [ -x "$1" ] || command -v "$1" >/dev/null 2>&1; } ); then
   echo "ERROR: 命令不存在或无执行权限: $1" >&2; exit 3
 fi
 
@@ -82,10 +83,11 @@ LOG="$RUN_DIR/$TASK-$RID.log"; DONE="$RUN_DIR/$TASK-$RID.done"; META="$RUN_DIR/$
 REALPID_TMP="$RUN_DIR/$TASK-$RID.realpid"
 printf '%s\n' "$RID" > "$LATEST.tmp.$$"; mv "$LATEST.tmp.$$" "$LATEST"
 
-export LOG DONE REALPID_TMP
+export LOG DONE REALPID_TMP PROJECT_ROOT
 
 T0=$(date +%s)
 nohup bash -c '
+  cd "$PROJECT_ROOT" || exit 78
   exit_code=78
   "$@" > "$LOG" 2>&1 &
   real=$!
@@ -106,7 +108,7 @@ for _i in 1 2 3 4 5; do
 done
 rm -f "$REALPID_TMP"
 
-printf 'cmd=%s\npid=%s\nrealpid=%s\nstarted=%s\n' "$(printf '%q ' "$@")" "$BG_PID" "$real" "$(date '+%F %T')" > "$META"
+printf 'cmd=%s\npid=%s\nrealpid=%s\nstarted=%s\ncwd=%s\n' "$(printf '%q ' "$@")" "$BG_PID" "$real" "$(date '+%F %T')" "$PROJECT_ROOT" > "$META"
 
 # 产物保留上限：每任务名留最近 10 次（无匹配时 ls 非0 + pipefail + set -e 会使脚本提前退出，故加 || true 兼容首跑）
 ls -t "$RUN_DIR/$TASK"-*.log 2>/dev/null | tail -n +11 | while read -r f; do
@@ -114,6 +116,7 @@ ls -t "$RUN_DIR/$TASK"-*.log 2>/dev/null | tail -n +11 | while read -r f; do
 done || true
 
 echo "STARTED rid=$RID pid=$BG_PID"
+echo "  cwd=$PROJECT_ROOT"
 echo "  log=$LOG"
 echo "  done=$DONE"
 echo "查询: $SCRIPT_DIR/debug_status.sh $TASK | 停止: $0 stop $TASK"

@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="라이선스: GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="플랫폼">
-  <img src="https://img.shields.io/badge/version-0.99.20260904_Beta-orange" alt="버전 0.99.20260904 (Beta)">
+  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="버전 0.99.20260925 (Beta)">
 </p>
 
 <p align="center">
@@ -195,7 +195,7 @@ AcouScope/
 
 ## 로드맵
 
-- **v0.99.20260904 (Beta, 현재)** — 9개 분석 엔진, 3개 언어 인터페이스, 테마 시스템, 출판급 내보내기; 네 플랫폼 설치 프로그램 정식 배포와 코드 서명(Windows Authenticode / Apple 공증) 진행 중
+- **v0.99.20260925 (Beta, 현재)** — 9개 분석 엔진, 3개 언어 인터페이스, 테마 시스템, 출판급 내보내기; 네 플랫폼 설치 프로그램 정식 배포 준비 중 — 본 베타는 의도적으로 코드 서명/공증을 생략했습니다. 첫 실행이 막히면 웹사이트의 "문제 발생 시 해결 방법" 안내를 따르세요
 - **v1.0** — 배치 처리, 플러그인 구조, 상수 Q 변환 / 웨이블릿 변환, 정식 릴리스
 
 ## 감사의 글

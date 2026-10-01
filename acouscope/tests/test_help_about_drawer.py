@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""帮助抽屉测试：快速入门/用户手册 = QWidget 非模态抽屉；关于 = 模态 QDialog 例外。
+"""帮助面板测试：快速入门/用户手册 = QWidget 非模态；关于 = 模态 QDialog 例外。
 
-快速入门 / 用户手册：QDialog 模态 exec 流 → QWidget 非模态抽屉
-（open_drawer width=560，与设置/录音/房间声学同宽复用）。模式照抄
+快速入门 / 用户手册：QDialog 模态 exec 流 → QWidget 非模态面板，
+T-1054 批4d 起抽屉（open_drawer）已整体退役，面板改为装入右栏内容页
+宿主（window.right_content 及其页宿主）。模式照抄
 tests/test_settings_drawer.py。
 
 关于（AboutDialog）：CB-010 用户特批「关于」回归模态 QDialog
-（内容/样式与抽屉版本一致，见 about_dialog.py），其余帮助面板不受影响。
+（内容/样式与原非模态版本一致，见 about_dialog.py），其余帮助面板不受影响。
 """
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from PyQt6.QtWidgets import QWidget, QDialog
+from PyQt6.QtWidgets import QWidget, QDialog, QVBoxLayout
 from acouscope.ui.widgets.help_dialogs import QuickStartDialog, ManualDialog
 from acouscope.ui.widgets.about_dialog import AboutDialog
 
@@ -61,14 +62,23 @@ def test_about_close_button_accepts(qapp):
     assert seen == ["ok"]
 
 
-def test_embedded_in_drawer(qapp):
-    """非模态嵌入：open_drawer(host, QuickStartDialog(), width=560) 可打开。"""
-    from acouscope.ui.widgets.drawer import open_drawer
+def test_embedded_in_page_host(qapp):
+    """非模态嵌入：帮助面板可装入右栏内容页宿主容器且非模态。
+
+    抽屉退役后等价断言：面板作为普通 QWidget 子件装入宿主容器
+    （对应右栏内容页宿主 window.right_content 的承载方式）。
+    """
     host = QWidget()
     host.resize(1200, 800)
     host.show()
-    drawer = open_drawer(host, QuickStartDialog(), width=560)
-    assert drawer.is_open()
+    panel = QuickStartDialog()
+    layout = QVBoxLayout(host)
+    layout.addWidget(panel)
+    qapp.processEvents()
+    assert not isinstance(panel, QDialog)     # 非模态面板（非对话框）
+    assert panel.parent() is host             # 装入宿主容器
+    assert panel.isModal() is False           # 非模态语义保留
+    assert panel.isVisibleTo(host)            # 宿主显示时面板随之可见
 
 
 def test_sources_modal_split():
@@ -92,6 +102,8 @@ def test_sources_modal_split():
     assert "def _on_quickstart" not in mw
     assert "def _on_manual" not in mw
     assert "_on_info_drawer_cancelled" not in mw
+    # T-1054 批4d：抽屉基础设施整体退役 —— drawer.py 已删除
+    assert not (UI / "widgets" / "drawer.py").exists()
 
 
 def test_manual_dialog_widget(qapp):

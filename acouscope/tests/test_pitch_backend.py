@@ -4,7 +4,6 @@ import sys
 sys.path.insert(0, "src")
 
 import numpy as np
-import pytest
 from acouscope.analysis.backends.base import (
     PitchBackend, PyinBackend, BACKEND_PROTOCOL_V1,
 )

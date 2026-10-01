@@ -15,7 +15,7 @@ pytest.importorskip("PyQt6")
 from pathlib import Path
 
 import soundfile as sf
-from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
+from PyQt6.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
 from PyQt6.QtGui import QDragEnterEvent, QDropEvent
 from PyQt6.QtWidgets import QSplitter
 

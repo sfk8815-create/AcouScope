@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# selftest.sh —— run_bg.sh 一键自测（6 用例）
+# selftest.sh —— run_bg.sh 一键自测（7 用例）
 # 时序机制化：等待 done 用轮询（上限 20s），非固定 sleep（任何负载下稳定）。断言本身不变。
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +48,19 @@ wait_done envtest 20
 
 # 6) DURATION: done 文件含 DURATION 且无空值
 "$S/debug_status.sh" envtest | grep -E "^DURATION=[0-9]+s$" >/dev/null && ok "用例6 DURATION" || bad "用例6 DURATION"
+
+# 7) H1 实证: 从【子目录】启动 run_bg, 断言后台命令看到的 cwd == 仓根绝对路径
+#    必须先【子 shell】cd 到非仓根子目录再调, 否则改前改后都 PASS、无判别力
+( cd "$ROOT/acouscope" && "$S/run_bg.sh" cwdtest bash -c 'pwd' ) >/dev/null 2>&1 \
+  || bad "用例7启动"
+wait_done cwdtest 20
+if rid="$(cat "$RUNDIR/cwdtest.latest" 2>/dev/null)" \
+   && [ -n "$rid" ] && [ -f "$RUNDIR/cwdtest-$rid.log" ] \
+   && [ "$(head -n1 "$RUNDIR/cwdtest-$rid.log" 2>/dev/null)" = "$ROOT" ]; then
+  ok "用例7 后台cwd=仓根"
+else
+  bad "用例7 后台cwd=仓根"
+fi
 
 echo "===== selftest: $PASS passed, $FAIL failed ====="
 [ "$FAIL" -eq 0 ]

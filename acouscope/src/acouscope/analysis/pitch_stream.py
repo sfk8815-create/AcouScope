@@ -141,7 +141,7 @@ def stream_pitch(
     hop_length: int = 256,
     fmin: float = 40.0,
     fmax: float = 2000.0,
-    cent_ref: float = 440.0,
+    cent_ref: "float | None" = None,
     fixed_lag: "int | None" = 100,
     progress: "Callable[[float, str], None] | None" = None,
 ) -> PitchTrack:

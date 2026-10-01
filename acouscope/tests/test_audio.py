@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """音频 I/O 模块测试。"""
 
-import os
-import tempfile
 import numpy as np
 import pytest
 

@@ -23,7 +23,6 @@ pytest.importorskip("PyQt6")
 from PyQt6.QtWidgets import QMenu, QStackedWidget
 
 from acouscope.app.controller import AppController
-from acouscope.i18n import tr
 from acouscope.ui.main_window import MainWindow
 from acouscope.ui.widgets.ai_interpret import AIInterpretDialog
 from acouscope.ui.widgets.file_browser import FileBrowser
@@ -31,6 +30,8 @@ from acouscope.ui.widgets.panels import InspectorPanel
 from acouscope.ui.widgets.settings_dialog import SettingsDialog
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+# 批4d：抽屉实现整档删除（`_v099_drawer_*` 注册族随之失去实现）
+_DRAWER_PY = _REPO_ROOT / "src" / "acouscope" / "ui" / "widgets" / "drawer.py"
 
 
 @pytest.fixture
@@ -112,7 +113,8 @@ def test_ai_route_builds_panel_in_right_content(window, qapp):
     assert window.right_content.count() == 3
     assert window.right_content.currentWidget() is window._ai_host
     assert window._ai_panel.parent() is window._ai_host
-    assert getattr(window, "_v099_drawer_640", None) is None
+    assert not hasattr(window, "_v099_drawer_640")   # 批4d：弱式断言升级 + 实现档已删
+    assert not _DRAWER_PY.exists()
     window._ai_panel.close()
 
     # 再开一次 → 每次入口新建实例（旧实例已 close 移出宿主）
@@ -144,6 +146,7 @@ def test_no_drawer_hub_registry_after_routes(window, qapp):
     qapp.processEvents()
     drawers = [k for k in window.__dict__ if k.startswith("_v099_drawer_")]
     assert drawers == []
+    assert not _DRAWER_PY.exists()          # 批4d：抽屉实现整档删除（防复活）
     if window._ai_panel is not None:
         window._ai_panel.close()
 
@@ -199,6 +202,11 @@ def test_sidebar_symbols_in_main_window():
     assert "def _on_toggle_left_ribbon" not in mw
     assert "btn_toggle_drawer" not in mw
     assert "def _on_toggle_right_drawer" not in mw
+    # 批4d：抽屉实现整档删除 + main_window 抽屉族标识符零出现（防复活）
+    assert not _DRAWER_PY.exists()
+    assert "open_drawer" not in mw
+    assert "_drawer_entries" not in mw
+    assert "_room_drawer" not in mw
     # 新架构符号存在
     assert "def _build_side_tabs" in mw
     assert "self.left_content" in mw

@@ -315,3 +315,188 @@ def test_route_factory_semantics_unchanged(monkeypatch):
     got2 = route("EchoBackend", lambda: _DirectSpy())
     assert isinstance(got2, WorkerProxy)
     assert got2.backend_name == "EchoBackend"
+
+
+# ---------------------------------------------------------------------------
+# T-1030：生产默认阈值 + 注入路径守卫（防"改默认时把注入也写死"）
+# ---------------------------------------------------------------------------
+
+def test_wd_default_timeout_is_15():
+    """T-1030：生产默认 _wd_timeout 恰为 15.0（未经 _wd 注入）。"""
+    proxy = WorkerProxy("EchoBackend")
+    assert proxy._wd_timeout == 15.0
+
+
+def test_wd_injection_still_overrides_default():
+    """T-1030：_wd(timeout=...) 注入路径未被硬编码（改默认时仍可覆盖）。"""
+    proxy = WorkerProxy("EchoBackend")
+    proxy._wd(timeout=0.5)
+    assert proxy._wd_timeout == 0.5
+
+
+# ---------------------------------------------------------------------------
+# T-1070 / IM-25 α：久 detect 不误判死 × 真 hang 照判死（双向守卫）
+# 全部假 socket/脚本 reader 注入，不 spawn 真 ML worker（W5.1）。
+# ---------------------------------------------------------------------------
+
+# 注入档：interval 0.1s / timeout 0.5s；久 detect 持锁 0.8s（> 一整档）
+_T1070_INTERVAL = 0.1
+_T1070_TIMEOUT = 0.5
+_T1070_HOLD = 0.8
+
+
+class _ScriptedReader:
+    """脚本化 LineReader（无 worker 进程）：
+
+    首轮 read_message 先 sleep(hold) 模拟 detect 全程持锁，再吐 RESULT/
+    ERROR；此后（heartbeat 探活 PING）恒抛 TimeoutError —— 等价 BlackHole
+    （PING 无 PONG），判死仅取决于 _last_pong_at 新鲜度。
+    """
+
+    def __init__(self, hold, rid, *, error=False):
+        self._hold = hold
+        self._rid = rid
+        self._error = error
+        self._calls = 0
+
+    def read_message(self):
+        if self._calls == 0:
+            self._calls += 1
+            time.sleep(self._hold)
+            if self._error:
+                return {"type": wproto.MSG_ERROR, "rid": self._rid,
+                        "message": "scripted failure"}
+            payload = {
+                "track": {"name": "acw_o_t1070", "shape": [1],
+                          "dtype": "float64"},
+                "counts": [1, 1, 1], "backend": "EchoBackend",
+                "sr": 16000.0, "fmin": 40.0, "fmax": 2000.0,
+            }
+            return {"type": wproto.MSG_RESULT, "rid": self._rid,
+                    "echo_amp": None, "payload": payload}
+        raise TimeoutError("scripted blackhole: PING never answered")
+
+
+def _inject_scripted_proxy(monkeypatch, reader):
+    """BlackHole 假 server + 假 proc + 脚本 reader 注入（同 B4 法），
+    _ensure_process 因 proc/conn 在场且未判死而短路 ⇒ 绝不 spawn。"""
+    import socket
+
+    _set_worker_env(monkeypatch, "1")
+    proxy = WorkerProxy("EchoBackend")
+    bh = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    bh.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    bh.bind(("127.0.0.1", 0))
+    bh.listen(8)
+    port = bh.getsockname()[1]
+
+    class _FakeProc:
+        def poll(self):
+            return None
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            pass
+
+    conn = socket.create_connection(("127.0.0.1", port), timeout=2.0)
+    conn.settimeout(None)
+    proxy._proc = _FakeProc()
+    proxy._conn = conn
+    proxy._reader = reader
+    proxy._wd(interval=_T1070_INTERVAL, timeout=_T1070_TIMEOUT)
+    proxy._start_heartbeat_locked()
+    # 收发全走脚本：不真写 socket、不 attach 结果 shm
+    proxy._send_detect = lambda req, rid: None
+    proxy._read_result_shm = lambda payload: _SENTINEL
+    return proxy, bh
+
+
+_SENTINEL = object()
+
+
+def _wait_dead(proxy, deadline_s=3.0):
+    deadline = time.monotonic() + deadline_s
+    while not proxy._watchdog_marked_dead():
+        assert time.monotonic() < deadline, "预期判死未在窗内触发"
+        time.sleep(0.02)
+
+
+def _close_proxy(proxy, bh):
+    proxy._wd(interval=2.0, timeout=15.0)
+    proxy.close()
+    bh.close()
+
+
+def test_im25_long_detect_success_not_marked_dead(monkeypatch):
+    """正向（α）：久 detect 持锁 0.8s（> timeout 0.5s）成功返回后，
+    _hb_dead 须 False；且 _last_pong_at 被刷到成功时刻（持锁·释锁前）。
+    R-2 采样纪律：释锁即采，并仅在随后 <1 个 _wd_timeout 窗内短采样
+    （reader 此后不答 PONG，越窗自然判死不污染本断言）。"""
+    reader = _ScriptedReader(_T1070_HOLD, rid="r1")
+    proxy, bh = _inject_scripted_proxy(monkeypatch, reader)
+    try:
+        t_before = time.monotonic()
+        out = proxy.detect(_sig_of(), 16000.0)
+        t_after = time.monotonic()
+        assert out is _SENTINEL  # 走完整唯一成功路径（清零→α→return）
+        # α 落点证据：pong 恰在本次 detect 窗口内被刷新
+        assert proxy._last_pong_at is not None
+        assert t_before <= proxy._last_pong_at <= t_after
+        # 释锁即采（≤1 窗）：久 detect 未被误判死
+        assert proxy._watchdog_marked_dead() is False
+        # 窗内短采样（0.2s < 0.5s 档）：判死窗确被成功时刻后移一档
+        observe_end = time.monotonic() + (_T1070_TIMEOUT - 0.3)
+        while time.monotonic() < observe_end:
+            assert proxy._watchdog_marked_dead() is False
+            time.sleep(0.02)
+    finally:
+        _close_proxy(proxy, bh)
+
+
+def test_im25_without_alpha_long_detect_still_marks_dead(monkeypatch):
+    """负对照（仿 T-1069 R-6）：剥除 α（成功 return 前不刷
+    _last_pong_at，逐字等价改前）⇒ 同一久 detect 成功后照判死，
+    证明夹具可判别、正例非侥幸。"""
+    orig_recv = WorkerProxy._recv_result
+
+    def recv_no_alpha(self, req, in_shm, in_name, rid, progress_cb):
+        # 本方法仅在 detect 的 with self._lock（:281）锁链上被调：
+        # heartbeat 抢不到锁，无并发写，直接读/复旧值即可。
+        before = self._last_pong_at
+        try:
+            return orig_recv(self, req, in_shm, in_name, rid, progress_cb)
+        finally:
+            self._last_pong_at = before  # α 效果归零，余路逐字不变
+
+    monkeypatch.setattr(WorkerProxy, "_recv_result", recv_no_alpha)
+    reader = _ScriptedReader(_T1070_HOLD, rid="r2")
+    proxy, bh = _inject_scripted_proxy(monkeypatch, reader)
+    try:
+        out = proxy.detect(_sig_of(), 16000.0)
+        assert out is _SENTINEL  # detect 本身成功——判死纯因成功未刷 pong
+        _wait_dead(proxy)
+        assert proxy._hb_dead is True
+    finally:
+        _close_proxy(proxy, bh)
+
+
+def test_im25_failed_detect_does_not_refresh_pong(monkeypatch):
+    """失败路径守卫：detect 收 ERROR（:372-375 raise）不刷
+    _last_pong_at（α 行失败不可达）⇒ 不误延命；失败仍记账一次。
+    （respawn 路径在 _ensure_process，不经 _recv_result，α 不可达。）"""
+    reader = _ScriptedReader(0.05, rid="r3", error=True)
+    proxy, bh = _inject_scripted_proxy(monkeypatch, reader)
+    try:
+        with proxy._lock:  # 预置陈旧 pong：已超一整档、本该判死
+            proxy._last_pong_at = time.monotonic() - 10.0
+        pong_before = proxy._last_pong_at
+        with pytest.raises(RuntimeError, match="worker detect failed"):
+            proxy.detect(_sig_of(), 16000.0)
+        assert proxy._last_pong_at == pong_before  # 失败未续钟（逐字相等）
+        assert proxy._consecutive_fails == 1
+        _wait_dead(proxy)  # 未被误延命：释锁后照常判死
+        assert proxy._hb_dead is True
+    finally:
+        _close_proxy(proxy, bh)

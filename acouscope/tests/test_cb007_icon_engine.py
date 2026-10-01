@@ -14,8 +14,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 import pytest
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication
 
 from acouscope.ui import theme
 

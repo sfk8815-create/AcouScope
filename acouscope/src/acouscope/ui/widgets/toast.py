@@ -51,8 +51,29 @@ def _live_refs(parent) -> list[weakref.ref]:
     return refs
 
 
+def _stop_timer(t: ToastWidget) -> None:
+    """停止并断开 toast 的自动关闭定时器（幂等、绝不出错）。
+
+    T-1060 件1：该 QTimer 以 toast 为 C++ 父对象，若其 Python 包装先被
+    GC 回收，C++ 计时器仍留在 Qt 定时器表中派发到失效 slot → SIGSEGV。
+    故收尾时先 stop() 再断开 timeout 连接，保证投递源在 toast 销毁前消失。
+    """
+    timer = getattr(t, "_timer", None)
+    if timer is None:
+        return
+    try:
+        timer.stop()
+    except RuntimeError:
+        return  # 底层 C++ 已析构
+    try:
+        timer.timeout.disconnect()
+    except (TypeError, RuntimeError):
+        pass  # 无连接/已断开/对象已析构：一律吞掉
+
+
 def _close_toast(t: ToastWidget) -> None:
-    """关闭并释放：从登记移除 + close() + deleteLater()。"""
+    """关闭并释放：先停定时器并断连接，再从登记移除 + close() + deleteLater()。"""
+    _stop_timer(t)
     host = t.parent()
     if host is not None:
         refs = _ACTIVE.get(id(host), [])
@@ -101,6 +122,9 @@ class ToastWidget(QFrame):
             TOKENS["spacing"]["sm"],
         )
         layout.addWidget(self.lblMessage)
+
+        # 到点自动关闭定时器（由 show_toast 装配；在此声明所有权槽位）
+        self._timer = None
 
         # 主题动态样式：theme 切换时即时刷新（严禁硬编码 hex）
         self._refresh_style = theme.style_when_theme(self, _toast_qss)
@@ -186,9 +210,13 @@ def show_toast(
     _ACTIVE.setdefault(id(parent), refs)
 
     # 到点自动关闭：单发定时器作为 toast 子对象
+    # ★ T-1060 件1（H1）：定时器由 toast 显式持有（存活期强引用）。
+    #   若仅用局部变量持有，函数返回后 Python 包装即被 GC，而 C++ 计时器
+    #   仍以 toast 为父留在定时器表里派发 → 命中失效 slot → SIGSEGV。
     timer = QTimer(toast)
     timer.setSingleShot(True)
     timer.timeout.connect(lambda: _close_toast(toast))
+    toast._timer = timer  # 显式所有权：生命周期 ≥ toast 存活期
     timer.start(duration)
 
     _hook_parent_resize(parent)

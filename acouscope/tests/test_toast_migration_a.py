@@ -4,6 +4,7 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 SRC = pathlib.Path(__file__).resolve().parents[1] / "src" / "acouscope" / "ui" / "main_window.py"
+from tests._pin_baselines import MAINWINDOW_QMESSAGEBOX_CONFIRM_COUNT
 
 
 def test_modal_notifications_removed():
@@ -14,7 +15,8 @@ def test_modal_notifications_removed():
 
 def test_questions_preserved():
     text = SRC.read_text(encoding="utf-8")
-    assert text.count("QMessageBox.question(") == 2  # 录音完成 / 模型未安装
+    # 常量 MAINWINDOW_QMESSAGEBOX_CONFIRM_COUNT 集中把守·迁移每减一处改该常量一处
+    assert text.count("QMessageBox.question(") == MAINWINDOW_QMESSAGEBOX_CONFIRM_COUNT  # 录音完成 / 模型未安装
 
 
 def test_show_toast_imported_and_used():

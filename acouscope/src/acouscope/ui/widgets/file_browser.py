@@ -241,6 +241,12 @@ class FileBrowser(QWidget):
 
     def _on_context_menu(self, pos) -> None:
         item = self.list.itemAt(pos)
+        # IM-26（β 选中归一）：右键落在**未选中**项时先归一选中，使
+        # selected_paths() ≡ 即时 paths ≡ 批处理目标（扩展点 slot 自读
+        # selected_paths()）→ 三向一致；多选内右键（已选中）跳过、不降级。
+        if item is not None and not item.isSelected():
+            self.list.clearSelection()
+            item.setSelected(True)
         paths = self.selected_paths() if (
             item is not None and item.isSelected()
         ) else ([item.data(_ROLE_PATH)] if item is not None else [])

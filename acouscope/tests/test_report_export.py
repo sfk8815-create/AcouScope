@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""T-1003 分析报告 PDF 拼版测试（纯数据驱动，不构造主窗口、不 show）。
+"""T-1003/T-1100 分析报告 HTML 模型测试（纯数据驱动，不构造主窗口、不 show）。
 
 覆盖：
-① 拼版纯逻辑：元数据缺字段 "—" 兜底 / 无元数据 → 题名 + 技术信息降级；
-② PDF 落盘：文件非空且以 %PDF 头起始（单图 / 多图）；
-③ 默认文件名 <stem>_report.pdf；目录不可写 → 复用 _fallback_export_path 降级；
+① 拼表纯逻辑（逐字保留自 T-1003）：元数据缺字段 "—" 兜底 / 无元数据 → 降级；
+② HTML 落盘：自包含单文件（DOCTYPE / 图 base64 内嵌 / 零外链 / 白底中性色）；
+③ 默认文件名 <stem>_report.html；目录不可写 → 复用 _fallback_export_path 降级；
 ④ 入口 toast 分支（无音频 info / 成功 success / 失败 error）；
 ⑤ i18n report.* 键三语齐全；
 ⑥ 静态纪律：禁词 0 / 无 QDialog（QFileDialog 属系统保存框豁免）/ hex·px
-   （报告 mm 尺寸豁免，故报告模块与 T-1003 新增块须零 px、零 hex）/ 不 show 主窗。
+   （报告 mm 尺寸豁免，故报告模块与新增块须零 px、零 hex）/ 不 show 主窗；
+⑦ 判据③ 同源三态：同一 figures 喂 build_report_html（含图/无图/降级）各节相应。
 """
 
 from __future__ import annotations
@@ -29,9 +30,10 @@ from acouscope.ui.report_export import (
     MISSING,
     ReportFigure,
     build_metadata_rows,
+    build_report_html,
     build_tech_rows,
     default_report_name,
-    export_report,
+    export_report_html,
     is_degraded,
 )
 
@@ -61,11 +63,26 @@ def figure(tmp_path: Path) -> ReportFigure:
     return ReportFigure(image=path, caption="waveform | 0.000 – 1.000 s")
 
 
-def _assert_pdf(path: Path) -> None:
+def _assert_html(text: str, *, with_figure: bool = True) -> None:
+    """自包含 HTML 硬校：DOCTYPE 头 + 白底中性色 + 零外链（http/file:）+ 图内嵌。"""
+    assert text.startswith("<!DOCTYPE html>"), "缺 DOCTYPE 头"
+    assert "background: white" in text, "样式未恒白底"
+    assert "color: black" in text, "正文色须为中性黑（不随主题）"
+    lowered = text.lower()
+    assert "http://" not in lowered, "HTML 含 http 外链"
+    assert "https://" not in lowered, "HTML 含 https 外链"
+    assert "file:" not in lowered, "HTML 含 file: 本地外链"
+    if with_figure:
+        assert "data:image/png;base64," in text, "插图未 base64 内嵌"
+
+
+def _read_html(path: Path, *, with_figure: bool = True) -> str:
     assert path.exists(), f"{path} 未生成"
-    blob = path.read_bytes()
-    assert len(blob) > 0, "PDF 为空文件"
-    assert blob[:4] == b"%PDF", f"PDF 头校验失败: {blob[:8]!r}"
+    assert path.suffix == ".html"
+    text = path.read_text(encoding="utf-8")
+    assert len(text) > 0, "HTML 为空文件"
+    _assert_html(text, with_figure=with_figure)
+    return text
 
 
 class _HostStub:
@@ -99,7 +116,7 @@ def _capture_toasts(monkeypatch) -> list:
 
 
 # ---------------------------------------------------------------------------
-# ① 拼版纯逻辑
+# ① 拼表纯逻辑（保留自 T-1003·逐字不动）
 # ---------------------------------------------------------------------------
 
 
@@ -137,41 +154,106 @@ def test_tech_rows_drop_empty_values():
 
 
 # ---------------------------------------------------------------------------
-# ② PDF 落盘
+# ② HTML 落盘
 # ---------------------------------------------------------------------------
 
 
-def test_export_report_writes_pdf(qapp, tmp_path, figure):
-    target = export_report(
-        tmp_path / "demo_report.pdf",
+def test_export_report_html_writes_file(qapp, tmp_path, figure):
+    target = export_report_html(
+        tmp_path / "demo_report.html",
         title="demo",
         metadata={"Title": "阿诗玛", "Creator": "佚名"},
         figures=[figure, ReportFigure(image=figure.image, caption="fft | 0.000 – 1.000 s")],
         tech_info={"Filename": "demo.wav"},
     )
-    _assert_pdf(Path(target))
+    text = _read_html(Path(target))
+    assert text.count("<img") == 2, "两图须各自内嵌"
+    assert tr("report.metadata") in text
 
 
-def test_export_report_degraded_writes_pdf(qapp, tmp_path, figure):
-    """无元数据 → 题名 + 技术信息降级仍产出可用 PDF。"""
-    target = export_report(
-        tmp_path / "degraded.pdf",
+def test_export_report_html_degraded_writes_file(qapp, tmp_path, figure):
+    """无元数据 → 题名 + 降级说明 + 技术信息表仍产出可用 HTML。"""
+    target = export_report_html(
+        tmp_path / "degraded.html",
         title="demo",
         metadata={},
         figures=[figure],
         tech_info={"Filename": "demo.wav", "Duration": "1.000 s", "SamplingRate": "48000 Hz"},
     )
-    _assert_pdf(Path(target))
+    text = _read_html(Path(target))
+    assert tr("report.degraded") in text, "降级说明节缺失"
+    assert tr("report.tech_info") in text
+    assert tr("report.filename") in text
 
 
-def test_export_report_without_figures(qapp, tmp_path):
-    """零图（仅页眉）也须产出合法 PDF，不抛。"""
-    target = export_report(tmp_path / "header_only.pdf", title="demo", metadata={"Title": "t"})
-    _assert_pdf(Path(target))
+def test_export_report_html_without_figures(qapp, tmp_path):
+    """零图（仅头部 + 元数据表）也须产出合法 HTML，不抛。"""
+    target = export_report_html(
+        tmp_path / "header_only.html", title="demo", metadata={"Title": "t"}
+    )
+    text = _read_html(Path(target), with_figure=False)
+    assert "<img" not in text
 
 
 def test_default_report_name():
-    assert default_report_name("demo") == "demo_report.pdf"
+    assert default_report_name("demo") == "demo_report.html"
+
+
+# ---------------------------------------------------------------------------
+# ②-b 判据③：同源 figures 三态（含图 / 无图仅头 / 降级说明节）
+# ---------------------------------------------------------------------------
+
+
+def test_build_report_html_three_states_same_figures(figure):
+    """同一 figures 喂三态 → HTML 分别含 <img> / 无图仅头 / 降级说明节。"""
+    with_figures = build_report_html(
+        title="demo", metadata={"Title": "阿诗玛"}, figures=[figure]
+    )
+    _assert_html(with_figures)
+    assert tr("report.metadata") in with_figures
+    assert tr("report.degraded") not in with_figures, "非降级态不得渲染降级说明"
+
+    header_only = build_report_html(
+        title="demo", metadata={"Title": "阿诗玛"}, figures=()
+    )
+    _assert_html(header_only, with_figure=False)
+    assert "<img" not in header_only
+
+    degraded = build_report_html(
+        title="demo",
+        metadata={},
+        figures=[figure],
+        tech_info={"Filename": "demo.wav"},
+    )
+    _assert_html(degraded)
+    assert tr("report.degraded") in degraded
+    assert tr("report.tech_info") in degraded
+    assert "<h2>" + tr("report.metadata") + "</h2>" not in degraded, "降级态以技术信息表替代元数据表"
+
+
+def test_build_report_html_custom_degraded_reason_and_font(figure):
+    """degraded_reason 非空 → 渲染自定文案；font_family 非空 → 入 CSS 字族。"""
+    text = build_report_html(
+        title="demo",
+        metadata={"Title": "阿诗玛"},
+        figures=[figure],
+        degraded_reason="著录字段暂缺（自定说明）",
+        font_family="Noto Sans CJK SC",
+    )
+    assert "著录字段暂缺（自定说明）" in text
+    assert "Noto Sans CJK SC" in text
+
+
+def test_build_report_html_escapes_text():
+    """元数据/题名为任意文本时须 escape，防标签注入破坏自包含性。"""
+    text = build_report_html(
+        title="<script>alert(1)</script>",
+        metadata={"Title": "a<b>c"},
+        figures=(),
+    )
+    assert "<script>" not in text
+    assert "&lt;script&gt;" in text
+    assert "a&lt;b&gt;c" in text
 
 
 # ---------------------------------------------------------------------------
@@ -186,8 +268,8 @@ def test_fallback_export_path_relocates(monkeypatch, tmp_path):
     host = _HostStub()
 
     assert MainWindow._dir_writable(blocked) is False
-    resolved = MainWindow._fallback_export_path(host, blocked / "demo_report.pdf")
-    assert resolved.name == "demo_report.pdf"
+    resolved = MainWindow._fallback_export_path(host, blocked / "demo_report.html")
+    assert resolved.name == "demo_report.html"
     assert resolved.parent != blocked
     assert resolved.parent == tmp_path / "Documents" / "AcouScope导出"
 
@@ -208,17 +290,17 @@ def test_entry_no_audio_toast_info(monkeypatch):
 
 def test_done_toast_success(qapp, monkeypatch, tmp_path):
     toasts = _capture_toasts(monkeypatch)
-    MainWindow._on_report_done(_ToastHost(), tmp_path / "demo_report.pdf", False)
+    MainWindow._on_report_done(_ToastHost(), tmp_path / "demo_report.html", False)
     assert len(toasts) == 1
     message, level = toasts[0]
     assert level == "success"
-    assert "demo_report.pdf" in message
+    assert "demo_report.html" in message
 
 
 def test_done_toast_success_relocated(qapp, monkeypatch, tmp_path):
     """改存路径 → 成功 toast 附「无写入权限」说明。"""
     toasts = _capture_toasts(monkeypatch)
-    MainWindow._on_report_done(_ToastHost(), tmp_path / "demo_report.pdf", True)
+    MainWindow._on_report_done(_ToastHost(), tmp_path / "demo_report.html", True)
     assert len(toasts) == 1
     assert tr("report.relocated") in toasts[0][0]
 
@@ -241,7 +323,9 @@ def test_report_i18n_keys_three_languages():
     from acouscope.i18n import _STRINGS
 
     for key in (
+        "action.export_report",
         "report.dialog_title",
+        "report.filter_html",
         "report.exporting",
         "report.exported",
         "report.failed",
@@ -257,6 +341,15 @@ def test_report_i18n_keys_three_languages():
         entry = _STRINGS[key]
         assert set(entry) == {"en_US", "zh_CN", "zh_TW"}, f"{key} 语言不全"
         assert all(entry.values()), f"{key} 存在空文案"
+
+
+def test_export_report_labels_format_neutral():
+    """T-1100 回炉：菜单/存盘文案格式中性（不再钉 PDF 字样）."""
+    from acouscope.i18n import _STRINGS
+
+    for key in ("action.export_report", "report.dialog_title"):
+        for lang, text in _STRINGS[key].items():
+            assert "PDF" not in text, f"{key}[{lang}] 仍钉 PDF 字样"
 
 
 # ---------------------------------------------------------------------------
@@ -275,12 +368,12 @@ def test_static_discipline_report_module():
 
 
 def test_static_discipline_main_window_report_block():
-    """T-1003 新增块（报告导出）单独扫描：零 hex·px、零新建对话框类、不 show。"""
+    """报告导出块单独扫描：零 hex·px、零新建对话框类、不 show。"""
     text = _MAIN_WINDOW.read_text(encoding="utf-8")
-    start = text.index("T-1003：分析报告 PDF 导出")
+    start = text.index("T-1003/T-1100：分析报告 HTML 导出")
     end = text.index("SOTA 深度分析后端集成", start)
     block = text[start:end]
-    assert block.strip(), "未定位到 T-1003 新增块"
+    assert block.strip(), "未定位到报告导出新增块"
     assert _BANNED not in block
     assert _SHOW not in block
     assert not _HEX.search(block), "新增块含硬编码 hex 色值"

@@ -22,8 +22,12 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:  # 仅类型注解；运行期按需局部导入（默认路径仍不接入音律）
+    from acouscope.analysis.tunings.tuning_system import TuningSystem
 
 # ----------------------------------------------------------------------
 # 常量（阈值/单位/列名）
@@ -307,6 +311,10 @@ class TrackDiff:
     mean_abs_delta_cent: float | None = None
     max_abs_delta_cent: float | None = None
     over_count: int = 0
+    # 逐帧音级归属（T-1034a）：仅当显式传入 tuning 时填充的派生量；默认 None
+    # ⇒ repr/eq/asdict 的既有字段值级口径逐字不变（repr=False, compare=False），
+    # 不参与阈值/单位/参考频率/缓存/CSV 出口的任何既有判定。
+    degrees: np.ndarray | None = field(default=None, repr=False, compare=False)
 
     @property
     def over_ratio(self) -> float | None:
@@ -383,10 +391,15 @@ def compare_track(reference, other, *, threshold_cents: float = DEFAULT_THRESHOL
                   rms_window_ms: float = DEFAULT_RMS_WINDOW_MS,
                   ref_audio=None, ref_sample_rate: float = 0.0,
                   other_audio=None, other_sample_rate: float = 0.0,
-                  ref_duration_s=None, other_duration_s=None) -> TrackDiff:
+                  ref_duration_s=None, other_duration_s=None,
+                  tuning: TuningSystem | None = None) -> TrackDiff:
     """一条非参考轨 vs 参考轨：ΔHz / Δcent / 超阈占比 / RMS 差 / 时长差 / 均值·最大。
 
     ``reference`` / ``other`` 只需提供 ``times`` 与 ``f0_hz``（鸭子类型，避免呈现层循环依赖）。
+
+    ``tuning``（可选，T-1034a）：给一个 :class:`~acouscope.analysis.tunings.tuning_system.TuningSystem`
+    时，逐帧结果额外携带音级归属 ``TrackDiff.degrees``（被比较轨 ``other`` 的 ``f0_hz``
+    就近到律制音级）；不传或 ``None`` ⇒ 输出与未加该参数逐字相同（音级字段恒为 ``None``）。
     """
     threshold = normalize_threshold(threshold_cents)
     result = TrackDiff(
@@ -431,6 +444,11 @@ def compare_track(reference, other, *, threshold_cents: float = DEFAULT_THRESHOL
         result.mean_delta_cent = float(np.mean(result.delta_cent))
         result.mean_abs_delta_cent = float(np.mean(np.abs(result.delta_cent)))
         result.max_abs_delta_cent = float(np.max(np.abs(result.delta_cent)))
+        # 音级归属（T-1034a）：纯派生量，给了律制才算；不进阈值/缓存/CSV 口径
+        if tuning is not None:
+            result.degrees = np.array(
+                [tuning.freq_to_degree(float(value)) for value in f2], dtype=int
+            )
 
     # 时长差（元数据可得时；不可得 → None，不臆造）
     ref_duration = _as_float(ref_duration_s if ref_duration_s is not None
@@ -468,11 +486,15 @@ def build_diff_summary(series_list, *, reference_id=None,
                        threshold_cents: float | None = None,
                        unit: str = DEFAULT_UNIT,
                        rms_window_ms: float = DEFAULT_RMS_WINDOW_MS,
-                       rms_provider=None, duration_provider=None) -> DiffSummary:
+                       rms_provider=None, duration_provider=None,
+                       tuning: TuningSystem | None = None) -> DiffSummary:
     """参考轨基准的全轨差异汇总（参考轨默认 `series_list` 首项）。
 
     ``rms_provider(track_id) -> (audio, sample_rate) | None``：仅在样本已载入内存时给值；
     ``duration_provider(track_id) -> float | None``：时长（秒）。
+
+    ``tuning``（可选，T-1034a）：透传给 :func:`compare_track`，使逐轨 ``TrackDiff``
+    携带音级归属；不传或 ``None`` ⇒ 汇总与未加该参数逐字相同。
     """
     series = [item for item in (series_list or ())]
     threshold = normalize_threshold(
@@ -515,6 +537,7 @@ def build_diff_summary(series_list, *, reference_id=None,
             other_audio=other_audio, other_sample_rate=other_sr or 0.0,
             ref_duration_s=ref_duration,
             other_duration_s=duration_provider(track_id) if duration_provider else None,
+            tuning=tuning,
         ))
 
     # 汇总口径：帧率/交集信息取「可比帧最多的轨」（无配对轨则退回首条）

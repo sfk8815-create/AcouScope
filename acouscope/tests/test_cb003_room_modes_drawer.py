@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""CB-003 G-1：房间模态抽屉化（库存 D5 收口）测试。
+"""CB-003 G-1：房间模态页宿主化（库存 D5 收口）测试。
 
-D5 匿名对话框壳包 RoomModesWidget → 右抽屉承载（open_drawer width=560，
-与房间声学/设置/录音/帮助抽屉同宽复用）。RoomModesWidget 本体零改动。
-模式照抄 tests/test_room_acoustics_drawer.py（结构特征断言，禁字面 count）。
+D5 匿名对话框壳包 RoomModesWidget → 页宿主承载（T-1054 批4d 起抽屉
+open_drawer 整体退役，改由中央全铺页 / 页宿主承载；RoomModesWidget 本体
+零改动）。模式照抄 tests/test_room_acoustics_drawer.py（结构特征断言，
+禁字面 count）。
 """
 import pathlib
 import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from PyQt6.QtWidgets import QDialog, QWidget
+from PyQt6.QtWidgets import QDialog, QWidget, QVBoxLayout
 
 from acouscope.ui.widgets.room_modes import RoomModesWidget
 
@@ -24,18 +25,21 @@ def test_room_modes_widget_not_dialog(qapp):
     assert not isinstance(w, QDialog)
 
 
-def test_room_modes_embedded_in_drawer(qapp):
-    """抽屉承载断言：open_drawer 装载 RoomModesWidget，实例出现在抽屉内容区。"""
-    from acouscope.ui.widgets.drawer import open_drawer
-
+def test_room_modes_embedded_in_page_host(qapp):
+    """页宿主承载断言：RoomModesWidget 装入宿主容器且非模态，父链包含自身。"""
     host = QWidget()
     host.resize(1200, 800)
     host.show()
     w = RoomModesWidget()
-    drawer = open_drawer(host, w, width=560)
-    assert drawer.is_open()
+    layout = QVBoxLayout(host)
+    layout.addWidget(w)
+    qapp.processEvents()
+    assert not isinstance(w, QDialog)     # 非模态（无 QDialog 壳）
+    assert w.parent() is host             # 装入宿主容器
+    assert w.isModal() is False           # 非模态语义保留
+    assert w.isVisibleTo(host)            # 宿主显示时随宿主可见
     # 结构特征断言（父链包含，非字面 count）
-    assert w in drawer.content_frame.findChildren(RoomModesWidget)
+    assert w in host.findChildren(RoomModesWidget)
 
 
 def test_room_modes_source_de_modalized():

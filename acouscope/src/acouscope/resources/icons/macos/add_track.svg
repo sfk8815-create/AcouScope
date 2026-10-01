@@ -14,6 +14,6 @@
   stroke-linejoin="round"
 >
   <g transform="translate(12 12) scale(0.95) translate(-12 -12)">
-    <g><rect x="3" y="10" width="13" height="4" rx="2" /><path d="M18.5 8.5v7" /><path d="M15.5 12h6" /></g>
+    <g><rect x="3" y="10" width="13" height="4" rx="2" /><path d="M19 8.5v7" /><path d="M17 12h4" /></g>
   </g>
 </svg>

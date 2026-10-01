@@ -377,7 +377,6 @@ class RMVPEBackend:
             confidence=confidence,
             fmin=fmin,
             fmax=fmax,
-            cent_ref=440.0,
         )
 
     def is_available(self) -> bool:

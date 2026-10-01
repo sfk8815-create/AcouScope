@@ -355,7 +355,10 @@ class TimbreAnalyzer:
         try:
             from acouscope.analysis.pitch import PitchAnalyzer
 
-            pa = PitchAnalyzer(self.sample_rate)
+            # T-1074 G4（承 T72-10）：显式 fmin=40 与 worker 链路默认
+            # （analysis/worker/protocol.py fmin=40.0）对齐。PitchAnalyzer 默认
+            # fmin=50 对 40–50Hz 全盲，谐波特征取基频时会漏掉该频段低乐器。
+            pa = PitchAnalyzer(self.sample_rate, fmin=40.0)
             _, f0 = pa.detect_yin(signal, frame_size=2048, hop_length=512)
             f0_median = float(np.median(f0[f0 > 0])) if np.any(f0 > 0) else 0.0
         except Exception as e:

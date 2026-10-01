@@ -94,6 +94,8 @@ def test_repo_free_of_authorization_wording():
     tokens = ("licensing", "trial")
     for root in (SRC, TESTS):
         for py in root.rglob("*.py"):
+            if py.name.startswith("._"):  # AppleDouble 旁车（外置卷非 UTF-8 元数据），非源码
+                continue
             if py.resolve() == _THIS:
                 continue
             low = py.read_text(encoding="utf-8").lower()
@@ -106,6 +108,8 @@ def test_sponsor_wording_confined_to_whitelist():
     offenders = []
     for root in (SRC, TESTS):
         for py in root.rglob("*.py"):
+            if py.name.startswith("._"):  # AppleDouble 旁车（外置卷非 UTF-8 元数据），非源码
+                continue
             resolved = py.resolve()
             if resolved == _THIS or resolved in _SPONSOR_ALLOWED:
                 continue

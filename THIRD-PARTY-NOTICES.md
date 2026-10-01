@@ -39,6 +39,17 @@
 > 许可兼容性口径：以上均为 GPL-3.0 兼容许可（MIT / BSD / ISC / MPL-2.0 / PSF 式 / LGPL-3.0），
 > 不改变本项目整体以 GPL-3.0-only 分发的事实。
 
+#### 2-bis 可选依赖（默认不装 · 不随包分发 · 用户自行安装后才生效）
+
+| 组件 | 许可（实读原文） | 本项目用途 | 来源 |
+|---|---|---|---|
+| PyAudio | `License: MIT`；`Copyright (c) 2006 Hubert Pham`（官方 sdist `PyAudio-0.2.14.tar.gz` 之 PKG-INFO / LICENSE.txt 逐字） | 播放后端回退：`audio/player.py` 在 Qt Multimedia 不可用时尝试 `import pyaudio`；未装则回退 `backend=none`，不影响其余功能 | <https://pypi.org/project/PyAudio/> |
+| PortAudio V19 | MIT 式（官方 License 页逐字起头：`Copyright (c) 1999-2011 Ross Bencina and Phil Burk`） | PyAudio 预编译 wheel 自带的底层音频 I/O 库（wheel 含 PortAudio 19.7.0） | <https://portaudio.com/license.html> |
+
+> `requirements.txt` 注释区的其余可选件（pydub / samplerate / scipy）本项目**不安装、不分发**，
+> 故不在此登记其许可；用户自行安装属其自身安装行为，不触发本项目的分发义务。
+> ★ 实读时点 2026-09-27（幕僚 pip download sdist + 官方 License 页双核验）。
+
 ---
 
 ## 3. 随包二进制与资产
@@ -57,13 +68,13 @@
   无需修改 AcouScope 源码即可重新运行本程序。本仓库未对 Qt 共享库施加额外的技术限制
   （无来源签名锁定、无完整性校验阻断替换）。
 
-### 3.2 FFmpeg（内置解码器）
+### 3.2 FFmpeg（仓内 `resources/bin/ffmpeg`，macOS arm64）
 
 | 项 | 实读值 |
 |---|---|
 | 版本 | `ffmpeg version 8.0 Copyright (c) 2000-2025 the FFmpeg developers` |
 | 构建 | `built with Apple clang version 13.1.6 (clang-1316.0.21.2.5)` |
-| 架构 | Mach-O 64-bit executable **arm64**（仅 arm64；x86_64 平台回退系统 ffmpeg，代码内已注明） |
+| 架构 | Mach-O 64-bit executable **arm64**（仅 arm64；Windows x86_64 包另行内嵌自有构建，见 §3.2.1） |
 | 二进制 | `src/acouscope/resources/bin/ffmpeg`，sha256 前缀 `77d2c853f431318d55ec0267` |
 | 许可 | 本构建为 **GPL 构建**（`--enable-gpl` + libx264/x265/vpx/aom/vorbis 等）→ 其中 GPL 部分为 “GPL version 2 or later”，与本项目 **GPL-3.0 兼容**；核心库仍为 LGPL v2.1 |
 
@@ -76,6 +87,39 @@ configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --a
 **义务与履行**：
 - 附 GPL-2.0 许可文本 → 见 [`licenses/GPL-2.0.txt`](licenses/GPL-2.0.txt)。
 - **对应源码获取途径**：该二进制为 arm64 **静态构建**，由 `scripts/fetch_ffmpeg.sh` 自 **OSXExperts.net** 获取（静态 FFmpeg 8.0 for Apple Silicon；下载源 URL = <https://www.osxexperts.net/ffmpeg80arm.zip>；zip sha256 `0d4efcaf6a098430a708e0af694a84792938921fa126162787ae98c6151d7a95`；二进制 sha256 `77d2c853f431318d55ec02676d9b2f185ebfdddb9f7677a251fbe453affe025a`）。脚本在下载后做 zip 与二进制双层 sha256 校验，校验不符即拒绝安装并清理残留，确保落地的二进制与上列哈希一致。对应上游源码 = **ffmpeg 8.0 官方源码包** <https://ffmpeg.org/releases/ffmpeg-8.0.tar.xz>（版本与 configure 行一致）。
+
+#### 3.2.1 Windows x86_64 包内置 ffmpeg（构建期内嵌）
+
+§3.2 的 arm64 Mach-O 在 Windows 上无法加载。Windows 包
+（`AcouScope-<版本>-Windows-x86_64-core-setup.exe` / `-core-portable.zip`）
+**另行内嵌**一份 Windows 原生 ffmpeg 作为平台替换件。
+
+| 项 | 实读值 |
+|---|---|
+| 版本 | `ffmpeg version 9.0.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers` |
+| 构建 | `built with gcc 16.2.0 (Rev3, Built by MSYS2 project)`；**静态（static）64 位构建** |
+| 架构 | x86_64（generic，启用 runtime cpu detection） |
+| 包内路径 | `_internal/acouscope/resources/bin/ffmpeg.exe` |
+| 二进制 sha256 | `3256173f3f8bffd7df12227c68adf68025edb1832273a9530688a7bb1ed8edec` |
+| 获取归档 | `ffmpeg-release-essentials.zip`（109.5 MiB）← <https://www.gyan.dev/ffmpeg/builds/>；归档 sha256 `60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba`（与上游 `.sha256` 边车逐字一致） |
+| 许可 | 上游 `README.txt` 逐字标注 **`License: GPL v3`**；configure 含 `--enable-gpl --enable-version3` → **GPL-3.0-or-later**，与本项目 **GPL-3.0-only** 兼容（本项目自身仍以 GPL-3.0-only 分发） |
+
+`ffmpeg -version` 的 configure 行（构建指纹，逐字）：
+
+```
+configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-zlib --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-sdl2 --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxvid --enable-libaom --enable-libopenjpeg --enable-libvpx --enable-mediafoundation --enable-libass --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-openal --enable-libgme --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libtheora --enable-libvo-amrwbenc --enable-libgsm --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-librubberband
+```
+
+**义务与履行**：
+- 附 GPL-3.0 许可文本 → 见 [`licenses/GPL-3.0.txt`](licenses/GPL-3.0.txt)（仓内已存在，35148 字节）。
+- **对应源码获取途径**：上游 `README.txt` 逐字给出本构建所用源码
+  `Source Code: https://github.com/FFmpeg/FFmpeg/commit/946fcce07b`；官方发布包亦可自
+  <https://ffmpeg.org/releases/> 取得。持有本包者均可依上述途径取得完整对应源码，
+  并依 GPL-3.0 §6 重新构建出等价二进制。
+- **内嵌机制与哈希校验**：载荷由构建 kit 内 `tools/fetch_ffmpeg_win.py` 自上游官方归档获取
+  （zip 与二进制双层 sha256 校验，缺失或失配即报错停下），落 `vendor/ffmpeg/ffmpeg.exe`，
+  由 `AcouScope-win.spec` 的 `_ffmpeg_datas()` 内嵌进包；`src/acouscope/audio/io.py` 的
+  随包候选按平台后缀（WIN-1 起）直接命中 `_internal/acouscope/resources/bin/ffmpeg.exe`。
 
 ### 3.3 llama.cpp / ggml
 

@@ -31,13 +31,14 @@ QUICK_START: dict[str, str] = {
 <li><b>选择区段</b>：波形上左键拖动建立选区；Delete 删除，{sc_undo} 撤销。</li>
 <li><b>切换分析视图</b>：F2 频谱 · F3 语谱 · F4 音高 · F5 共振峰 · F6 音色 · F7 3D · F8 房间模态。</li>
 <li><b>三套音高引擎</b>：pYIN（流式 / 实时） · SwiftF0（轻量离线） · RMVPE（复音、嘈杂人声），在音高面板选择。</li>
-<li><b>图表设计器</b>：文件 → 导出 → 图表设计器（或分析工具栏），实时预览、白底导出，适合论文配图。</li>
+<li><b>音律标尺</b>：工具 → 音律标尺叠加层（F9），把十二平均律以外的律制音级参考线叠到语谱图与音高视图上，读微分音与律制偏差。</li>
+<li><b>图表设计器</b>：工具 → 图表设计器（或分析工具栏），实时预览、白底导出，适合论文配图。</li>
 <li><b>AI 释图</b>：右栏 → AI 释图（Ctrl+I），读取谱峰 / 泛音 / 共振峰，输出 Markdown 段落草稿。</li>
 <li><b>白底导出</b>：图形导出（SVG / PDF / PNG）恒为白底、所见即所得（{sc_export}）。</li>
 <li><b>工作区开关组</b>：工具栏右侧「批处理」等全铺页开关互斥、再点收回；左栏打开文件 / 设置。</li>
 <li><b>偏好设置</b>：设置 → 偏好设置（{sc_settings}），切换语言（简 / 繁 / EN）、9 套主题、图标风格。</li>
 <li><b>快捷键三连</b>：空格 = 播放 / 暂停；Delete = 删除选区；Shift + 拖拽 = 联动分析指针。</li>
-<li><b>去哪看更多</b>：帮助 → 用户手册，含 19 节完整说明。</li>
+<li><b>去哪看更多</b>：帮助 → 用户手册，含 20 节完整说明。</li>
 </ol>
 <p>完整说明请查看 <b>帮助 → 用户手册</b>。</p>
 """,
@@ -51,13 +52,14 @@ QUICK_START: dict[str, str] = {
 <li><b>選擇區段</b>：波形上左鍵拖動建立選區；Delete 刪除，{sc_undo} 復原。</li>
 <li><b>切換分析視圖</b>：F2 頻譜 · F3 語譜 · F4 音高 · F5 共振峰 · F6 音色 · F7 3D · F8 房間模態。</li>
 <li><b>三套音高引擎</b>：pYIN（串流 / 即時） · SwiftF0（輕量離線） · RMVPE（複音、嘈雜人聲），在音高面板選擇。</li>
-<li><b>圖表設計器</b>：檔案 → 匯出 → 圖表設計器（或分析工具列），即時預覽、白底匯出，適合論文配圖。</li>
+<li><b>音律標尺</b>：工具 → 音律標尺疊加層（F9），把十二平均律以外的律制音級參考線疊到語譜圖與音高視圖上，讀微分音與律制偏差。</li>
+<li><b>圖表設計器</b>：工具 → 圖表設計器（或分析工具列），即時預覽、白底匯出，適合論文配圖。</li>
 <li><b>AI 釋圖</b>：右欄 → AI 釋圖（Ctrl+I），讀取譜峰 / 泛音 / 共振峰，輸出 Markdown 段落草稿。</li>
 <li><b>白底匯出</b>：圖形匯出（SVG / PDF / PNG）恆為白底、所見即所得（{sc_export}）。</li>
 <li><b>工作區開關組</b>：工具列右側「批次」等全鋪頁開關互斥、再點收回；左欄開啟檔案 / 設定。</li>
 <li><b>偏好設定</b>：設定 → 偏好設定（{sc_settings}），切換語言（簡 / 繁 / EN）、9 套主題、圖示風格。</li>
 <li><b>快速鍵三連</b>：空白鍵 = 播放 / 暫停；Delete = 刪除選區；Shift + 拖曳 = 聯動分析指標。</li>
-<li><b>去哪看更多</b>：說明 → 使用者手冊，含 19 節完整說明。</li>
+<li><b>去哪看更多</b>：說明 → 使用者手冊，含 20 節完整說明。</li>
 </ol>
 <p>完整說明請參閱 <b>說明 → 使用者手冊</b>。</p>
 """,
@@ -71,13 +73,14 @@ QUICK_START: dict[str, str] = {
 <li><b>Select a region</b>: drag with the left button on the waveform; Delete removes it, {sc_undo} undoes.</li>
 <li><b>Switch analysis views</b>: F2 Spectrum · F3 Spectrogram · F4 Pitch · F5 Formants · F6 Timbre · F7 3D · F8 Room Modes.</li>
 <li><b>Three pitch engines</b>: pYIN (streaming / real-time) · SwiftF0 (lightweight offline) · RMVPE (polyphonic, noisy vocals), chosen in the Pitch panel.</li>
-<li><b>Chart Designer</b>: File → Export → Chart Designer (or the Analysis toolbar); live preview, white-background export, ideal for figures.</li>
+<li><b>Tuning ruler</b>: Tools → Tuning Ruler Overlay (F9) overlays the scale-degree reference lines of a selected tuning on the spectrogram and pitch views, for reading microtones and tuning deviations.</li>
+<li><b>Chart Designer</b>: Tools → Chart Designer (or the Analysis toolbar); live preview, white-background export, ideal for figures.</li>
 <li><b>AI Interpretation</b>: right inspector → AI Interpretation (Ctrl+I); reads spectral peaks / harmonics / formants and drafts Markdown paragraphs.</li>
 <li><b>White-background export</b>: chart export (SVG / PDF / PNG) is always on a white background, WYSIWYG ({sc_export}).</li>
 <li><b>Workspace switch group</b>: the full-pane toggles on the toolbar (e.g. Batch) are mutually exclusive; clicking again collapses back to the regular workspace.</li>
 <li><b>Preferences</b>: Settings → Preferences ({sc_settings}) to switch language (简体 / 繁體 / English), 9 themes and icon style.</li>
 <li><b>Three key habits</b>: Space = play / pause; Delete = delete selection; Shift + drag = linked analysis pointer.</li>
-<li><b>Learn more</b>: Help → User Manual, a full 19-section guide.</li>
+<li><b>Learn more</b>: Help → User Manual, a full 20-section guide.</li>
 </ol>
 <p>See <b>Help → User Manual</b> for the full documentation.</p>
 """,
@@ -107,7 +110,7 @@ MANUAL: dict[str, str] = {
 <h3>2. 加载与播放</h3>
 <ul>
 <li><b>打开音频</b>：文件 → 打开（{sc_open}），支持 WAV / FLAC / MP3 / AIFF / OGG。</li>
-<li><b>内置解码</b>：以上格式均可直接打开，内置 FFmpeg，无需外部编码器。</li>
+<li><b>内置解码</b>：以上格式均可直接打开，内置 FFmpeg，无需外部编码器（完整包 full 内置；core 小包不含——core 包打开这类格式会提示失败，请改用完整包或自行安装 FFmpeg）。</li>
 <li><b>播放 / 暂停 / 停止</b>：空格播放 / 暂停，Shift+空格停止，Esc 停止播放并取消选区。</li>
 <li><b>播放头定位</b>：在波形上单击任意处定位播放头，也可用时间码输入。</li>
 <li><b>缩放</b>：放大 / 缩小（Ctrl+= / Ctrl+-）、适应窗口（Ctrl+0）、缩放到选区（Shift+Z）。</li>
@@ -215,7 +218,7 @@ MANUAL: dict[str, str] = {
 
 <h3>11. 图表设计器</h3>
 <ul>
-<li><b>入口</b>：文件 → 导出 → 图表设计器，或分析工具栏「图表设计器」，在中央全铺页打开。</li>
+<li><b>入口</b>：工具 → 图表设计器，或分析工具栏「图表设计器」，在中央全铺页打开。</li>
 <li><b>实时预览</b>：增删内容或改样式即时刷新预览。</li>
 <li><b>内容外壳</b>：标题、副标题、来源、脚注可分别编辑。</li>
 <li><b>参考线 / 阈值线</b>：可按需叠加水平 / 垂直参考线与阈值线。</li>
@@ -241,14 +244,17 @@ MANUAL: dict[str, str] = {
 
 <h3>13. 多轨工作台</h3>
 <ul>
-<li><b>入口</b>：分析 → 多轨对比，或工具栏进入；在中央全铺页并列显示多轨。</li>
-<li><b>轨头控件</b>：每条轨有名称 / 静音 / 独奏 / 色彩等轨头控件。</li>
-<li><b>轨身份色</b>：8 色内容色板与反馈色分家，便于区分轨道。</li>
+<li><b>入口</b>：分析 → 多轨对比，或工具栏进入；在中央全铺页并列显示多轨。再按一次 Ctrl+M（或轨道区左上的退出钮）即回到单轨。</li>
+<li><b>加入多轨</b>：在左栏文件列表多选后点「加入多轨」；左栏折叠时该按钮先展开列表供你勾选，已展开仍无选中则弹出系统文件框直选。</li>
+<li><b>轨头控件</b>：每条轨有名称 / 静音 / 独奏 / 音量 / 逐轨偏移 / 色彩等轨头控件。</li>
+<li><b>轨身份色</b>：12 色内容色板与反馈色分家，便于区分轨道。</li>
+<li><b>对比呈现</b>：一图（各轨音高曲线叠绘于同一时间轴，参考轨加粗）与多图（每轨一图、共享播放头与缩放）两种模式，另有密度热图开关（时间-频率总览，轨数少于 4 时默认关闭，可手动开启）。</li>
+<li><b>差异统计</b>：点工具栏「差异统计」按钮触发，以参考轨为基准逐轨量化音高偏差（需 2 轨以上且非参考轨已有音高结果），结果驱动差异条、悬停读数与差异表 CSV 导出。</li>
 <li><b>逐轨分析</b>：对每条轨分别选择分析视图与参数。</li>
 <li><b>桥接任务中心</b>：逐轨分析会形成任务进入任务中心，可批量处理。</li>
 <li><b>适用场景</b>：同曲不同演奏、不同设备现场录音对比，AB 对照。</li>
 <li><b>限制</b>：多轨同时分析较耗资源，建议按需逐轨进行。</li>
-<li><b>联动</b>：各轨游标同步，便于逐点对照。</li>
+<li><b>联动</b>：各轨游标同步，便于逐点对照；播放中共享播放头实时推进，各轨按自己的偏移量对齐显示。</li>
 </ul>
 
 <h3>14. 任务中心</h3>
@@ -322,6 +328,9 @@ MANUAL: dict[str, str] = {
 <table border="1" cellspacing="0" cellpadding="4" width="100%">
 <tr><th>操作</th><th>按键</th></tr>
 <tr><td>视图切换（频谱 / 语谱 / 音高 / 共振峰 / 音色 / 3D / 房间模态）</td><td>F2 · F3 · F4 · F5 · F6 · F7 · F8</td></tr>
+<tr><td>音律标尺叠加层（开/关）</td><td>F9</td></tr>
+<tr><td>图表设计器</td><td>F10</td></tr>
+<tr><td>多轨对比（进/出）</td><td>Ctrl+M</td></tr>
 <tr><td>打开项目 / 保存项目 / 新建项目</td><td>Ctrl+Shift+O / Ctrl+S / Ctrl+N</td></tr>
 <tr><td>AI 释图</td><td>Ctrl+I</td></tr>
 <tr><td>撤销 / 重做</td><td>{sc_undo} / {sc_redo}</td></tr>
@@ -331,6 +340,8 @@ MANUAL: dict[str, str] = {
 <tr><td>全选</td><td>{sc_sel_all}</td></tr>
 <tr><td>缩放到选区</td><td>Shift+Z</td></tr>
 <tr><td>分析选区</td><td>Ctrl+Shift+R</td></tr>
+<tr><td>区间统计</td><td>Ctrl+Shift+S</td></tr>
+<tr><td>导出报告</td><td>Ctrl+Shift+P</td></tr>
 <tr><td>退出</td><td>Ctrl+Q（macOS Cmd+Q）</td></tr>
 </table>
 
@@ -340,10 +351,21 @@ MANUAL: dict[str, str] = {
 <li><b>无分级</b>：开源软件，功能无分级、无需注册或激活。</li>
 <li><b>第三方许可</b>：第三方许可与来源清单随安装包提供。</li>
 <li><b>模型下载</b>：模型首次使用自动下载（含校验），此后可离线。</li>
-<li><b>内置 FFmpeg</b>：音频解码内置 FFmpeg，无需外部编码器。</li>
+<li><b>内置 FFmpeg</b>：音频解码内置 FFmpeg，无需外部编码器（仅完整包 full 内置；core 小包需自行安装 FFmpeg）。</li>
 <li><b>本地计算</b>：分析在本地进行；除你显式选择云端 AI Provider 外数据不外传。</li>
 <li><b>隐私提示</b>：使用云端 AI 前请确认数据脱敏与授权。</li>
 <li><b>完整文本</b>：许可证全文见随附 LICENSE 文件。</li>
+</ul>
+
+<h3>20. 音律标尺</h3>
+<ul>
+<li><b>入口</b>：工具 → 音律标尺叠加层（F9），或分析工具栏上的同名按钮；勾选即开、再点即关。</li>
+<li><b>它做什么</b>：把所选律制的音级参考线叠绘到语谱图与音高视图上，用来读微分音与律制偏差。</li>
+<li><b>音律模板</b>：工具 → 音律模板切换，也可选「不显示」；内置多种律制——十二平均律、纯律大调、五度相生七音、1/4 音差中庸全音、中国三分损益十二律、印度 22 shruti 采样、阿拉伯 24 音划分（等程与非等程皆有，不限于十二平均律）。</li>
+<li><b>与参考频率联动</b>：刻度线按 设置 → 偏好设置 → 通用 → A4 参考频率 换算，与音分 / 音名显示同一口径。</li>
+<li><b>与多轨</b>：开启时，多轨对比的差异量化按当前律制给出逐帧音级归属。</li>
+<li><b>限制</b>：只叠加参考线，不改动原始 f0 分析结果；开关与模板选择仅在当前会话内保留，不写入工作区。</li>
+<li><b>适用场景</b>：律制研究、微分音与民族音乐的音高分析；与 FFT 频谱一节的「律制与微分音分析」互补——看单帧谱峰用那边，看音高随时间的走向用这里。</li>
 </ul>
 """,
     "zh_TW": """
@@ -365,7 +387,7 @@ MANUAL: dict[str, str] = {
 <h3>2. 載入與播放</h3>
 <ul>
 <li><b>開啟音訊</b>：檔案 → 開啟（{sc_open}），支援 WAV / FLAC / MP3 / AIFF / OGG。</li>
-<li><b>內建解碼</b>：以上格式均可直接開啟，內建 FFmpeg，無需外部編碼器。</li>
+<li><b>內建解碼</b>：以上格式均可直接開啟，內建 FFmpeg，無需外部編碼器（完整套件 full 內建；core 輕量套件不含——core 套件開啟這類格式會提示失敗，請改用完整套件或自行安裝 FFmpeg）。</li>
 <li><b>播放 / 暫停 / 停止</b>：空白鍵播放 / 暫停，Shift+空白鍵停止，Esc 停止播放並取消選區。</li>
 <li><b>播放頭定位</b>：在波形上單擊任意處定位播放頭，也可用時間碼輸入。</li>
 <li><b>縮放</b>：放大 / 縮小（Ctrl+= / Ctrl+-）、適應視窗（Ctrl+0）、縮放到選區（Shift+Z）。</li>
@@ -473,7 +495,7 @@ MANUAL: dict[str, str] = {
 
 <h3>11. 圖表設計器</h3>
 <ul>
-<li><b>入口</b>：檔案 → 匯出 → 圖表設計器，或分析工具列「圖表設計器」，在中央全鋪頁開啟。</li>
+<li><b>入口</b>：工具 → 圖表設計器，或分析工具列「圖表設計器」，在中央全鋪頁開啟。</li>
 <li><b>即時預覽</b>：增刪內容或改樣式即時刷新預覽。</li>
 <li><b>內容外殼</b>：標題、副標題、來源、註腳可分別編輯。</li>
 <li><b>參考線 / 閾值線</b>：可按需疊加水平 / 垂直參考線與閾值線。</li>
@@ -499,14 +521,17 @@ MANUAL: dict[str, str] = {
 
 <h3>13. 多軌工作台</h3>
 <ul>
-<li><b>入口</b>：分析 → 多軌對比，或工具列進入；在中央全鋪頁並列顯示多軌。</li>
-<li><b>軌頭控制項</b>：每條軌有名稱 / 靜音 / 獨奏 / 色彩等軌頭控制項。</li>
-<li><b>軌身分色</b>：8 色內容色板與回饋色分家，便於區分軌道。</li>
+<li><b>入口</b>：分析 → 多軌對比，或工具列進入；在中央全鋪頁並列顯示多軌。再按一次 Ctrl+M（或軌道區左上的退出鈕）即回到單軌。</li>
+<li><b>加入多軌</b>：在左欄檔案清單多選後點「加入多軌」；左欄摺疊時該按鈕先展開清單供你勾選，已展開仍無選取則跳出系統檔案框直選。</li>
+<li><b>軌頭控制項</b>：每條軌有名稱 / 靜音 / 獨奏 / 音量 / 逐軌偏移 / 色彩等軌頭控制項。</li>
+<li><b>軌身分色</b>：12 色內容色板與回饋色分家，便於區分軌道。</li>
+<li><b>對比呈現</b>：單圖（各軌音高曲線疊繪於同一時間軸，參考軌加粗）與多圖（每軌一圖、共享播放頭與縮放）兩種模式，另有密度熱圖開關（時間-頻率總覽，軌數少於 4 時預設關閉，可手動開啟）。</li>
+<li><b>差異統計</b>：點工具列「差異統計」按鈕觸發，以參考軌為基準逐軌量化音高偏差（需 2 軌以上且非參考軌已有音高結果），結果驅動差異條、懸停讀數與差異表 CSV 匯出。</li>
 <li><b>逐軌分析</b>：對每條軌分別選擇分析視圖與參數。</li>
 <li><b>橋接任務中心</b>：逐軌分析會形成任務進入任務中心，可批次處理。</li>
 <li><b>適用場景</b>：同曲不同演奏、不同設備現場錄音對比，AB 對照。</li>
 <li><b>限制</b>：多軌同時分析較耗資源，建議按需逐軌進行。</li>
-<li><b>聯動</b>：各軌游標同步，便於逐點對照。</li>
+<li><b>聯動</b>：各軌游標同步，便於逐點對照；播放中共享播放頭即時推進，各軌按自己的偏移量對齊顯示。</li>
 </ul>
 
 <h3>14. 任務中心</h3>
@@ -580,6 +605,9 @@ MANUAL: dict[str, str] = {
 <table border="1" cellspacing="0" cellpadding="4" width="100%">
 <tr><th>操作</th><th>按鍵</th></tr>
 <tr><td>視圖切換（頻譜 / 語譜 / 音高 / 共振峰 / 音色 / 3D / 房間模態）</td><td>F2 · F3 · F4 · F5 · F6 · F7 · F8</td></tr>
+<tr><td>音律標尺疊加層（開/關）</td><td>F9</td></tr>
+<tr><td>圖表設計器</td><td>F10</td></tr>
+<tr><td>多軌對比（進/出）</td><td>Ctrl+M</td></tr>
 <tr><td>開啟專案 / 儲存專案 / 新建專案</td><td>Ctrl+Shift+O / Ctrl+S / Ctrl+N</td></tr>
 <tr><td>AI 釋圖</td><td>Ctrl+I</td></tr>
 <tr><td>復原 / 重做</td><td>{sc_undo} / {sc_redo}</td></tr>
@@ -589,6 +617,8 @@ MANUAL: dict[str, str] = {
 <tr><td>全選</td><td>{sc_sel_all}</td></tr>
 <tr><td>縮放到選區</td><td>Shift+Z</td></tr>
 <tr><td>分析選區</td><td>Ctrl+Shift+R</td></tr>
+<tr><td>區間統計</td><td>Ctrl+Shift+S</td></tr>
+<tr><td>匯出報告</td><td>Ctrl+Shift+P</td></tr>
 <tr><td>結束</td><td>Ctrl+Q（macOS Cmd+Q）</td></tr>
 </table>
 
@@ -598,10 +628,21 @@ MANUAL: dict[str, str] = {
 <li><b>無分級</b>：開源軟體，功能無分級、無需註冊或啟動。</li>
 <li><b>第三方授權</b>：第三方授權與來源清單隨安裝套件提供。</li>
 <li><b>模型下載</b>：模型首次使用自動下載（含校驗），此後可離線。</li>
-<li><b>內建 FFmpeg</b>：音訊解碼內建 FFmpeg，無需外部編碼器。</li>
+<li><b>內建 FFmpeg</b>：音訊解碼內建 FFmpeg，無需外部編碼器（僅完整套件 full 內建；core 輕量套件需自行安裝 FFmpeg）。</li>
 <li><b>本機計算</b>：分析在本機進行；除你明確選擇雲端 AI Provider 外資料不外傳。</li>
 <li><b>隱私提示</b>：使用雲端 AI 前請確認資料去識別與授權。</li>
 <li><b>完整文字</b>：授權證全文見隨附 LICENSE 檔案。</li>
+</ul>
+
+<h3>20. 音律標尺</h3>
+<ul>
+<li><b>入口</b>：工具 → 音律標尺疊加層（F9），或分析工具列上的同名按鈕；勾選即開、再點即關。</li>
+<li><b>它做什麼</b>：把所選律制的音級參考線疊繪到語譜圖與音高視圖上，用來讀微分音與律制偏差。</li>
+<li><b>音律模板</b>：工具 → 音律模板切換，也可選「不顯示」；內建多種律制——十二平均律、純律大調、五度相生七音、1/4 音差中庸全音、中國三分損益十二律、印度 22 shruti 採樣、阿拉伯 24 音劃分（等程與非等程皆有，不限於十二平均律）。</li>
+<li><b>與參考頻率聯動</b>：刻度線按 設定 → 偏好設定 → 一般 → A4 參考頻率 換算，與音分 / 音名顯示同一口徑。</li>
+<li><b>與多軌</b>：開啟時，多軌對比的差異量化按當前律制給出逐幀音級歸屬。</li>
+<li><b>限制</b>：只疊加參考線，不改動原始 f0 分析結果；開關與模板選擇僅在當前會話內保留，不寫入工作區。</li>
+<li><b>適用場景</b>：律制研究、微分音與民族音樂的音高分析；與 FFT 頻譜一節的「律制與微分音分析」互補——看單幀譜峰用那邊，看音高隨時間的走向用這裡。</li>
 </ul>
 """,
     "en_US": """
@@ -623,7 +664,7 @@ MANUAL: dict[str, str] = {
 <h3>2. Loading and Playback</h3>
 <ul>
 <li><b>Open audio</b>: File → Open ({sc_open}). Supports WAV / FLAC / MP3 / AIFF / OGG.</li>
-<li><b>Built-in decoding</b>: all these formats open directly with the built-in FFmpeg — no system encoder needed.</li>
+<li><b>Built-in decoding</b>: all these formats open directly with the built-in FFmpeg — no system encoder needed (the full package bundles FFmpeg; the core package does not — on the core package these formats report a decode failure, so use the full package or install FFmpeg yourself).</li>
 <li><b>Play / Pause / Stop</b>: Space toggles play / pause, Shift+Space stops, Esc stops playback and clears the selection.</li>
 <li><b>Position the playhead</b>: click anywhere on the waveform to position the playhead, or type a timecode.</li>
 <li><b>Zoom</b>: Zoom in / out (Ctrl+= / Ctrl+-), Fit to Window (Ctrl+0), Zoom to Selection (Shift+Z).</li>
@@ -731,7 +772,7 @@ MANUAL: dict[str, str] = {
 
 <h3>11. Chart Designer</h3>
 <ul>
-<li><b>Entry</b>: File → Export → Chart Designer, or the "Chart Designer" button on the Analysis toolbar; opens as a full-pane page.</li>
+<li><b>Entry</b>: Tools → Chart Designer, or the "Chart Designer" button on the Analysis toolbar; opens as a full-pane page.</li>
 <li><b>Live preview</b>: adding content or changing styles refreshes the preview instantly.</li>
 <li><b>Content shell</b>: title, subtitle, source and footnote can be edited separately.</li>
 <li><b>Reference / threshold lines</b>: add horizontal / vertical reference lines and threshold lines as needed.</li>
@@ -757,14 +798,17 @@ MANUAL: dict[str, str] = {
 
 <h3>13. Multitrack Workbench</h3>
 <ul>
-<li><b>Entry</b>: Analysis → Multitrack Compare, or via the toolbar; multiple tracks are shown side by side in a full-pane page.</li>
-<li><b>Track-header controls</b>: each track has name / mute / solo / color controls at its header.</li>
-<li><b>Track identity colors</b>: an 8-color content palette kept separate from feedback colors, so tracks are easy to tell apart.</li>
+<li><b>Entry</b>: Analysis → Multitrack Compare, or via the toolbar; multiple tracks are shown side by side in a full-pane page. Pressing Ctrl+M again (or the exit button at the top of the track area) returns you to the single-track workspace.</li>
+<li><b>Adding tracks</b>: select files in the left file list and use "add to multitrack"; if the left pane is collapsed the button expands the list first so you can pick, and with the pane open but nothing selected a system file dialog opens instead.</li>
+<li><b>Track-header controls</b>: each track has name / mute / solo / volume / per-track offset / color controls at its header.</li>
+<li><b>Track identity colors</b>: a 12-color content palette kept separate from feedback colors, so tracks are easy to tell apart.</li>
+<li><b>Comparison views</b>: single chart (all pitch curves overlaid on one shared time axis, the reference track drawn thicker) or multiple charts (one per track with a shared playhead and zoom), plus a density heatmap switch (a time–frequency overview, off by default below 4 tracks and switchable on).</li>
+<li><b>Difference statistics</b>: started by clicking the "Difference statistics" button, which quantifies every track against the reference track (needs at least two tracks and a pitch result on a non-reference track); the result drives the difference bar, the hover readout and the CSV export of the difference table.</li>
 <li><b>Per-track analysis</b>: choose the analysis view and parameters for each track independently.</li>
 <li><b>Bridges to Task Center</b>: per-track analysis creates tasks in the Task Center that can be handled in batch.</li>
 <li><b>Use cases</b>: comparing different takes of the same piece, or field or concert recordings from different devices (A/B).</li>
 <li><b>Limits</b>: analyzing many tracks at once is resource-heavy; process them one at a time when possible.</li>
-<li><b>Linkage</b>: cursors are synchronized across tracks for point-by-point comparison.</li>
+<li><b>Linkage</b>: cursors are synchronized across tracks for point-by-point comparison; during playback the shared playhead advances live, each track aligned by its own offset.</li>
 </ul>
 
 <h3>14. Task Center</h3>
@@ -838,6 +882,9 @@ MANUAL: dict[str, str] = {
 <table border="1" cellspacing="0" cellpadding="4" width="100%">
 <tr><th>Action</th><th>Key</th></tr>
 <tr><td>Switch view (Spectrum / Spectrogram / Pitch / Formants / Timbre / 3D / Room Modes)</td><td>F2 · F3 · F4 · F5 · F6 · F7 · F8</td></tr>
+<tr><td>Tuning ruler overlay (on/off)</td><td>F9</td></tr>
+<tr><td>Chart Designer</td><td>F10</td></tr>
+<tr><td>Multitrack compare (enter / exit)</td><td>Ctrl+M</td></tr>
 <tr><td>Open / Save / New project</td><td>Ctrl+Shift+O / Ctrl+S / Ctrl+N</td></tr>
 <tr><td>AI Interpretation</td><td>Ctrl+I</td></tr>
 <tr><td>Undo / Redo</td><td>{sc_undo} / {sc_redo}</td></tr>
@@ -847,6 +894,8 @@ MANUAL: dict[str, str] = {
 <tr><td>Select all</td><td>{sc_sel_all}</td></tr>
 <tr><td>Zoom to selection</td><td>Shift+Z</td></tr>
 <tr><td>Analyze region</td><td>Ctrl+Shift+R</td></tr>
+<tr><td>Region statistics</td><td>Ctrl+Shift+S</td></tr>
+<tr><td>Export report</td><td>Ctrl+Shift+P</td></tr>
 <tr><td>Quit</td><td>Ctrl+Q (Cmd+Q on macOS)</td></tr>
 </table>
 
@@ -856,10 +905,21 @@ MANUAL: dict[str, str] = {
 <li><b>No tiers</b>: open-source software with no feature tiers; no registration or activation required.</li>
 <li><b>Third-party licenses</b>: a list of third-party licenses and sources is bundled with the installer.</li>
 <li><b>Model download</b>: models are downloaded and verified automatically on first use; afterwards they work offline.</li>
-<li><b>Bundled FFmpeg</b>: audio decoding uses a bundled FFmpeg — no system encoder needed.</li>
+<li><b>Bundled FFmpeg</b>: audio decoding uses a bundled FFmpeg — no system encoder needed (bundled in the full package only; the core package requires a self-installed FFmpeg).</li>
 <li><b>Local computation</b>: analysis runs locally; data is not sent out unless you explicitly pick a cloud AI provider.</li>
 <li><b>Privacy note</b>: before using a cloud AI, confirm anonymization and authorization of your data.</li>
 <li><b>Full text</b>: the full license text is in the bundled LICENSE file.</li>
+</ul>
+
+<h3>20. Tuning Ruler</h3>
+<ul>
+<li><b>Entry</b>: Tools → Tuning Ruler Overlay (F9), or the button of the same name on the Analysis toolbar; check it to switch the overlay on, click again to switch it off.</li>
+<li><b>What it does</b>: overlays the scale-degree reference lines of the chosen tuning on the spectrogram and pitch views, so you can read microtones and tuning deviations.</li>
+<li><b>Tuning templates</b>: Tools → Tuning Template offers 12-tone equal temperament, 5-limit just major, the 3/2 fifth-chain diatonic, 1/4-comma meantone, the Chinese twelve-lü (sanfen sunyi) set, 22-shruti and 24-tone equal divisions, plus "Do not show" — equal and unequal divisions alike, not just 12-TET.</li>
+<li><b>Follows the reference pitch</b>: the lines are computed from Settings → Preferences → General → A4 reference (Hz), the same basis used for cents and note-name readouts.</li>
+<li><b>With multitrack</b>: while the overlay is on, multitrack difference statistics attribute each frame to a degree of the current tuning.</li>
+<li><b>Limits</b>: the overlay only draws reference lines and never changes the raw f0 results; the switch and template choice live in the current session only and are not written to the workspace.</li>
+<li><b>Use cases</b>: tuning research and pitch analysis of microtonal or traditional musics; complements the "tuning and microtonal analysis" note in the FFT Spectrum section — use that one for the peaks of a single frame, this one for how pitch moves over time.</li>
 </ul>
 """,
 }
