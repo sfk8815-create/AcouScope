@@ -32,3 +32,6 @@ src/acouscope/resources/bin/ollama/
 
 # 内部面：任何层级的 .pi（含 acouscope/.pi）
 .pi/
+
+# 内部面：任何层级的 .pi（含 acouscope/.pi）
+.pi/
