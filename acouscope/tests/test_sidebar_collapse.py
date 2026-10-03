@@ -442,7 +442,7 @@ def test_grip_move_full_frame_clean_and_evidence(qapp, tmp_path):
         "y1 旧位抓手像素残留（残影）"
     assert _count_color(img_b, cc["sub"], int(h * 0.75) - 12, int(h * 0.75) + 13) > 0
 
-    # 自证图：同 handle 悬停 y1 / y2 两帧并排（幕僚目测复核用）
+    # 自证图：同 handle 悬停 y1 / y2 两帧并排（审计目测复核用）
     gap = 8
     canvas = QImage(img_a.width() * 2 + gap, img_a.height(), QImage.Format.Format_RGB32)
     canvas.fill(QColor(cc["bg3"]))

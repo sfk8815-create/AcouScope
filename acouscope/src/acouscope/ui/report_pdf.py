@@ -6,7 +6,7 @@ PDF——仅用 Qt 自带 ``QTextDocument`` + ``QPdfWriter``，零外部依赖�
 零线程、零对话框、零定时器、零网络。本模块不 import ``report_export``
 （输入即 html 字符串），M-A′ 对渲染类的禁引红线不破。
 
-``QTextDocument`` 只支持 CSS 子集（T-1101 幕僚探针 15 项实测口径）：
+``QTextDocument`` 只支持 CSS 子集（T-1101 审计探针 15 项实测口径）：
 ``@page`` 与毫米间距对 PDF 路径是死项（浏览器/Word 路径仍需，故不清理）；
 表格的 CSS 边框也是死项，由 ``_normalize_tables`` 补偿；超宽图无自动钳制，
 由 ``_clamp_report_images`` 防溢出。

@@ -496,7 +496,7 @@ class SettingsDialog(QWidget):
 
         # T-1013：两栏 = 左导航列表（竖排标签，水平可读）+ 右内容页栈。
         # 选型：原生 QTabWidget West 离屏实测 tab 文本被旋转、tab 高度随文本
-        # 长度起伏（呈现不满足，触任务书自绘回退条件）；改用 QListWidget +
+        # 长度起伏（呈现不满足，触需求说明自绘回退条件）；改用 QListWidget +
         # QStackedWidget，选中态沿用全局 QSS 语义色（theme QListWidget 段）。
         # 六个 tab 页构建顺序/内容零改动（仅承载容器由 QTabWidget 换 stack）。
         body = QHBoxLayout()
@@ -530,7 +530,7 @@ class SettingsDialog(QWidget):
             (tr("settings.tab.audio_device"), self._build_audio_device_tab, "audio_device"),
             (tr("settings.tab.ai"), self._build_ai_tab, "ai"),
             (tr("settings.tab.interface"), self._build_interface_tab, None),
-            ("快捷键", self._build_shortcuts_tab, None),
+            (tr("settings.tab.shortcuts"), self._build_shortcuts_tab, None),
             (tr("settings.tab.export"), self._build_export_tab, None),
         ):
             item = QListWidgetItem(title)
@@ -538,6 +538,12 @@ class SettingsDialog(QWidget):
                 item.setIcon(theme.get_icon(icon_name))
             self.nav_list.addItem(item)
             self.stack.addWidget(builder())
+
+        # 导航列需按当前语言的内容宽设下限：AdjustToContents 只给偏好不给下限，
+        # 横向布局会把它压到内容宽之下，长标签（如 Audio Device）因此被省略号截断。
+        self.nav_list.setMinimumWidth(
+            self.nav_list.sizeHintForColumn(0) + 2 * self.nav_list.frameWidth()
+        )
 
         body.addWidget(self.nav_list)
         body.addWidget(self.stack, 1)
@@ -1847,7 +1853,7 @@ class SettingsDialog(QWidget):
         """
         source = self._current_ai_source()
         # ai_v2 旧键（mode/official_model/byom_*/llama_model_id 等）原样保留，
-        # 仅覆盖三档新键（source / external_ollama*）——防回滚（任务书规格 3）。
+        # 仅覆盖三档新键（source / external_ollama*）——防回滚（需求说明规格 3）。
         v2 = dict(self._ai.get("ai_v2") or {})
         if source == "self_hosted":
             provider = "custom"

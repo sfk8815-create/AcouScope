@@ -1282,7 +1282,7 @@ fn resample_chunk_native<'py>(
     if n == 1 {
         return Ok(PyArray1::from_vec(py, vec![x[0]; m]));
     }
-    // 主路径：delta = (n-1)/(m-1) 先除式（R-2 · 令文 v2 钉死）
+    // 主路径：delta = (n-1)/(m-1) 先除式（R-2 · 方案 v2 钉死）
     let n_minus_1 = (n - 1) as f64;
     let m_minus_1 = (m - 1) as f64;
     let delta = n_minus_1 / m_minus_1;

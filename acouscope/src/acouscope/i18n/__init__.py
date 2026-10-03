@@ -819,6 +819,8 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "settings.tab.ai":    {"en_US": "AI",                "zh_CN": "AI",              "zh_TW": "AI"},
     "settings.tab.interface":{"en_US": "Interface",     "zh_CN": "界面",             "zh_TW": "介面"},
     "settings.tab.export":{"en_US": "Export",           "zh_CN": "导出",             "zh_TW": "匯出"},
+    # IM-41：快捷键标签 tr() 化（原 settings_dialog 硬编码「快捷键」，英文界面中英混排）
+    "settings.tab.shortcuts":{"en_US": "Shortcuts",     "zh_CN": "快捷键",           "zh_TW": "快捷鍵"},
     "settings.language":  {"en_US": "Language:",        "zh_CN": "语言：",           "zh_TW": "語言："},
     "settings.lang_hint": {"en_US": "Restart required after changing language",
                            "zh_CN": "更改语言后需重启应用生效",
@@ -1591,7 +1593,7 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "region_stats.r_pitch_na": {"en_US": "Pitch — no voiced frame in region",
                                 "zh_CN": "音高 — 选区内无浊音帧",
                                 "zh_TW": "音高 — 選區內無濁音幀"},
-    # --- 档案元数据编辑区（T-912；说明区文案照抄任务书 §说明区文案，禁改写）---
+    # --- 档案元数据编辑区（T-912；说明区文案照抄需求说明 §说明区文案，禁改写）---
     "inspector.metadata": {
         "en_US": "Archive Metadata",
         "zh_CN": "档案元数据",

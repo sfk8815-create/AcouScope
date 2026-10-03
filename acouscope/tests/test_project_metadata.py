@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-907：Project 数据层文件级元数据测试（app/project.py）。
 
-覆盖任务书 Step 5 清单：
+覆盖需求说明 Step 5 清单：
 ① 往返：new → add_file 设文件 metadata → save → load → 各文件 metadata 逐项相等；
 ② 项目级不变式：Project 不因本任务新增 metadata 属性（防擅自加回无用字段）；
 ③ 向后兼容：无 metadata 键的旧格式 json load → metadata=={} 不抛；

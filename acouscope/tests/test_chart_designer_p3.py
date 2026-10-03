@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1046 图表设计器 P3（主题预设三层 + 样式 JSON 导入/导出 + 报告 PDF 参数贯通）。
 
-覆盖任务书 §二 三件 + §三 硬判据：
+覆盖需求说明 §二 三件 + §三 硬判据：
   件1 三层存取：会话（settings=None 兜底不报错）/ 项目（Project.presets 往返）/
        全局（Settings.chart_style_presets 落盘往返）；重名覆盖两击确认（禁静默覆盖）；
        删除两击确认 + 不残留。

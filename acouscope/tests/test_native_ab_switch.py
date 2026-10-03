@@ -2,7 +2,7 @@
 """T-1061b / T-1062h：native A/B 开关骨架 ＋ AT-1007 感知对等判据。
 
 R8 变更：test_t1061b_on_off_bitwise_identical 改采 AT-1007 §十一
-感知对等（逐位→感知系指挥 2026-09-19 21:2x 裁定；非逐位系
+感知对等（逐位→感知系项目负责人 2026-09-19 21:2x 定案；非逐位系
 继承 R1 difference_function 手写 radix-2 FFT；PI-T61 小样
 _sig() max|Δf0|=1.705303e-13Hz）；新增全链对等 cases ＋ 负对照。
 """

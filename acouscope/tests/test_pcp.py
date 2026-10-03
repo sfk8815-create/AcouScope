@@ -56,7 +56,7 @@ def test_12tet_scale_peaks_and_classes():
 
     peaks = pcp.peak_bins(12)
     indices = sorted(index for index, _ in peaks)
-    # 合成频率经 Hz→音分往返存在浮点尾差，允许 ±1 bin（任务书口径）
+    # 合成频率经 Hz→音分往返存在浮点尾差，允许 ±1 bin（需求说明口径）
     assert all(
         abs(index - expected) <= 1 for index, expected in zip(indices, range(0, 120, 10))
     )

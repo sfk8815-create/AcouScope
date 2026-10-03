@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-902a: analysis/worker 子包测试（协议/路由/回显 roundtrip/进度中继/无 onnx 泄漏）。
 
-铁律（任务书）：
+铁律（需求说明）：
 - 测试严禁 MainWindow.show()/QDialog；worker 测试用 EchoBackend（无模型依赖）
 - env 开关：ACOUSECOPE_ANALYSIS_WORKER 默认 OFF；=1 才 spawn 子进程
 - 全量回归 env 铁律由外部命令带（TERM/LC_ALL/LANG/QT_QPA_PLATFORM）

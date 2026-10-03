@@ -11,7 +11,7 @@
   极温和赞助致谢框为合法功能，见 test_sponsor_wording_confined_to_whitelist）。
 
 T-1017 修订（审计在案，非静默）：原断言「全仓含 sponsor 即失败」与 2026-09-09
-最高指挥定稿的赞助致谢框直接冲突——赞助功能系**本轮显式复归**，而授权/门控
+项目负责人定稿的赞助致谢框直接冲突——赞助功能系**本轮显式复归**，而授权/门控
 （licensing / trial）仍全仓禁止。故把 sponsor 由「全仓禁字」收窄为
 「白名单外禁字」，守卫强度不降（限制更精确）。
 """
@@ -46,7 +46,7 @@ _AI_FORBIDDEN = (
     "licensing",
 )
 
-# T-1017 白名单：赞助致谢框（2026-09-09 最高指挥定稿）的产出文件，
+# T-1017 白名单：赞助致谢框（2026-09-09 项目负责人定稿）的产出文件，
 # sponsor 字样仅允许出现在此处；其余文件一律禁用（见 test_sponsor_wording_confined_to_whitelist）。
 _SPONSOR_ALLOWED = {
     (SRC / "state.py").resolve(),

@@ -6,7 +6,7 @@
 **音频数据零改动（前后逐位一致 + 同一对象）**、自动对齐幂等重跑、
 轨道头 ±1ms/±10ms 微调与对齐状态、微调即时驱动共享时间轴、i18n 三语键、静态纪律。
 
-★ T-1087 M6（指挥裁·扩授权改测）：``auto_align`` 由同步执行改经任务中心
+★ T-1087 M6（项目负责人裁·扩授权改测）：``auto_align`` 由同步执行改经任务中心
 fire-and-forget，返回值随之从 ``AlignResult`` 变投递句柄 ⇒ 本档对返回值的
 两处断言（原 :277/:339）改「假 reporter 驱动到终态 → 从 ``align_result()``
 再断」；**偏移/总时长/轨道头反映等原判据逐条保留**（真异步面另由
@@ -280,7 +280,7 @@ def test_panel_auto_align_updates_headers_and_baseline(qapp):
     total_before = session.total_duration()
 
     assert panel.btn_align.toolTip() == tr("multitrack.align.tip")
-    # T-1087 M6（指挥裁）：auto_align 改 fire-and-forget ⇒ 返回值不再是 AlignResult。
+    # T-1087 M6（项目负责人裁）：auto_align 改 fire-and-forget ⇒ 返回值不再是 AlignResult。
     # 本例面板未接宿主 ⇒ 由假 reporter 就地驱动到终态，再从 align_result() 取终态；
     # 原判别力（偏移合成 / 轨道头反映 / 总时长 / 共享时间轴）逐条保留、未削弱。
     assert panel.auto_align() is None                            # 未投递 ⇒ 无句柄

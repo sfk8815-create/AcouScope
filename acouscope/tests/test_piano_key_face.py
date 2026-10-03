@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1042b 钢琴键面 **v2 定形**守卫（单套物理色 + 黑键贴左 + 白键右端小圆角 + 明暗同款）。
 
-语义源：`.pi/knowledge/ARCH_ui_visual_language.md §2.1-5/§五c(v1.5)/§六-10`
-与 `.pi/tasks/T-1042b.txt`（v2 定形：单套物理色 + 几何硬指标 + 明暗同款 + 缩放不变形）。
+语义源：`内部记录/knowledge/ARCH_ui_visual_language.md §2.1-5/§五c(v1.5)/§六-10`
+与 `内部记录/tasks/T-1042b.txt`（v2 定形：单套物理色 + 几何硬指标 + 明暗同款 + 缩放不变形）。
 覆盖：
 ① `TOKENS["keys"]` **单套物理色**四角色齐备、取值合法 hex、**明/暗骨架 `key_faces()` 逐字相等**（硬断言）；
 ② 白键亮度恒 > 黑键亮度且差值 ≥ 0.45；白键缝 `white_seam` 比白键暗（去「格子纸」）；
@@ -23,7 +23,7 @@
   相近属设计内：黑键行间隙与黑键连成一片暗面）；以「white−black 明度差 ≥ 0.45 + 单套物理色恒等」
   承接其「键面可辨」强度。
 - 黑键几何由「宽比 0.58–0.60 / 高 0.58–0.62 / X0 居中偏左」改为「**长比 0.46 / 高 0.55 / X0=0 贴左**」
-  （任务书 §2 参考图量化硬指标，旧值作废）。
+  （需求说明 §2 参考图量化硬指标，旧值作废）。
 - 白键由「直角 QGraphicsRectItem」改为「**右端小圆角 QGraphicsPathItem**」（旧规「白键不加圆角」作废）；
 - 黑键由「addRoundedRect 四角同圆角」改为「`rounded_end_rect` **仅右端圆角**（左端直角贴左）」。
 
@@ -56,7 +56,7 @@ _HEX_VALID = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 # ★ 明度分层阈值（写入报告依据）：white−black 明度差 ≥ 0.45（ARCH §六-10 键面可辨评审口径）。
 KEY_LUMINANCE_GAP_MIN = 0.45
-# 黑键几何硬指标（任务书 §2 / 参考图量化）：长比 0.46（区间 0.45–0.50）；高 0.55（区间 0.54–0.58）。
+# 黑键几何硬指标（需求说明 §2 / 参考图量化）：长比 0.46（区间 0.45–0.50）；高 0.55（区间 0.54–0.58）。
 BLACK_W_RATIO_TARGET = 0.46
 BLACK_W_RATIO_MIN, BLACK_W_RATIO_MAX = 0.45, 0.50
 BLACK_H_TARGET = 0.55
@@ -199,7 +199,7 @@ def test_black_keys_rounded_paths():
 
 
 def test_rounded_end_rect_empirical():
-    """圆角实证：包围盒角点（圆角端）在路径外、中心点在路径内（任务书自证 #6）。"""
+    """圆角实证：包围盒角点（圆角端）在路径外、中心点在路径内（需求说明自证 #6）。"""
     from acouscope.ui.widgets.freq_axis import rounded_end_rect
 
     x, y, w, h, r = 0.0, 0.0, 1.84, 0.55, 0.09

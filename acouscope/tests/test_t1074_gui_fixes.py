@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""T-1074 施工守卫测试（承 PI-T72 审计确认项 G1~G5）。
+"""T-1074 开发守卫测试（承 PI-T72 审计确认项 G1~G5）。
 
 断言纪律：offscreen 全程（conftest 已 setdefault QT_QPA_PLATFORM）；构造
 MainWindow 但不 .show()、无 QDialog/.exec()；G2/G5 用假 worker/假设备与

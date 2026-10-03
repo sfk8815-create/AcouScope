@@ -164,7 +164,7 @@ def test_placeholder_switches_disabled_with_pending_tooltip(window):
     assert not window.btn_toggle_room_acoustic.isChecked()
     assert not window.btn_toggle_room_modal.isChecked()
 
-    # T-1054b3 补正（幕僚闸门第1轮，教训 Y：新入口 ⇒ 新守卫）：
+    # T-1054b3 补正（审计闸门第1轮，教训 Y：新入口 ⇒ 新守卫）：
     # 房间声学页内「关闭」→ cancelled → 回 index0 且开关反勾选（批3 删抽屉通路后曾为死键）
     from acouscope.ui.widgets.room_acoustics_dialog import RoomAcousticsDialog
 

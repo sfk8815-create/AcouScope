@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1004 M1 多轨数据层：轨道模型 / 会话集合 / 懒加载与内存估算。
 
-设计口径（唯一语义源 = `.pi/knowledge/ARCH_multitrack_interaction.md` D1~D10）：
+设计口径（唯一语义源 = `内部记录/knowledge/ARCH_multitrack_interaction.md` D1~D10）：
 
 - 轨道对音频数据只做**引用**（同一缓冲多轨共享，不复制）；全量样本仅在轨道被
   切为当前轨 / 需要分析时载入，非活跃轨可按 LRU 释放（防护接入点留 T-929）。

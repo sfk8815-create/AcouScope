@@ -37,7 +37,7 @@ DARK_BG1 = "#171A1E"   # §2.2 暗骨架 bg1（panel）
 DARK_BG2 = "#1E2227"   # §2.2 暗骨架 bg2（嵌套/次级画布）
 WHITE = "#FFFFFF"      # §2.3 明骨架 bg1（浅色主题画布底 = 零回归基线）
 
-# 键面（钢琴键）原硬编码 hex —— 裁定 F‴ 要求全部令牌化
+# 键面（钢琴键）原硬编码 hex —— 定案 F‴ 要求全部令牌化
 _KEY_FACE_HEX = ("#fef3c7", "#1f2937", "#9ca3af", "#111827", "#f59e0b", "#ffffff")
 
 
@@ -121,7 +121,7 @@ def _probe_ok(entry):
 # ----------------------------------------------------------------------
 
 def test_dark_canvas_background_uses_neutral_roles(canvas_probe):
-    """深色主题：主画布底 == bg1，嵌套/次级画布底 == bg2（裁定 A‴）。"""
+    """深色主题：主画布底 == bg1，嵌套/次级画布底 == bg2（定案 A‴）。"""
     theme.apply_theme("dark")
     expected = {"bg1": DARK_BG1, "bg2": DARK_BG2}
     for name, canvas, role in (_probe_ok(e) for e in canvas_probe["probes"]):
@@ -129,7 +129,7 @@ def test_dark_canvas_background_uses_neutral_roles(canvas_probe):
 
 
 def test_light_canvas_background_is_white_zero_change(canvas_probe):
-    """浅色主题：18 处画布底一律 #FFFFFF（浅色零变化，裁定 A‴）。"""
+    """浅色主题：18 处画布底一律 #FFFFFF（浅色零变化，定案 A‴）。"""
     theme.apply_theme("light")
     for name, canvas, _role in (_probe_ok(e) for e in canvas_probe["probes"]):
         assert _bg(canvas) == WHITE, f"{name} 浅色下非白底（回归）"
@@ -139,7 +139,7 @@ def test_light_canvas_background_is_white_zero_change(canvas_probe):
 
 
 def test_theme_switch_is_live_for_canvas(qapp, canvas_probe):
-    """主题往返切换：底色随之变化（不只看是否抛异常，裁定 C‴）。"""
+    """主题往返切换：底色随之变化（不只看是否抛异常，定案 C‴）。"""
     theme.apply_theme("dark")
     dark_values = [_bg(c) for _n, c, _r in (_probe_ok(e) for e in canvas_probe["probes"])]
     theme.apply_theme("light")
@@ -153,7 +153,7 @@ def test_theme_switch_is_live_for_canvas(qapp, canvas_probe):
 
 
 def test_axis_pen_and_labels_follow_theme(canvas_probe):
-    """轴/刻度 == text_sub，轴标签 == text，网格线随之着色（裁定 B‴）。"""
+    """轴/刻度 == text_sub，轴标签 == text，网格线随之着色（定案 B‴）。"""
     theme.apply_theme("dark")
     c = theme.colors()
     for name, canvas, _role in (_probe_ok(e) for e in canvas_probe["probes"]):
@@ -171,7 +171,7 @@ def test_axis_pen_and_labels_follow_theme(canvas_probe):
 
 
 def test_grid_is_not_near_white_in_dark_theme(canvas_probe):
-    """深色下网格不得沿用近白灰线（轴笔即网格色，裁定 B‴）。"""
+    """深色下网格不得沿用近白灰线（轴笔即网格色，定案 B‴）。"""
     theme.apply_theme("dark")
     for name, canvas, _role in (_probe_ok(e) for e in canvas_probe["probes"]):
         for side in ("left", "bottom"):
@@ -260,7 +260,7 @@ def test_spectrogram3d_export_is_white_while_screen_is_dark(
 
 
 def test_export_white_covers_axes_panes(qapp, canvas_probe):
-    """导出白底须覆盖 axes 面板（仅 print_figure(facecolor=) 管不到，裁定 E‴）。"""
+    """导出白底须覆盖 axes 面板（仅 print_figure(facecolor=) 管不到，定案 E‴）。"""
     from matplotlib.colors import to_rgba
 
     widget = canvas_probe["spectrogram3d"]
@@ -280,7 +280,7 @@ def test_export_white_covers_axes_panes(qapp, canvas_probe):
 
 
 def test_report_figure_export_stays_white_under_dark_theme(qapp, tmp_path):
-    """报告插图（FigureExporter）在深色主题下仍白底（裁定 D‴）。"""
+    """报告插图（FigureExporter）在深色主题下仍白底（定案 D‴）。"""
     from matplotlib import image as mpl_image
 
     from acouscope.visualization.exporters import FigureExporter
@@ -297,7 +297,7 @@ def test_report_figure_export_stays_white_under_dark_theme(qapp, tmp_path):
 
 
 def test_global_rcparams_colors_unchanged(qapp, canvas_probe):
-    """禁改全局 rcParams 颜色项（学术白底红线，裁定 D‴）。"""
+    """禁改全局 rcParams 颜色项（学术白底红线，定案 D‴）。"""
     matplotlib = pytest.importorskip("matplotlib")
 
     theme.apply_theme("dark")
@@ -337,7 +337,7 @@ def test_canvas_theme_helper_present():
 
 
 def test_piano_key_face_hex_removed():
-    """键面六种硬编码 hex 已全部令牌化（裁定 F‴）。"""
+    """键面六种硬编码 hex 已全部令牌化（定案 F‴）。"""
     for name in ("freq_axis.py", "spectrum.py"):
         text = _read(name)
         for literal in _KEY_FACE_HEX:
@@ -345,7 +345,7 @@ def test_piano_key_face_hex_removed():
 
 
 def test_theme_api_untouched_by_canvas_task():
-    """裁定 A‴：不得新增 THEMES 色角色 / 不改 ui/theme.py 的角色表。"""
+    """定案 A‴：不得新增 THEMES 色角色 / 不改 ui/theme.py 的角色表。"""
     theme_src = (
         Path(__file__).resolve().parent.parent
         / "src" / "acouscope" / "ui" / "theme.py"
@@ -364,7 +364,7 @@ def test_theme_api_untouched_by_canvas_task():
 
 
 def test_i18n_not_touched_by_canvas_task():
-    """裁定 J‴：本任务零新文案（i18n 不出现画布主题相关键）。"""
+    """定案 J‴：本任务零新文案（i18n 不出现画布主题相关键）。"""
     i18n_path = (
         Path(__file__).resolve().parent.parent
         / "src" / "acouscope" / "i18n" / "__init__.py"

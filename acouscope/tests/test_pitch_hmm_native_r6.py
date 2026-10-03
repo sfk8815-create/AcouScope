@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062f R6：`PitchHMM._viterbi_step` 与 `decode(fixed_lag=None)` OFF/ON 对等验证。
 
-口径（任务书 `T-1062f` v2 §二-3）：
+口径（需求说明 `T-1062f` v2 §二-3）：
 1. `_viterbi_step` 对等：随机 delta_log/obs_log（★ 一律按 (2, n_pitch) 构造，N-3）
    ＋ -inf/有限值混合；new（f64）Ⓐ 优先逐位、Ⓑ 归因后 max|Δnew| ≤ 1e-12；
    bp_d/bp_v ★ int8 且逐位。

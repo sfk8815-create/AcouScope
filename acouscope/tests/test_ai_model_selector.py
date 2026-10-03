@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1022 §5/§6：释图窗模型选择器详情化 + 视觉门禁（离屏；禁触网 / 禁真起进程）。
 
-覆盖任务书 Step 6 的必测项：
+覆盖需求说明 Step 6 的必测项：
 - 选择器分区列表只含**视觉**模型（纯文本不可选且不在列表）；
 - 行内详情：体积 / 视觉标签 / 状态（已下载·未下载·本机推荐）/ 当前项 ✓；
 - 未知能力（自填云端模型名 / 自建端点）→ 标注「视觉能力未验证」，允许选择；
@@ -203,7 +203,7 @@ def test_unknown_capability_allows_selection_but_is_labelled(qapp, monkeypatch,
                                                              tmp_path):
     """未知能力（自填云端 model 名 / 自建端点）→ 允许选择，标注「未验证」。"""
     cfg = _cfg_file(tmp_path, {
-        "provider": "custom", "url": "http://192.168.0.9:8000/v1",
+        "provider": "custom", "url": "http://203.0.113.9:8000/v1",
         "model": "my-private-vl", "key": "PLACEHOLDER-NOT-A-REAL-KEY",
         "ai_v2": {"source": "cloud"},
     })

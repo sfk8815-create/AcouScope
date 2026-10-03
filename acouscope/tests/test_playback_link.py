@@ -217,7 +217,7 @@ def test_follow_disabled_by_manual_pan_and_resumes_at_right_edge(window):
     assert window._follow_enabled is False
     assert len(v.calls) == n
 
-    # 播放头越过可视右缘 → 恢复跟随并平移（任务书规格 3）
+    # 播放头越过可视右缘 → 恢复跟随并平移（需求说明规格 3）
     window._update_follow_scroll(1.5)
     assert window._follow_enabled is True
     assert len(v.calls) == n + 1

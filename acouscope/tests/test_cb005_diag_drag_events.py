@@ -13,7 +13,7 @@
   - teardown 时机（④）：close / deleteLater / 立即 GC / keepref 生命周期
   - eventFilter 手势路径探针（③）：观察 scrub 关闭时场景过滤器是否纯放行
 配合 conftest 的 faulthandler 落栈（D1）在原生崩溃时把 Python 栈写入
-.pi/logs/flaky_segfault.log。
+内部运行日志 flaky_segfault.log。
 """
 
 from __future__ import annotations

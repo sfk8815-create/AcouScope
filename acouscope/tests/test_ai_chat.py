@@ -99,7 +99,7 @@ class TestAttachImage:
 
 class TestV1Normalize:
     def test_appends_v1_for_lm_studio_style_url(self, monkeypatch):
-        p = interpreter.OpenAICompatProvider("http://192.168.0.2:1234", model="m")
+        p = interpreter.OpenAICompatProvider("http://203.0.113.2:1234", model="m")
 
         def fake(url, payload=None, headers=None, timeout=30):
             if url.endswith("/v1/models"):
@@ -108,7 +108,7 @@ class TestV1Normalize:
 
         monkeypatch.setattr(interpreter, "_http_json", fake)
         p._ensure_base()
-        assert p.base_url == "http://192.168.0.2:1234/v1"
+        assert p.base_url == "http://203.0.113.2:1234/v1"
 
     def test_keeps_existing_v1(self, monkeypatch):
         p = interpreter.OpenAICompatProvider("http://host:1234/v1", model="m")

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1022 §1：硬件探测（离屏；全部打桩，禁真实 sysctl / system_profiler / 网络）。
 
-覆盖任务书 Step 6 对该文件的要求：
+覆盖需求说明 Step 6 对该文件的要求：
 - 多平台分支（macOS sysctl / Windows GlobalMemoryStatusEx / Linux /proc/meminfo）；
 - 字段缺失 → None（**绝不抛**）；
 - 【隐私红线】字段白名单（无任何设备唯一标识）+ 源码级禁词断言；

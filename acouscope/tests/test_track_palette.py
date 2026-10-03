@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1036 轨身份色「内容色板」守卫（UI 视觉语言 · 阶段四配套）。
 
-语义源：`.pi/knowledge/RELEASE_T-1036.md`（裁定 L1~L6）+ `.pi/knowledge/ARCH_ui_visual_language.md §2.1-3`。
+语义源：`内部记录/knowledge/RELEASE_T-1036.md`（定案 L1~L6）+ `内部记录/knowledge/ARCH_ui_visual_language.md §2.1-3`。
 覆盖：
 ① 色板规模与唯一性（明/暗骨架各 12 色）；② 与 `TOKENS["semantic"]` 反馈色**零交集**（身份色 ≠ 反馈色）；
 ③ 逐色 vs 同骨架 `bg1` 对比度 ≥3:1（明/暗各一遍）；④ 相邻色色相间隔 ≥ `theme.TRACK_HUE_GAP_MIN`；

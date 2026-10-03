@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1031 视觉语言守卫（阶段二：主题层收敛 + App 基座）。
 
-语义源：`.pi/knowledge/ARCH_ui_visual_language.md`（§六 可验证验收口径）。
+语义源：`内部记录/knowledge/ARCH_ui_visual_language.md`（§六 可验证验收口径）。
 覆盖：
 ① 令牌唯一源：`theme._qss` 源码内散落 px / 字面 hex = 0；TOKENS 含 control/neutral；
 ② 对比度实测：正文 ≥4.5:1 / 次级 ≥3:1 / 禁用 text_faint ≥3:1 / accent 前景 ≥4.5:1 /
@@ -10,8 +10,8 @@
 ④ 语义色不变：4 个功能色逐字一致；
 ⑤ 主题集不降：THEME_ORDER ⊇ 原 9 + system（条目零删除）；
 ⑥ 中性阶 + 旧键别名：12 角色齐备、别名映射值恒等（colors() 旧键继续可用）；
-⑦ 裁定 F′：App 基座（Fusion + 全局字体）只入 `__main__.py`，不进 apply_theme；
-⑧ 裁定 E′：theme.ICONS 31 名（T-1025 授权 +9、T-1084 音律标尺 +1；计数现由 tests/_pin_baselines 集中把守）、图标状态色角色表不变；
+⑦ 定案 F′：App 基座（Fusion + 全局字体）只入 `__main__.py`，不进 apply_theme；
+⑧ 定案 E′：theme.ICONS 31 名（T-1025 授权 +9、T-1084 音律标尺 +1；计数现由 tests/_pin_baselines 集中把守）、图标状态色角色表不变；
 ⑨ 主题下拉分组：主区 3 项在前 + 「更多配色」次级区，分组标题不可选、条目零丢失。
 
 口径：全离屏；不构造主窗口、不 show、不弹模态。
@@ -229,7 +229,7 @@ def test_all_theme_ids_apply_without_error(qapp):
 
 
 # ----------------------------------------------------------------------
-# ⑦ 裁定 F′：App 基座只入生产入口
+# ⑦ 定案 F′：App 基座只入生产入口
 # ----------------------------------------------------------------------
 
 def test_app_base_only_in_main_entry():
@@ -266,7 +266,7 @@ def test_app_base_snippet_effective(qapp):
 
 
 # ----------------------------------------------------------------------
-# ⑧ 裁定 E′：图标层零改动
+# ⑧ 定案 E′：图标层零改动
 # ----------------------------------------------------------------------
 
 def test_icon_layer_frozen():

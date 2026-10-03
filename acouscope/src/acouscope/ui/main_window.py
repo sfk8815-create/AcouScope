@@ -1675,7 +1675,7 @@ class MainWindow(QMainWindow):
 
         self.room_modes_page = _wrap_room_page(RoomModesWidget())
         self.central_stack.addWidget(self.room_modes_page)      # index2 房间模态页
-        # T-1054b3 补正（幕僚闸门第1轮）：批3 删抽屉通路后全仓再无 cancelled 消费者
+        # T-1054b3 补正（审计闸门第1轮）：批3 删抽屉通路后全仓再无 cancelled 消费者
         # （房间声学页内「关闭」成死键）→ 保留内嵌 dialog 引用并接线回 index0；R3 不破。
         _dlg = RoomAcousticsDialog()
         _dlg.cancelled.connect(lambda: self._set_workspace_page(0))
@@ -2674,7 +2674,7 @@ class MainWindow(QMainWindow):
     def _on_batch_task_event(self, event: str, payload: dict) -> None:
         """批处理 → 任务中心聚合条目（外部驱动任务；无可靠数值进度 → 仅文本）。
 
-        口径（裁定）：批处理的 `progress_cb` 只给文本、无数值分数，故聚合条目
+        口径（定案）：批处理的 `progress_cb` 只给文本、无数值分数，故聚合条目
         按「不定式 + 阶段文本」呈现（模块级 `PROGRESS_TEXT` = 不重复进度条）；
         批处理专属明细仍由 BatchWorkspace 内联进度区承载。
         """
@@ -3766,7 +3766,7 @@ class MainWindow(QMainWindow):
     def _update_follow_scroll(self, pos: float) -> None:
         """播放 tick：播放头越过可视右缘 → 平移时间视图使播放头位于约 1/3 处。
 
-        用户手动平移后 follow 置 False；播放头再次越过右缘才恢复（任务书规格 3）。
+        用户手动平移后 follow 置 False；播放头再次越过右缘才恢复（需求说明规格 3）。
         """
         try:
             vlo, vhi = self.waveform_widget.plot_widget.plotItem.vb.viewRange()[0]
@@ -6517,7 +6517,7 @@ class MainWindow(QMainWindow):
         panel.canceled.connect(lambda: self._cancel_sota_download(worker))
         worker.start()
         self._download_worker = worker
-        # T-928 裁定 D1″：提交默认不 toast（面板可见即达）；面板不可见时提示，
+        # T-928 定案 D1″：提交默认不 toast（面板可见即达）；面板不可见时提示，
         # 保证用户仍可感知已提交。
         if not self._task_center_panel_visible():
             show_toast(

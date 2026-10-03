@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062g R7：`PitchHMM.decode(fixed_lag=int)` 在线回溯＋收尾 OFF/ON 对等验证。
 
-口径（任务书 `T-1062g` v2 §二-3）：
+口径（需求说明 `T-1062g` v2 §二-3）：
 1. `decode(fixed_lag=100)` 对等：Ⓐ 逐位（★ states 逐位是唯一能抓错实现的判据 · N-2）
    ＋ 决定性构造（尾段双候选 · f0/states 两面同时暴露 · Δ≈702 cent）。
 2. 跨路径一致性（强制 · N-7）：ON 态 `fixed_lag=100`（R7 在线）× `fixed_lag=None`（R6 全序列）
@@ -99,7 +99,7 @@ class TestDecodeLagEquivalence:
         assert np.all(lag_off.f0_hz[200:300] == 300.0)  # 冻结态吸到干扰候选
         d = float(np.max(np.abs(cent(lag_off.f0_hz[200:300], full.f0_hz[200:300]))))
         print(f"[R7] 决定性构造 max|Δcent|(lag vs full) = {d!r}")
-        assert d > 700.0  # 幕僚实证 701.955 cent ⇒ 20 cent 网可捕
+        assert d > 700.0  # 审计实证 701.955 cent ⇒ 20 cent 网可捕
         assert not np.array_equal(lag_off.states[200:300], full.states[200:300])
 
 
@@ -184,11 +184,11 @@ class TestBoundary:
         r_off = h_off.decode(cands, fixed_lag=0)
         r_on = h_on.decode(cands, fixed_lag=0)
         _assert_decode_equal(r_off, r_on, "lag=0")
-        # 三件全真（幕僚实测）
+        # 三件全真（审计实测）
         assert r_off.states[0] == -1
         assert np.isnan(r_off.f0_hz[0])
         assert r_off.voiced[0] == False  # noqa: E712
-        # lag=0 与 lag=1 的 states[1:]/f0[1:] 逐位相同（稳态构造 · 幕僚实测口径）
+        # lag=0 与 lag=1 的 states[1:]/f0[1:] 逐位相同（稳态构造 · 审计实测口径）
         steady = _const_cands(300.0, 40)
         r0 = h_off.decode(steady, fixed_lag=0)
         r1_off = h_off.decode(steady, fixed_lag=1)

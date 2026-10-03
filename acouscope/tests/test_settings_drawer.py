@@ -91,10 +91,10 @@ def test_settings_two_column_nav_and_stack(qapp):
         assert d.stack.count() == 6
         assert [d.nav_list.item(i).text() for i in range(6)] == [
             tr("settings.tab.general"),
-            "音频设备",
+            tr("settings.tab.audio_device"),
             tr("settings.tab.ai"),
             tr("settings.tab.interface"),
-            "快捷键",
+            tr("settings.tab.shortcuts"),
             tr("settings.tab.export"),
         ]
     finally:

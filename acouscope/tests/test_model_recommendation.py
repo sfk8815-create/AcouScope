@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1022 §3：模型推荐规则（纯函数表驱动；禁触网、禁真起进程）。
 
-覆盖任务书 Step 6 的必测项：
+覆盖需求说明 Step 6 的必测项：
 - 表驱动：RAM 8 / 16 / 32 / 64GB × 磁盘充足/不足 → fit 正确；
 - **纯文本条目不出现在任何推荐结果**（含 vision=False 显式断言）；
 - `prefer_remote` 分支（可达 / 不可达）；
@@ -157,8 +157,8 @@ def test_prefer_remote_probe_never_raises():
 
 
 def test_service_root_normalisation():
-    assert mr._service_root("http://192.168.0.2:8000/v1/models") \
-        == "http://192.168.0.2:8000"
+    assert mr._service_root("http://203.0.113.2:8000/v1/models") \
+        == "http://203.0.113.2:8000"
     assert mr._service_root("http://a:1/v1/") == "http://a:1"
 
 

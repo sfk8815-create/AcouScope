@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-908 项目新建弹窗（ProjectNewDialog）测试。
 
-覆盖任务书 Step 4 全部要求：
+覆盖需求说明 Step 4 全部要求：
 ① 项目名称为空 → 校验拦截（不创建、保持打开）；非空 → 通过；
 ② 默认存储目录形如 ~/acouscope/YYYYMMDD_HHMMSS；
 ③ 导入文件（tmp_path 造伪路径/空文件）→ 进入 Project.files；

@@ -48,7 +48,7 @@
 
 > `requirements.txt` 注释区的其余可选件（pydub / samplerate / scipy）本项目**不安装、不分发**，
 > 故不在此登记其许可；用户自行安装属其自身安装行为，不触发本项目的分发义务。
-> ★ 实读时点 2026-09-27（幕僚 pip download sdist + 官方 License 页双核验）。
+> ★ 实读时点 2026-09-27（审计 pip download sdist + 官方 License 页双核验）。
 
 ---
 

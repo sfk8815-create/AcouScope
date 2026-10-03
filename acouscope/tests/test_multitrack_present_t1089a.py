@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1089 N-A 停并报**取证档**（本件未落地变体 b·档内全部断言当树为真）。
 
-令文 N-A 变体 b 的落点（``refresh`` 末 ``_invalidate_diff()`` 后追加
+方案 N-A 变体 b 的落点（``refresh`` 末 ``_invalidate_diff()`` 后追加
 ``if self._diff_deliver is not None: self.compute_diff()``）经离屏真宿主探针 + 本档坐实
 **两个硬阻断**，任一都越出授权面 ⇒ 按 C-4③/④ 停并报，未擅自扩面：
 
@@ -14,7 +14,7 @@
    （禁碰九档 R-1），或把 ``_submit_diff`` 升级成"来路 + 输入签名 + settle 后按签名补投"
    （须同时改 ``test_multitrack_diff_t1087.py`` ④ 的「在途 refresh ⇒ 结果必丢弃且不补算」断言）。
 ② **反而吞掉用户主动点钮**：突发在途期间点「差异统计」被同一门闩挡回，且该在途任务
-   依令文口径必被作废 ⇒ 落地变体 b 会把"点了没反应"引入主路径（本档例 ⑤），
+   依方案口径必被作废 ⇒ 落地变体 b 会把"点了没反应"引入主路径（本档例 ⑤），
    净效果劣于现状（现状该点击立即就地/后台算出）。
 
 因此本档**不**断言 ``refresh`` 后 ``diff() is not None``（那是解阻后的验收判据，已在
@@ -228,7 +228,7 @@ def test_refresh_burst_drops_the_auto_submission_in_host(host):
 
 def test_user_click_inside_refresh_burst_is_swallowed(host):
     _window, view, _session = host
-    view.compute_diff()                              # 第一击的自动投（依令文必被作废）
+    view.compute_diff()                              # 第一击的自动投（依方案必被作废）
     view.refresh()                                   # 第二击：作废 + 挡回重投
     view.btn_diff_stats.click()                      # 用户主动点 ⇒ 仍在途 ⇒ 被挡
     assert view.diff_inflight() is True

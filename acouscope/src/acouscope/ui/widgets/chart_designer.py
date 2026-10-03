@@ -10,7 +10,7 @@
 - `§五b` 开关语义（入口可再点关闭；可见关闭出口 = 工作区开关组 / 菜单 action）；
 - `§八` 禁拟物；取色/尺寸一律走 `theme.TOKENS`（禁 hex / 数值 px 字面量）。
 
-预览性能（Step 0 实测，见 `.pi/reports/T-1044_report.json`）：
+预览性能（Step 0 实测，见 `内部记录/reports/T-1044_report.json`）：
 - 波形 72dpi ≈ 82ms（≤150ms → **拖动实时，不防抖**）；
 - 语谱图 1025×3000 72dpi ≈ 535ms（>400ms → **重图降采样预览 + 防抖 200ms**）。
 - 预览与导出**同源**：同一 `FigureExporter` / `_export_current_view` 路径，仅 DPI 与

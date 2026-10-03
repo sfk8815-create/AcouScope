@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1037 守卫（跨平台字体回落链）。
 
-语义源：`.pi/knowledge/RELEASE_T-1037.md`（裁定 O1~O6）+ `.pi/knowledge/DESIGN_inspiration_notes.md §8.3`。
+语义源：`内部记录/knowledge/RELEASE_T-1037.md`（定案 O1~O6）+ `内部记录/knowledge/DESIGN_inspiration_notes.md §8.3`。
 覆盖：
 ① 三平台覆盖：`ui_font_families()` / `ui_mono_families()` 各含 macOS / Windows / Linux 至少一个目标族名；
 ② 顺序即优先级：macOS 目标仍在链首（禁改 macOS 现有观感）；

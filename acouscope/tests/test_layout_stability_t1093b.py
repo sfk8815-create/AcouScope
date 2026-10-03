@@ -79,7 +79,7 @@ def _stack_min_h_by_page(window, qapp) -> list:
 
 def test_full_pages_are_capped_at_floor(window):
     st = window.central_stack
-    assert st.count() == 6, f"中央页数与令文口径（1+5 全铺页）不符: {st.count()}"
+    assert st.count() == 6, f"中央页数与方案口径（1+5 全铺页）不符: {st.count()}"
     for i in range(1, st.count()):
         page = st.widget(i)
         assert page.minimumSize().width() == 0, f"index{i} 封顶宽度应不限"
@@ -223,7 +223,7 @@ def test_window_growth_goes_to_center_only(qapp, make_ws, both_expanded):
 
 
 def test_counter_evidence_without_stretch_side_panels_move(qapp, make_ws):
-    """反证：双侧展开 + 把中央 stretch 归零（等价未施工）→ 中央不再独吞增量、侧栏被无端牵动。"""
+    """反证：双侧展开 + 把中央 stretch 归零（等价未开发）→ 中央不再独吞增量、侧栏被无端牵动。"""
     ws = make_ws(both_expanded=True)
     sp = ws["splitter"]
     sp.setStretchFactor(1, 0)  # 撤销产品码设定，复刻修复前分布

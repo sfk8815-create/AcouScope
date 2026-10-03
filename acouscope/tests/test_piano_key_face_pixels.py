@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1042c 钢琴键面 v3 —— **像素级合成判据**（判据 a~g，竖/横各一套）。
 
-真源：`.pi/tasks/T-1042c.txt` §三-3.1（判据表 a~g）+ `ARCH_ui_visual_language.md §五c v1.6`
+真源：`内部记录/tasks/T-1042c.txt` §三-3.1（判据表 a~g）+ `ARCH_ui_visual_language.md §五c v1.6`
 （**§3-ter 键床连续** · **§3-quater 像素级合成判据**）。
 
 ★ 本文件的存在理由（**教训 AR**）：属性级探针（brush/pen/zValue/元素计数/可见性）**不能替代
@@ -41,8 +41,8 @@ from acouscope.ui import theme  # noqa: E402
 
 _REPO = pathlib.Path(__file__).resolve().parents[2]
 _EVID = pathlib.Path("/tmp/t1042c_evidence")
-_REF_KEYFACE = _REPO / ".pi/knowledge/assets/T-1042b_reference_keyface.png"
-_BAD_HORIZONTAL = _REPO / ".pi/knowledge/assets/T-1042c_now_horizontal_BAD.png"
+_REF_KEYFACE = _REPO / "内部记录/knowledge/assets/T-1042b_reference_keyface.png"
+_BAD_HORIZONTAL = _REPO / "内部记录/knowledge/assets/T-1042c_now_horizontal_BAD.png"
 
 _ROLES = ("white", "black", "white_seam", "label")
 _BG_RUN_MAX = 2          # 判据 a（背景色像素段）/ d（缝宽）

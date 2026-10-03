@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1060（C3 结构性收尾·第一段）：投递源所有权 / 关窗 drain / 画布控件统一收尾。
 
-覆盖口径（对应任务书硬判据 3、5 与自证 3）：
+覆盖口径（对应需求说明硬判据 3、5 与自证 3）：
   件1 ① `show_toast` 的到点关闭 QTimer **由 ToastWidget 显式持有**（H1：局部
        变量持有 → 包装被 GC 而 C++ 计时器仍在册派发 → SIGSEGV）；
      ② toast 收尾（`_close_toast`）**先 stop() 再断 timeout 连接**；

@@ -2,7 +2,7 @@
 """田野验收·音高检测精度（T-001-3）。FIELD_ACCEPTANCE_V1
 
 全部合成信号自包含可复现（固定 seed）。
-精度阈值来源：2026-09-03 用户确认（.pi/knowledge/PITCH_analysis.md §3.4）。
+精度阈值来源：2026-09-03 用户确认（内部记录/knowledge/PITCH_analysis.md §3.4）。
 """
 
 import numpy as np

@@ -4,7 +4,7 @@
 修法（(B) CMNDF 反倾斜）：``parabolic_interpolate`` 对 CMNDF 三点各除自身 tau
 因子后再做抛物线插值（去 ``d·tau/cumsum`` 的 ×tau 倾斜）。Python/Rust 两侧同式。
 
-口径（任务书 T-1069 v2 §2-3）：
+口径（需求说明 T-1069 v2 §2-3）：
 1. 偏差量级：detect_pyin 9 个频率点中位 |f0−f_true| ≤ 0.5 cent（R-3）。
 2. IM-24 自解：1998/1999 @fmax=2000 ⇒ voiced>0（改前 nv=0 全盲）。
 3. 2000-exact（R-2）：voiced>0 ∧ 中位残差 f_median−2000 < 0（实测 nv=46/71；

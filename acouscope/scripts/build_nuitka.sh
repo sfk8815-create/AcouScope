@@ -38,7 +38,7 @@
 #   Nuitka 加 --include-data-dir=$TMP_MPL=matplotlib/mpl-data（清洗副本显式进包，
 #   布局不变）+ --noinclude-data-files=matplotlib/mpl-data/fonts/opentype（按
 #   target filename 匹配精确禁掉自动 package-data 里的断链条目）；trap EXIT 删
-#   临时目录。注意：任务书原文的 --noinclude-package-data 在 4.2.1 不存在（实测
+#   临时目录。注意：需求说明原文的 --noinclude-package-data 在 4.2.1 不存在（实测
 #   "error: no such option"），本替代为语义等价修正（源码实读+逐条匹配实测）：
 #   - addIncludedDataFilesFromFileOptions（MainControl:1268，命令行早期相）先于
 #     addIncludedDataFilesFromPackageOptions（:1269，自动 package-data）注册，

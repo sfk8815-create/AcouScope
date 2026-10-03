@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1020：AI 释图链路真机阻断修复 + 顶部三档下拉（离屏；临时 HOME，禁触网）。
 
-覆盖任务书 Step 6 必测六项：
+覆盖需求说明 Step 6 必测六项：
 ① 端到端落盘：设置-AI 改字段 → `_on_settings_applied()` → ai_config.json 真的
    生成且**逐键等于** 面板 `ai_config()` → 重入面板读回一致（修前：死 import
    `interpreter._save_config` + `except Exception: pass` → 零文件生成）；
@@ -462,7 +462,7 @@ def test_two_way_sync_panel_combo_and_settings(qapp, monkeypatch, tmp_path):
 
         # 设置 → 面板：应用 → panel.reload_config() → 下拉选中项同步
         sp.rbtn_ai_self.setChecked(True)
-        sp.edit_self_url.setText("http://192.168.0.9:11434")
+        sp.edit_self_url.setText("http://203.0.113.9:11434")
         sp.edit_self_model.setText("demo-selfhost-model")
         assert sp.ai_config()["ai_v2"]["source"] == "self_hosted"
         win._on_settings_applied()

@@ -62,7 +62,7 @@ def main():
     app.setOrganizationName("AcouScope")
 
     # App 基座（T-1031 · 视觉语言 §五）：统一原生控件绘制底座 + 全局字族/字号。
-    # 只写在生产入口（裁定 F′）：测试 qapp 夹具统一经 apply_theme 建窗，
+    # 只写在生产入口（定案 F′）：测试 qapp 夹具统一经 apply_theme 建窗，
     # 基座若进 apply_theme 会静默改动全部 GUI 测试的控件度量。
     try:
         from PyQt6.QtGui import QFont

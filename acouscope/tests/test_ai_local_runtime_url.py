@@ -240,16 +240,16 @@ def test_external_ollama_url_wins_and_runtime_untouched(dlg, monkeypatch,
     monkeypatch.setattr(ollama_runtime, "get_runtime", _boom)
     seen = _spy_chat(monkeypatch)
     _use_cfg(dlg, monkeypatch, tmp_path, {
-        "provider": "ollama", "url": "http://192.168.0.9:11434", "model": "",
+        "provider": "ollama", "url": "http://203.0.113.9:11434", "model": "",
         "key": "",
         "ai_v2": {"source": "builtin", "external_ollama": True,
-                  "external_ollama_url": "http://192.168.0.9:11434"},
+                  "external_ollama_url": "http://203.0.113.9:11434"},
     })
 
     worker, _before = _send_sync(dlg, monkeypatch)
 
     assert worker.provider_factory is None
-    assert seen == ["http://192.168.0.9:11434"]
+    assert seen == ["http://203.0.113.9:11434"]
 
 
 # ----------------------------------------------------------------------

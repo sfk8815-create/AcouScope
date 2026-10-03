@@ -24,7 +24,7 @@ from acouscope.i18n import set_language
 from acouscope.ui.main_window import MainWindow
 from acouscope.ui.shortcuts import ShortcutManager
 
-# 施工令 T-1090 M-1 映射（PI-T82 预检实测四键空闲）
+# 开发任务单 T-1090 M-1 映射（PI-T82 预检实测四键空闲）
 SHORTCUT_MAP = {
     "action_tuning_ruler": "F9",
     "action_chart_designer": "F10",

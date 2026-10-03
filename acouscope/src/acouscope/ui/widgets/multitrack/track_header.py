@@ -8,7 +8,7 @@
 
 对齐微调只改「偏移元数据」（`TrackModel.offset_ms`），不改音频数据（T-1006 硬红线）。
 图标按 T-1001 现有逻辑名复用（play / stop / close）；S/M 用字母标记，
-本任务不新增 ICONS 逻辑名（见放行令裁定 A）。
+本任务不新增 ICONS 逻辑名（见放行令定案 A）。
 """
 
 from __future__ import annotations

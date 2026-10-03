@@ -17,7 +17,7 @@ https://www.huygens-fokker.org/scala/scl_format.html （来源归档见 RESEARCH
 - 1/1 或 0.0 音分不在文件内，由调用方隐含补入（见 ``TuningSystem``）；
 - 无法按上述规则解析者视为格式错误，抛出 ValueError（调用方捕获）。
 
-.kbm 键盘映射文件不在本模块范围（T-918 任务书明示）。
+.kbm 键盘映射文件不在本模块范围（T-918 需求说明明示）。
 """
 
 from __future__ import annotations

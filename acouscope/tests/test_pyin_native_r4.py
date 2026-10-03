@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062d R4：`pyin_candidates` OFF/ON 对等验证（本件的证伪器）。
 
-口径（任务书 `T-1062d` v2 §二-3）：
+口径（需求说明 `T-1062d` v2 §二-3）：
 - Ⓐ 优先逐位档：`times` 逐位 `np.array_equal` · `voiced` 逐位 · `cand_lists` 逐元素逐位
   （长度 + 每个 (f0, prob) 两列）。
 - Ⓑ 若实测非逐位：先归因（预期继承源 = `difference_function`；R3 已实测 `pyin_frame`

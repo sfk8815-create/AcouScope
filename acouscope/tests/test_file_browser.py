@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-910 文件管理器（FileBrowser）测试。
 
-覆盖任务书 Step 3 全部要求：
+覆盖需求说明 Step 3 全部要求：
 ① 目录含支持(.wav) + 不支持(.txt/.png/.acouproj) → 黑/灰判定正确；
 ② 有项目（伪 manager.filepath）→ 显示其 parent 目录；无项目回退当前文件目录；
 ③ 单选 → fileSelected 恰一次；多选 → selectionChanged(paths) 正确；

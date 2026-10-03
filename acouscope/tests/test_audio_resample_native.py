@@ -86,7 +86,7 @@ class TestResampleChunkNative:
         self._assert_equal(player, data, 5)
 
     # ------------------------------------------------------------------
-    # 2. R-2 真实尺寸（先除 vs 先乘分叉点 · 幕僚实测 n=2001/m=2048 非逐位）
+    # 2. R-2 真实尺寸（先除 vs 先乘分叉点 · 审计实测 n=2001/m=2048 非逐位）
     # ------------------------------------------------------------------
     def test_real_size_n2001_m2048(self, player):
         rs = np.random.RandomState(42)

@@ -5,7 +5,7 @@
 ``resolve_source → track.load_full()``（整文件同步 IO × 未驻留轨），把投递到任务
 中心的异步收益整个吃掉。
 
-本件处置（指挥裁 path_A）：投递的是 **零 IO 取数计划** ``SourcePlan``；
+本件处置（项目负责人裁 path_A）：投递的是 **零 IO 取数计划** ``SourcePlan``；
 ``resolve()`` 与逐轨分析全在 worker 的 ``run`` 内；LRU 驱逐 ``unload_inactive``
 延后到 ``on_done`` 主线程回填之后 ⇒ worker 期不与主线程并发争改样本状态。
 

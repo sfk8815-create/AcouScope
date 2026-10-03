@@ -3,7 +3,7 @@
 
 CB-005（C1 诊断加固，2026-09-06）在此文件追加两部分、零第三方依赖：
   - D1：faulthandler 落栈——进程级信号处理器在原生崩溃（SIGSEGV 等）时把
-    Python 栈逐线程转储到 .pi/logs/flaky_segfault.log（附 Qt 平台/版本上下文）。
+    Python 栈逐线程转储到内部运行日志 flaky_segfault.log（附 Qt 平台/版本上下文）。
   - D2：test_waveform_editing.py::test_drag_creates_selection 用例级重跑容错
     （手写 pytest_runtest_protocol，禁 pytest-rerunfailures）：失败/崩溃自动
     重跑 1 次；重跑即绿 → 记 FLAKY_EVENT；连续 2 败 → 如实 FAIL。

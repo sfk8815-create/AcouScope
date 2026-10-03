@@ -21,7 +21,7 @@ class ProjectFile:
     path: str
     label: str = ""
     analysis_results: Dict[str, Any] = field(default_factory=dict)
-    # 文件级元数据（T-907）：键 = 我方字段名（同 annotation/metadata.py FIELD_TERMS.key，
+    # 文件级元数据（T-907）：键 = 本项目字段名（同 annotation/metadata.py FIELD_TERMS.key，
     # 如 Title/Creator/SamplingRate…），值统一 str；可选控制键 "_standard"
     # 记录用户所选著录标准（DAT63 / GBT31219.4 / custom），数据层不校验取值。
     metadata: Dict[str, str] = field(default_factory=dict)
@@ -36,7 +36,7 @@ class Project:
     annotations: List[Dict] = field(default_factory=list)
     presets: Dict[str, Dict] = field(default_factory=dict)
     # "0.2"（T-907）：新增 ProjectFile.metadata；旧 "0.1" 文件 load 时原样保留不报错。
-    # 注意：项目级元数据无消费方，本版本不加 Project.metadata（见 T-907 任务书）。
+    # 注意：项目级元数据无消费方，本版本不加 Project.metadata（见 T-907 需求说明）。
     version: str = "0.2"
 
 

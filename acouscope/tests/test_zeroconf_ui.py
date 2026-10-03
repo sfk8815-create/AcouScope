@@ -141,7 +141,7 @@ def test_download_controls_removed(dlg):
 def test_external_persist(dlg, monkeypatch):
     """本地部署档 + 服务地址经既有 ai_config() 保存流程持久化（A4/A5，
     T-320 三档制：原外部 Ollama 开关语义并入「本地部署的模型」档）。"""
-    url = "http://192.168.1.20:11434"
+    url = "http://203.0.113.20:11434"
     dlg.rbtn_ai_self.setChecked(True)
     dlg.edit_self_url.setText(url)
     cfg = dlg.ai_config()
@@ -248,9 +248,9 @@ def test_provider_external_ollama_wins(idlg, monkeypatch):
 
     _pick_builtin(idlg)
     idlg._persisted_v2 = {"external_ollama": True,
-                          "external_ollama_url": "http://192.168.1.20:11434"}
+                          "external_ollama_url": "http://203.0.113.20:11434"}
     idlg._make_provider()
-    assert captured["url"] == "http://192.168.1.20:11434"
+    assert captured["url"] == "http://203.0.113.20:11434"
 
 
 def test_worker_ensure_runtime_kwarg_via_make_worker(idlg, monkeypatch):
@@ -275,9 +275,9 @@ def test_worker_ensure_runtime_kwarg_via_make_worker(idlg, monkeypatch):
 
     # 外部开关开启 → 不懒启动（走外部端口，进程不受管）
     idlg._persisted_v2 = {"external_ollama": True,
-                          "external_ollama_url": "http://192.168.1.20:11434"}
+                          "external_ollama_url": "http://203.0.113.20:11434"}
     idlg._v2_state["external_ollama"] = True
-    idlg._v2_state["external_ollama_url"] = "http://192.168.1.20:11434"
+    idlg._v2_state["external_ollama_url"] = "http://203.0.113.20:11434"
     idlg._make_worker(object(), [], "问题", "【数值上下文】ctx")
     assert captured["kwargs"].get("ensure_runtime") is False
 

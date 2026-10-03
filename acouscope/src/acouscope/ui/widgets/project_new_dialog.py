@@ -10,7 +10,7 @@
 T-913 批量，防范围蔓延）。
 
 合规豁免：本弹窗为 QDialog 模态，与 GUI 宪法「对话框最小化」冲突，
-经最高指挥裁决豁免，已登记 GUI_dialog_inventory.md 模态白名单（DE2）。
+经项目负责人裁决豁免，已登记 GUI_dialog_inventory.md 模态白名单（DE2）。
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ AUDIO_FILTER = (
 
 
 def default_storage_dir() -> Path:
-    """默认项目存储目录：~/acouscope/YYYYMMDD_HHMMSS（任务书口径）。"""
+    """默认项目存储目录：~/acouscope/YYYYMMDD_HHMMSS（需求说明口径）。"""
     return Path.home() / "acouscope" / datetime.now().strftime("%Y%m%d_%H%M%S")
 
 

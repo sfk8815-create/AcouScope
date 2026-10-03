@@ -3,7 +3,7 @@
 
 LOCAL_REGISTRY_V1 — Ollama 优先路线（Phase 0 决策：放弃 llama.cpp fork）。
 
-T-1022 目录替换（最高指挥 2026-09-10 裁决：**纯文本模型一律不推荐/不上架**）：
+T-1022 目录替换（项目负责人 2026-09-10 裁决：**纯文本模型一律不推荐/不上架**）：
 原 `spark-x2.5-1.7b`（text_only=True，且占 is_default 推荐位）与 `qwen2.5:3b`
 （text_only=True）整体下架——释图窗的本质是释图，本地档必须能读图。现目录
 只保留**视觉**模型：每条带 `vision=True`、`min_ram_gb`、`est_bytes`（实测，

@@ -95,13 +95,13 @@ def test_self_hosted_reads_external_url(qapp, monkeypatch, tmp_path):
         "provider": "custom", "url": "http://127.0.0.1:11434",
         "model": "qwen2.5:3b", "key": "",
         "ai_v2": {"source": "self_hosted", "external_ollama": True,
-                  "external_ollama_url": "http://192.168.1.20:11434"},
+                  "external_ollama_url": "http://203.0.113.20:11434"},
     })
     try:
         assert p._source == "self_hosted"
         eng = p._engine_for_current()
         assert eng["kind"] == "custom"
-        assert eng["url"] == "http://192.168.1.20:11434"
+        assert eng["url"] == "http://203.0.113.20:11434"
         assert eng["model"] == "qwen2.5:3b"
     finally:
         p.deleteLater()
@@ -146,25 +146,25 @@ def test_settings_dialog_congruence(qapp, monkeypatch):
 
     cfg_dict = {
         "provider": "custom",
-        "url": "http://192.168.1.20:11434",
+        "url": "http://203.0.113.20:11434",
         "model": "qwen2.5:3b",
         "key": "",
         "send_image": True,
         "ai_v2": {
             "source": "self_hosted",
             "external_ollama": True,
-            "external_ollama_url": "http://192.168.1.20:11434",
+            "external_ollama_url": "http://203.0.113.20:11434",
             "mode": "official",
         },
     }
     sp = SettingsDialog(ai_config={})
     sp.reload_ai_config(cfg_dict)
     assert sp.rbtn_ai_self.isChecked()
-    assert sp.edit_self_url.text() == "http://192.168.1.20:11434"
+    assert sp.edit_self_url.text() == "http://203.0.113.20:11434"
     out = sp.ai_config()
     assert out["ai_v2"]["source"] == "self_hosted"
     assert out["provider"] == "custom"
-    assert out["url"] == "http://192.168.1.20:11434"
+    assert out["url"] == "http://203.0.113.20:11434"
     sp.deleteLater()
 
 
@@ -252,12 +252,12 @@ def test_top_row_model_name_visible_in_narrow_pane(qapp, monkeypatch,
                                                    tmp_path):
     """278px（右侧栏真实宽）下模型名必须可见非空、下拉可辨认；420/640 不回归。
 
-    修前实测（幕僚探针 + 本用例复现）：QSizePolicy.Ignored 的模型名标签在
+    修前实测（审计探针 + 本用例复现）：QSizePolicy.Ignored 的模型名标签在
     278/320px 被压成 **0 宽（完全不可见）**，420px 才出现（55px，挤成多行）。
     修后按可用宽自动切「两行」布局：第一行 来源+下拉+⚙，第二行模型名整行。
     """
     p, _ = _with_cfg(monkeypatch, tmp_path, {
-        "provider": "custom", "url": "http://192.168.1.20:11434",
+        "provider": "custom", "url": "http://203.0.113.20:11434",
         "model": "qwen2.5:3b-instruct-q4_K_M", "key": "",
         "ai_v2": {"source": "self_hosted"},
     })

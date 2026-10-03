@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1018：AI 释图窗「对话式」重做验收（离屏；不 MainWindow.show() / QDialog / 模态 exec）。
 
-覆盖（任务书 Step 5）：
+覆盖（需求说明 Step 5）：
 - 顶部只读模型行（读 ai_config；未配置 → 设置引导）+ ⚙ 设置按钮（点击 → 设置-AI
   两步序列 spy：_activate_settings_tab() → switch_to_tab("ai")）；
 - 去设置项：无发送图像开关 / 模型设置按钮 / 测试连接按钮（findChildren 断言）；

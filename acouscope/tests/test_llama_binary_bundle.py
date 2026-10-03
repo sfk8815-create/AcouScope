@@ -45,7 +45,7 @@ _RPATH_DEPS = (
 )
 
 # 实测（2026-09-06 b10818）：libggml / libggml-blas 为薄壳 stub 实体
-# （60128 / 58776 字节），低于任务书预设的 100KB 阈值 → 单独降档断言
+# （60128 / 58776 字节），低于需求说明预设的 100KB 阈值 → 单独降档断言
 # （>10KB），deviations 已如实上报；其余 9 个均 >100KB。
 _STUB_DEPS = ("libggml.0.dylib", "libggml-blas.0.dylib", "libggml.dylib")
 

@@ -12,7 +12,7 @@
   ① 删除 isFinish 守卫与吞噬 flag——单击天然只在 release 派发一次；
   ② 拖选 finish 后释放无尾随 click，无需吞 flag；微拖（手抖）当单击定位。
 
-测试口径（任务书强制）：事件对注入——press 带 buttons=LeftButton、
+测试口径（需求说明强制）：事件对注入——press 带 buttons=LeftButton、
 release 带 buttons=NoButton，经 QApplication.sendEvent 走 Qt 层注入
 （单事件合成测不出本回归，参照 test_cb014_waveform_axis_drag 先例）。
 """

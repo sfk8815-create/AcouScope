@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1038 画布「数据墨色」令牌化 + 旁路 QSS 收口守卫。
 
-语义源：`.pi/knowledge/RELEASE_T-1038.md`（裁定 M1~M6）+ `.pi/knowledge/DESIGN_inspiration_notes.md §9.3`。
+语义源：`内部记录/knowledge/RELEASE_T-1038.md`（定案 M1~M6）+ `内部记录/knowledge/DESIGN_inspiration_notes.md §9.3`。
 覆盖：
 ① 改动面文件 `#hex` = 0 / 字面 px = 0（`theme.py` 仅数据源允许 hex，px 仍须 0）；
 ② `TOKENS["data"]` 六角色齐备且明/暗两套均备；③ `data` 与 `semantic`/`accent` 取值零交集；

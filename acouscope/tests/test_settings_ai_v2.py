@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-320：设置-AI 三档「模型来源」单选（内置 / 本地部署 / 云端服务商）。
 
-覆盖（任务书 Step4）：
+覆盖（需求说明 Step4）：
 - 默认「内置模型」档：零输入（零配置锚点）+ 状态行只读；
 - 切「本地部署」→ 地址/模型/密钥三字段显隐 + 保存往返；
 - 切「云端服务商」→ 厂商下拉（5+自定义）+ 预置地址/默认模型联动；
@@ -91,23 +91,23 @@ def test_self_hosted_fields_and_roundtrip(dlg, app, monkeypatch):
     dlg.rbtn_ai_self.setChecked(True)
     assert dlg.grp_ai_self_fields.isHidden() is False
     assert dlg.grp_ai_cloud_fields.isHidden() is True
-    dlg.edit_self_url.setText("http://192.168.1.20:11434")
+    dlg.edit_self_url.setText("http://203.0.113.20:11434")
     dlg.edit_self_model.setText("qwen2.5:3b")
     dlg.edit_self_key.setText("sk-self")
     cfg = dlg.ai_config()
     assert cfg["provider"] == "custom"
-    assert cfg["url"] == "http://192.168.1.20:11434"
+    assert cfg["url"] == "http://203.0.113.20:11434"
     assert cfg["model"] == "qwen2.5:3b"
     assert cfg["key"] == "sk-self"
     v2 = cfg["ai_v2"]
     assert v2["source"] == "self_hosted"
     assert v2["external_ollama"] is True
-    assert v2["external_ollama_url"] == "http://192.168.1.20:11434"
+    assert v2["external_ollama_url"] == "http://203.0.113.20:11434"
     # 往返：以保存结果为新配置 → 恢复本地部署档且字段原样
     _probe_off(monkeypatch)
     d2 = SettingsDialog(ai_config=cfg)
     assert d2.rbtn_ai_self.isChecked() is True
-    assert d2.edit_self_url.text() == "http://192.168.1.20:11434"
+    assert d2.edit_self_url.text() == "http://203.0.113.20:11434"
     assert d2.edit_self_model.text() == "qwen2.5:3b"
     assert d2.edit_self_key.text() == "sk-self"
     d2.deleteLater()
@@ -186,9 +186,9 @@ def test_migration_external_ollama_self(app, monkeypatch):
         "provider": "ollama", "url": "", "model": "llama3.2-vision:11b",
         "key": "k-old",
         "ai_v2": {"external_ollama": True,
-                  "external_ollama_url": "http://192.168.1.20:11434"}})
+                  "external_ollama_url": "http://203.0.113.20:11434"}})
     assert d.rbtn_ai_self.isChecked() is True
-    assert d.edit_self_url.text() == "http://192.168.1.20:11434"
+    assert d.edit_self_url.text() == "http://203.0.113.20:11434"
     assert d.edit_self_model.text() == "llama3.2-vision:11b"
     assert d.edit_self_key.text() == "k-old"
     d.deleteLater()

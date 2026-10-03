@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1006 M2 多轨开头对齐：起点检测引擎 + 偏移合成 + 会话编排。
 
-口径与红线（细则见任务书 `.pi/tasks/T-1006.txt` 与放行令 `RELEASE_T-1006.md`）：
+口径与红线（细则见需求说明 `内部记录/tasks/T-1006.txt` 与放行令 `RELEASE_T-1006.md`）：
 
 - **无损语义**：本模块只产出「对齐偏移元数据」（`TrackModel.offset_ms`），
   **绝不裁剪 / 改写音频 buffer / 另存音频**；检测路径对输入数组只读。

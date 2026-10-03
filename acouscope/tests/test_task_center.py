@@ -163,7 +163,7 @@ class _FakeModule(BaseBatchModule):
 
 class TestScheduler:
     def test_authoritative_constants_match_settings(self):
-        """权威常量与 Settings 两处口径一致（裁定 F″）。"""
+        """权威常量与 Settings 两处口径一致（定案 F″）。"""
         s = Settings()
         assert TASK_CENTER_MAX_CONCURRENCY == s.task_center_max_concurrency == 1
         assert TASK_CENTER_QUEUE_LIMIT == s.task_center_queue_limit == 32

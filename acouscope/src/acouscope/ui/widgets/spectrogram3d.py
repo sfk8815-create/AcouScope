@@ -44,7 +44,7 @@ from acouscope.visualization.mpl_style import apply_style
 _log = get_logger(__name__)
 
 # 学术出图白底（导出专用，不是屏幕呈现）：取浅色主题的中性阶与文字色，
-# 避免在源码散落 hex；导出临时切白、结束后恢复当前主题（裁定 D‴/E‴）。
+# 避免在源码散落 hex；导出临时切白、结束后恢复当前主题（定案 D‴/E‴）。
 EXPORT_FACE = theme.THEMES["light"]["bg1"]
 EXPORT_TEXT = theme.THEMES["light"]["text"]
 EXPORT_TEXT_SUB = theme.THEMES["light"]["text_sub"]

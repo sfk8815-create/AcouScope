@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-913 批处理工作区框架测试。
 
-覆盖任务书 Step 4 要求：
+覆盖需求说明 Step 4 要求：
 ① 注册表：register / registered / activate（fake 模块）；激活后参数宿主装入其
    config_ui；同名覆盖；类型/空名校验；clear_modules。
 ② 空态：无模块时导航显示空态提示、无业务 UI、执行钮禁用。

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1055 守卫：AI 释图气泡 Markdown 渲染（零依赖）+ 对话窗口通用基本功能。
 
-覆盖（任务书 §交付内容 3 的 7 类断言）：
+覆盖（需求说明 §交付内容 3 的 7 类断言）：
   ① MD 渲染生效：setMarkdown 被使用 / 表格渲染出 <table>
   ② 流式节流：连续小 chunk 不触发逐 token 重渲染（计数 spy）
   ③ 语法降级：`$x$` 等 Qt 不支持语法原样保留、不抛异常

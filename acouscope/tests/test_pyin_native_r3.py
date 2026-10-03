@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062c R3：`pyin_frame` OFF/ON 对等验证（本件的证伪器）。
 
-口径（任务书 `T-1062c` v2 §二-3）：
+口径（需求说明 `T-1062c` v2 §二-3）：
 - Ⓐ 优先逐位档 `np.array_equal`（candidates 的 f0 列 / prob 列 ＋ voiced_prob）。
 - Ⓑ 若实测非逐位：先归因（预期继承源 = `difference_function`，R1 放宽档 max|Δ| ≤ 1e-9）
   ⇒ 允许 `max|Δf0| ≤ max(0.1 Hz, 1 cent @ f0)`（`AT1007_threshold_review.md:135-137` 定稿）

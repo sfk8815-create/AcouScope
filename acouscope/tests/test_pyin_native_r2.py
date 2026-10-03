@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062b R2：Beta CDF 三函数 OFF/ON 对等验证（本件的证伪器）。
 
-口径（任务书 §二-3 v2.2）：
+口径（需求说明 §二-3 v2.2）：
 - 三函数**统一逐位档** `np.array_equal`：R-2 路线 (b) = Rust 复刻 CPython `m_lgamma`
   ⇒ 与 Python `math.lgamma` 逐位等价；worst max|Δ| 必须 ≤ 1e-14（打印实测值）。
 - 负对照：证明 equal 断言非恒真（含「ON 分派确实命中 Rust」）。

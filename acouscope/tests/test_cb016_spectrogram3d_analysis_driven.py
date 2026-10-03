@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """CB-016-4：3D 频谱图改分析位置驱动（main_window 接线）。
 
-契约（任务书）：_build_spectrogram3d 在 widget.set_audio 后以分析位置为中心调
+契约（需求说明）：_build_spectrogram3d 在 widget.set_audio 后以分析位置为中心调
 widget.set_time_range(pos-half, pos+half)——half=帧宽/2（与分析窗口语义一致），
 帧宽不可得时回退 ±2.0s；pointer_getter 既有接线保留；spectrogram3d.py 零改动。
 """

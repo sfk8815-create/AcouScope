@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-904: 孤儿 worker 进程根治测试（L1 conftest autouse 兜底 + L2 __del__ 析构兜底）。
 
-铁律（任务书）：
+铁律（需求说明）：
 - offscreen 全程；禁 MainWindow.show()/QDialog
 - env=1 + EchoBackend（无模型依赖）触发真实 spawn
 - 有界等待（deadline 轮询），禁 sleep 裸等长循环

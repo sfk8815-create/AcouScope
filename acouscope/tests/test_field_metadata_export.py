@@ -8,7 +8,7 @@
   ② `SessionMetadata` 以 7 个不存在的关键字构造（真实为单字段 `values`）；
   ③ 三个分支调用 `to_dict()` / `to_imdi_xml()` / `to_csv()` —— 三者皆不存在。
 
-修复后落点（幕僚裁定）：文件写手统一在 `annotation/export.py`
+修复后落点（审计定案）：文件写手统一在 `annotation/export.py`
 （新增 `export_session_json` / `export_session_csv` + 复用既有 `export_session_xml`），
 `SessionMetadata` 只加 `to_dict()`，UI 仅改 `_export_field_metadata` 方法体。
 """

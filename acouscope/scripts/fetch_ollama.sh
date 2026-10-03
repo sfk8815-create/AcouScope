@@ -7,7 +7,7 @@
 #                 windows-amd64 / linux-amd64 预留位（未开放，属后续任务）
 #     目标目录    默认 <repo>/acouscope/src/acouscope/resources/bin/ollama
 #
-# 裁决 B（最高指挥 2026-09-09）：assets 整套不入 git（.gitignore），由本脚本在
+# 裁决 B（项目负责人 2026-09-09）：assets 整套不入 git（.gitignore），由本脚本在
 # 开发机/构建机落位；仅 BUNDLE_INFO.txt 登记文件例外入库。
 #
 # ⚠ 整套同目录铁律：ollama serve 按 @loader_path 在同目录找 llama-server /

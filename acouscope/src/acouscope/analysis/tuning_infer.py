@@ -20,7 +20,7 @@
 
     # 模板得分 = max over 主音旋转 r；再对全部候选模板按 score 降序取 top_k
 
-选用该口径的理由（详见 .pi/reports/T-920_report.json）：
+选用该口径的理由（详见 内部记录/reports/T-920_report.json）：
 1. ``recall`` 单独使用无法区分"音级集合的超集模板"（音级更多者会把 PCP 能量
    全部解释掉），故乘 ``precision`` 惩罚未被解释的音级；
 2. ``chance`` 校正按均匀分布基线扣除，使均匀分布（白噪）PCP 的得分趋近 0、

@@ -3,7 +3,7 @@
 
 背景（AT-01-4 卫生隐患）：`test_pitch_pyin_entry.py::test_at01_4_vibrato_report`
 曾算出颤音中位后，以「Path 直接吃字面仓库相对 .pi/logs 档」+ write_text 落盘；pytest
-常规 CWD 为 `acouscope/` ⇒ 落 `acouscope/.pi/logs/…`，且根/子两份 json 皆被 git
+常规 CWD 为 `acouscope/` ⇒ 落到其内部日志子目录，且根/子两份 json 皆被 git
 跟踪 ⇒ 只要音高行为有变动，跑测即弄脏 tracked 副产物/覆盖已录值。本守卫把该类写法
 钉死为 FAIL（本档自身也受扫，故此处只作描述、不复写字面形态）。
 

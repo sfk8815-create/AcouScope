@@ -2,9 +2,9 @@
 """A4 单源守卫（静态）：src/acouscope/** 内不得再出现"写死 440"的 6 类模式。
 
 ★ A4-R10 扩面：由单模式 cent_ref 扩为 6 类 PATTERNS（逐字对齐探针 :30-37）。
-★ 口径对齐既有探针 .pi/tools/pi_t43/guard_probe.py：
+★ 口径对齐既有单源守卫探针：
   只扫 src/acouscope/**（tests/** 不扫 —— 测试需已知值作尺子，扫它会制造伪红）。
-★ 豁免采用【文件级白名单】（SSoT / 默认语义 / 已裁定不动 / 零 app caller / 非参考用途）。
+★ 豁免采用【文件级白名单】（SSoT / 默认语义 / 已定案不动 / 零 app caller / 非参考用途）。
 """
 import re
 from pathlib import Path
@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1] / "src" / "acouscope"
 # ★ 文件级白名单（相对 ROOT 的 posix 路径）
 EXEMPT_FILES = {
     "dsp/units.py",                     # SSoT：A4_FREQ 定义 + 内部引用 + FREQ_UNITS 标签
-    "analysis/spectral.py",             # 指挥裁：独立 tuning_offset 口径（:278），不动
+    "analysis/spectral.py",             # 项目负责人裁：独立 tuning_offset 口径（:278），不动
     "analysis/pcp.py",                  # 零 app caller（今日死口径）
     "analysis/note_hmm.py",             # 非参考用途（掩码占位/注释）
     "ui/widgets/settings_dialog.py",    # A4 预设 415/432/440/442（默认语义，合法）
@@ -27,7 +27,7 @@ EXEMPT_FILES = {
 # ★ 目录级白名单
 EXEMPT_DIRS = ("analysis/tunings",)     # 目录豁免（字段语义）
 
-# ★ 6 类模式（逐字对齐 .pi/tools/pi_t43/guard_probe.py:30-37；★ 名称按语义命名，不带赘字）
+# ★ 6 类模式（逐字对齐既有守卫探针 :30-37；★ 名称按语义命名，不带赘字）
 PATTERNS = [
     ("A4_FREQ 常引用", re.compile(r"\bA4_FREQ\b")),
     ("cent_ref 字面440", re.compile(r"\bcent_ref\b\s*:\s*float\s*=\s*440|\bcent_ref\s*=\s*440\b")),
@@ -55,7 +55,7 @@ def _all_src_files() -> list[Path]:
 
     旁车是外置卷/网络卷的明文元数据（非 UTF-8 源码）=> read_text(encoding="utf-8")
     必抛 UnicodeDecodeError => 主判据崩溃（原 v1 逐字码实测 1 fail / 7 pass）。
-    本写法【逐字镜像】.pi/tools/pi_t43/guard_probe.py 的同名过滤。
+    本写法【逐字镜像】既有守卫探针的同名过滤。
     """
     return sorted(
         p

@@ -7,7 +7,7 @@ D4-2 静态：.gitignore 含 `models/*.onnx`（权重出仓 = 运行时下载）
 D4-3 行为：模型缺失时下载目标为用户数据目录（monkeypatch 断言目标路径，不真下载）；
 D4-4 行为：sha256 不符 → 失败并清理临时文件（monkeypatch 上游响应）。
 
-说明：ffmpeg（对应 D2）依 2026-09-12 指挥裁定「D2 挂起」——ffmpeg 仍留仓库且不新增
+说明：ffmpeg（对应 D2）依 2026-09-12 项目负责人定案「D2 挂起」——ffmpeg 仍留仓库且不新增
 fetch_ffmpeg.sh，故本文件**不**含对 ffmpeg 出仓规则或 fetch 脚本的断言。
 """
 

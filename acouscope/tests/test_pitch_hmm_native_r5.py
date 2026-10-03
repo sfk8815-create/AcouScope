@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062e R5：`PitchHMM` 网格层（`__init__` 网格 ＋ `observation`）OFF/ON 对等验证。
 
-口径（任务书 `T-1062e` v2 §二-3）：
+口径（需求说明 `T-1062e` v2 §二-3）：
 - `__init__` 12 属性逐项对等 ＋ `hasattr` 全绿（防漏赋值）；`_log_self`/`_log_cross`
   只断【值等】不断类型（N-6：OFF 侧 np.float64，ON 侧 float）。
 - `observation` 分档：Ⓐ 优先逐位（np.array_equal）；Ⓑ 若非逐位先归因，允许

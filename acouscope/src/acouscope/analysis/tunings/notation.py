@@ -21,7 +21,7 @@
   考述）明确工尺谱七声谱字可表 4（凡）与 7（乙），但对 #4 / b7 一类升降音级无
   专用字形、须借调名处理；本层据此返回 ``applicable=False`` 而非臆造升降谱字。
 
-文本约定（write-up 见 ``.pi/reports/T-923_report.json``）：
+文本约定（write-up 见 ``内部记录/reports/T-923_report.json``）：
 
 - 简谱：数字 1–7；升/降记号以 ``#`` / ``b`` **前置**；八度以组合上加点（U+0307，
   高八度）/ 组合下加点（U+0323，低八度）**后置**，每高/低一个八度加一个点：
@@ -40,8 +40,8 @@
 简谱的 1 亦对应宫音。若调用方手中的主音不是宫音（如徵调式），应改传宫音音级：本层
 只做映射，**不推断调式**（调式推断属 T-919/T-920 职责）。
 
-文献依据（逐条见 :data:`MAPPING_SOURCES` 与 ``.pi/reports/T-923_report.json``）；
-中国律学综述出处同 ``.pi/knowledge/RESEARCH_JOURNAL.md`` R8 B 项。
+文献依据（逐条见 :data:`MAPPING_SOURCES` 与 ``内部记录/reports/T-923_report.json``）；
+中国律学综述出处同 ``内部记录/knowledge/RESEARCH_JOURNAL.md`` R8 B 项。
 """
 
 from __future__ import annotations

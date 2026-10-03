@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-1062a R1：YIN 基元四函数 OFF/ON 对等验证（本件的证伪器）。
 
-口径（任务书 §二-3 v2）：
+口径（需求说明 §二-3 v2）：
 - difference_function：FFT 路径（手写 radix-2 vs numpy pocketfft）⇒ 放宽档 max|Δ| ≤ 1e-9，
   逐位相同则最佳（打印实测值）。
 - 其余三函数：np.array_equal 逐位档（含 dtype 一致），不许放宽。

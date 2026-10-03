@@ -796,7 +796,7 @@ class MultitrackPanel(QWidget):
     ):
         """一键自动对齐全部轨（幂等覆盖）；无有效起点时不改任何偏移。
 
-        ★ T-1087 M6（指挥裁）：**fire-and-forget 真异步**——逐轨 ``load_full`` +
+        ★ T-1087 M6（项目负责人裁）：**fire-and-forget 真异步**——逐轨 ``load_full`` +
         ``align.frame_db_curve`` 帧循环（8 轨 × 3min ≈ 10⁵ 帧）交任务中心 worker，
         主线程只排期；偏移与轨道头由 ``on_done`` → :meth:`apply_align_result` 回填。
         返回值随之从 ``AlignResult`` 改为**投递句柄**（就地驱动时为 None）；

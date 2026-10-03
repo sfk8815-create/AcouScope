@@ -197,7 +197,7 @@ def test_threshold_normalization_falls_back_outside_configurable_range():
 
 
 def test_threshold_constants_agree_with_settings_clamp():
-    """阈值入 Settings（裁定 H′）：默认 50、范围 10–200，两处口径必须一致。"""
+    """阈值入 Settings（定案 H′）：默认 50、范围 10–200，两处口径必须一致。"""
     from acouscope.utils.config import Settings, get_config_dir
 
     assert (compare_diff.THRESHOLD_MIN_CENTS, compare_diff.THRESHOLD_MAX_CENTS,
@@ -219,7 +219,7 @@ def test_threshold_constants_agree_with_settings_clamp():
 
 
 def test_pair_frames_intersection_branch_reports_unequal_frame_rates():
-    """裁定 I′：帧率不一致取交集时间轴 + 最近帧配对（不插值、不升采样）。"""
+    """定案 I′：帧率不一致取交集时间轴 + 最近帧配对（不插值、不升采样）。"""
     ref_times = np.arange(0.0, 1.0 + 1e-9, 0.01)
     other_times = np.arange(0.0, 1.0 + 1e-9, 0.02)
     pairing = compare_diff.pair_frames(ref_times, other_times)
@@ -338,7 +338,7 @@ def test_no_comparable_frames_yields_empty_entry():
 
 
 # ----------------------------------------------------------------------
-# CSV 出口（裁定 J′：csv.writer + repr）
+# CSV 出口（定案 J′：csv.writer + repr）
 # ----------------------------------------------------------------------
 
 

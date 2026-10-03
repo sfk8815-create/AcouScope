@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-316：包内 bundled Ollama 发现层（macOS arm64 试点，AT-410 开箱即用）。
 
-覆盖（任务书 Step 3，全离屏、零进程零网络）：
+覆盖（需求说明 Step 3，全离屏、零进程零网络）：
 - `_DEV_OLLAMA_BIN` 推导锚点（包根 resources/bin/ollama/ollama）；
 - 外部候选全缺 + bundled 已部署（tmp 可执行假二进制）→ 命中 bundled；
 - bundled 与外部已装同时存在 → 命中 bundled（版本焊死语义锚点）；

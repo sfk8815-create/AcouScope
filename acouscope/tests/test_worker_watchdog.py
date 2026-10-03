@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-902b: 后端接线 + watchdog（AT-1006）测试。
 
-铁律（任务书）：
+铁律（需求说明）：
 - 测试严禁 MainWindow.show()/QDialog；主进程存活断言用
   kill/respawn 前后同一 QApplication 实例存活（无需 MainWindow）
 - watchdog 测试全部 env=1 + EchoBackend（无模型依赖）

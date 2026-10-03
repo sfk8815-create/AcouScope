@@ -22,7 +22,7 @@ from pathlib import Path
 
 from acouscope.utils import config as _config
 
-#: 赞助提示的启动次数阈值——第 5 次启动起、此后每次启动均弹（指挥 2026-09-26 裁定）
+#: 赞助提示的启动次数阈值——第 5 次启动起、此后每次启动均弹（项目负责人 2026-09-26 定案）
 SPONSOR_PROMPT_LAUNCH_THRESHOLD = 5
 
 #: 状态文件名（位于数据目录）

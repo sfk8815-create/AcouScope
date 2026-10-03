@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """T-319：应用内「检查引擎更新 / 恢复默认引擎」（升级策略 C，零网络零真实下载）。
 
-覆盖（任务书 Step 6，全离屏 / 全 mock / 临时目录）：
+覆盖（需求说明 Step 6，全离屏 / 全 mock / 临时目录）：
 - 发现顺序：env → 用户级优先 → bundled 兜底 → 用户级损坏落回 bundled；
 - 升级：版本判定 → 下载 mock → sha256 不符零副作用 → 成功解压切指针；
 - 恢复默认：清指针回 bundled（保留版本目录）；
@@ -82,7 +82,7 @@ def _tar_bytes(script: bytes = b"#!/bin/sh\n# fake ollama\n") -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# 1. 发现顺序：用户级优先 / bundled 兜底 / 损坏落回（任务书规格 1）
+# 1. 发现顺序：用户级优先 / bundled 兜底 / 损坏落回（需求说明规格 1）
 # ---------------------------------------------------------------------------
 
 def test_discover_user_wins_over_bundled(monkeypatch, tmp_path):

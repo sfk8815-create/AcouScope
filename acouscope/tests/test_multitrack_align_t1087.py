@@ -3,7 +3,7 @@
 
 改前：``MultitrackPanel.auto_align`` 同步跑 ``align_session``（逐轨 ``load_full``
 + ``align.frame_db_curve`` 帧循环，8 轨 × 3min ≈ 10⁵ 帧）⇒ 点一下 UI 冻一截。
-改后（指挥裁）：投递任务中心 ⇒ **返回值语义随之改变**（不再是 ``AlignResult``，
+改后（项目负责人裁）：投递任务中心 ⇒ **返回值语义随之改变**（不再是 ``AlignResult``，
 而是投递句柄；终态结果读 ``panel.align_result()``），既有 ``test_multitrack_align``
 的两处返回值断言已按令同改（保判别力）。
 
