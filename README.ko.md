@@ -40,7 +40,7 @@
 ---
 
 <p align="center">
-  <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope — FFT 스펙트럼과 배음 마커" width="820">
+  <img src="docs/images/screenshot-main-waveform.png" alt="AcouScope — 메인 창: 파형 및 분석" width="820">
 </p>
 
 AcouScope(音析)는 음악학, 민족음악학, 음악심리학, 음경(soundscape) 연구와 악기 음향학을 위한

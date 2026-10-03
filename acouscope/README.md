@@ -40,7 +40,7 @@ From import to publication-grade figures — with every core analysis algorithm 
 ---
 
 <p align="center">
-  <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope — FFT spectrum with harmonic markers" width="820">
+  <img src="docs/images/screenshot-main-waveform.png" alt="AcouScope — main window: waveform and analysis" width="820">
 </p>
 
 AcouScope (音析) is a cross-platform desktop acoustic analysis application built for research in

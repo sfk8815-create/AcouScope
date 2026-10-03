@@ -40,7 +40,7 @@
 ---
 
 <p align="center">
-  <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope —— FFT 频谱与谐波标记" width="820">
+  <img src="docs/images/screenshot-main-waveform.png" alt="AcouScope —— 主界面：波形与分析" width="820">
 </p>
 
 AcouScope（音析）是一款跨平台桌面声学分析软件，面向音乐学、民族音乐学、音乐心理学、声景研究与

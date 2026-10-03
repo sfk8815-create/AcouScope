@@ -40,7 +40,7 @@
 ---
 
 <p align="center">
-  <img src="docs/images/screenshot-fft-spectrum.png" alt="AcouScope — FFT スペクトルと倍音マーカー" width="820">
+  <img src="docs/images/screenshot-main-waveform.png" alt="AcouScope — メインウィンドウ：波形と分析" width="820">
 </p>
 
 AcouScope（音析）は、音楽学、民族音楽学、音楽心理学、サウンドスケープ研究、楽器音響学のための
