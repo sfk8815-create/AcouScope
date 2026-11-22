@@ -26,12 +26,13 @@ def qapp():
     yield app
 
 
-def test_default_five_segments_registered_and_visible(qapp):
-    """验收③：默认五段齐全（注册顺序 = 显示顺序），且各段显隐开关默认全开。"""
+def test_default_four_segments_registered_and_visible(qapp):
+    """验收③：默认四段齐全（注册顺序 = 显示顺序），且各段显隐开关默认全开；
+    sample_rate 段已删（与 lbl_audio_info 同源重复）。"""
     seg = StatusBarSegments()
     try:
         assert seg.keys() == tuple(s.key for s in DEFAULT_SEGMENTS)
-        assert len(seg.keys()) == 5
+        assert len(seg.keys()) == 4
         for key in seg.keys():
             label = seg.label(key)
             assert label is not None, f"段 {key} 缺承载 QLabel"
@@ -102,3 +103,53 @@ def test_main_window_status_segments_wiring_anchor():
     assert "ui_statusbar_segments.json" in src, (
         "main_window 未把段显隐配置指向 ui_statusbar_segments.json"
     )
+
+
+# ------------------------------------------------------------------
+# P2b-D14 正式判据：elide 配方 + 删段正对照
+# ------------------------------------------------------------------
+
+def test_elided_label_recipe_and_segment_wiring(qapp):
+    """elide 配方确定性 + 段承载接线 + text() 全文不丢。"""
+    from PyQt6.QtGui import QFontMetrics
+    from acouscope.ui.widgets.statusbar_segments import ElidedLabel, StatusBarSegments
+
+    long = "文件: a-very-long-file-name-indeed.wav"
+    lbl = ElidedLabel(long)
+    assert lbl.elided_for_width(400) == long                 # 宽裕不省略
+    assert lbl.elided_for_width(40).endswith("…")            # 窄宽省略号收尾
+    assert "sample_rate" not in StatusBarSegments().keys()   # 删段（正对照）
+    seg = StatusBarSegments()
+    try:
+        assert isinstance(seg.label("file"), ElidedLabel)
+        seg.set_text("file", long)
+        assert seg.text("file") == long                      # text() 不因 elide 丢数据
+        fm = QFontMetrics(seg.label("file").font())
+        assert seg.label("file").minimumSizeHint().width() < fm.horizontalAdvance(long)
+    finally:
+        seg.close()
+
+
+# ------------------------------------------------------------------
+# P2b-D14-fix2 新增判据：elide 绘制判据有齿化（直调绕开 PyQt 异常吞没）
+# ------------------------------------------------------------------
+
+def test_elided_label_paint_event_direct_call_no_raise(qapp):
+    """paintEvent 有齿配方：直调（绕开 PyQt C++ 边界吞没）不抛 + 窄宽省略。
+
+    为何不用 render()：PyQt6 把 C++→Python 边界的异常打印后吞掉，pytest 见绿；
+    直调 paintEvent 走纯 Python 栈，未修码时 AttributeError 正常传播 ⇒ 红。
+    （配方真相登记于 AUDIT_20261020_p2b_d14fix_w_result.md §六。）
+    """
+    from PyQt6.QtCore import QRect
+    from PyQt6.QtGui import QPaintEvent
+
+    from acouscope.ui.widgets.statusbar_segments import ElidedLabel
+
+    long = "文件: a-very-long-file-name-indeed.wav"
+    lbl = ElidedLabel(long)
+    lbl.resize(200, 24)
+    # 直调触发 paintEvent 全路径（未修码时 option 死代码在此抛 ⇒ 红）
+    lbl.paintEvent(QPaintEvent(QRect(0, 0, 200, 24)))
+    # 窄宽省略（纯方法断言保留，与绘制直调互补）
+    assert lbl.elided_for_width(40).endswith("…")

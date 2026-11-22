@@ -20,7 +20,9 @@ import pyqtgraph as pg
 from acouscope.i18n import tr
 from acouscope.ui import theme
 from PyQt6.QtCore import Qt, QPoint, QTimer, pyqtSignal, QSize, QEvent
-from PyQt6.QtGui import QAction, QPainter, QColor, QLinearGradient, QBrush
+from PyQt6.QtGui import (
+    QAction, QPainter, QColor, QLinearGradient, QBrush, QFont, QFontMetrics,
+)
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMenu, QFrame, QLineEdit,
     QScrollBar, QPushButton, QSizePolicy,
@@ -101,6 +103,17 @@ class VUMeter(QWidget):
     _PEAK_HOLD_S = 0.7      # 峰值线保持时间
     _PEAK_FALL_DB_S = 18.0  # 峰值线回落速度 (dB/s)
     _TICK_S = 0.033
+    _UNIT_LABEL = "dB"
+    _TICK_LABELS = ("0", "-3", "-6", "-10", "-20", "-40", "-60")
+    _COMPACT_TICK_LABELS = ("0", "-20", "-40", "-60")
+    _COMPACT_MAX_H = 120    # 低于此高只标四档，防刻度文字互叠
+    _BAR_W = 8
+    _BAR_X = 1
+    # H2：刻度短线收短（2）、刻度文字与短线之间留空（4）——原 3/1 时短线与
+    # 负号相接，0 档被读成「-0」、-3 被读成「––3」。取值仍走本类常量，
+    # 不引入裸像素字面量进 QSS（刻度几何本就是绘制常量，非样式表长度）。
+    _TICK_LEN = 2
+    _LABEL_GAP = 4
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -205,8 +218,8 @@ class VUMeter(QWidget):
 
         w = self.width()
         h = self.height()
-        bar_w = 16
-        bar_x = (w - bar_w) // 2
+        bar_w = self._BAR_W
+        bar_x = self._BAR_X
 
         c = theme.colors()
         sem = theme.TOKENS["semantic"]
@@ -214,9 +227,11 @@ class VUMeter(QWidget):
         painter.fillRect(bar_x, 0, bar_w, h, QColor(c["border"]))
 
         floor = self._DB_FLOOR
-        # dB → 像素高度（线性 dB 刻度：0dB=满高，-60dB=0）
-        level_h = int((self._paint_level_db / floor) * h)
-        peak_h = int((self._paint_peak_db / floor) * h)
+        # dB → 像素高度（线性 dB 刻度：0dB=满高且在顶，-60dB=0）
+        level_h = int((1.0 - self._paint_level_db / floor) * h)
+        # 峰值线 y 与刻度线同式：0dB→顶(0)、-60dB→底(h-1)
+        peak_y = int((self._paint_peak_db / floor) * h)
+        peak_y = min(max(peak_y, 0), h - 1)
 
         # 渐变色（成功 → 警告 → 错误），跟随主题语义色
         gradient = QLinearGradient(0, h, 0, 0)
@@ -226,18 +241,83 @@ class VUMeter(QWidget):
         gradient.setColorAt(1.0, QColor(sem["error"]))
 
         if level_h > 0:
-            painter.fillRect(bar_x, h - level_h, bar_w, level_h, QBrush(gradient))
+            painter.fillRect(bar_x, 0, bar_w, level_h, QBrush(gradient))
 
-        if peak_h > 0:
+        if self._paint_peak_db > floor:
             painter.setPen(QColor(c["text"]))
-            painter.drawLine(bar_x - 2, h - peak_h, bar_x + bar_w + 1, h - peak_h)
+            painter.drawLine(bar_x - 2, peak_y, bar_x + bar_w + 1, peak_y)
 
-        # dB 刻度线
+        # dB 刻度线 + 数字/单位标注（文字色走主题 sub；矮态只标四档）
+        labels = (
+            self._COMPACT_TICK_LABELS if h < self._COMPACT_MAX_H
+            else self._TICK_LABELS
+        )
+        text_x = bar_x + bar_w + self._TICK_LEN + self._LABEL_GAP
+        # 0dB 在顶(y=0)、-60dB 贴底；clamp 进界（-60 档贴 h-1 不再丢）
+        ys = {
+            label: min(max(int((float(label) / floor) * h), 0), h - 1)
+            for label in labels
+        }
+        need_ys = sorted(ys.values())
+        min_gap = min(
+            (b - a for a, b in zip(need_ys, need_ys[1:])), default=float(h)
+        )
+
+        def _layout(line_h: int) -> dict[str, int]:
+            """自上而下贴刻度排字：密集处下移，单位带（顶部）之下不重叠。
+
+            几何翻转后密集簇（0/-3/-6/-10）在顶部，避让方向随之下行；
+            与旧码「密集处在底部、向上避让」镜像，仍贴各自刻度。
+            """
+            next_top = line_h
+            tops: dict[str, int] = {}
+            for label in sorted(labels, key=float, reverse=True):
+                top = max(int(ys[label]) - line_h // 2, next_top)
+                top = min(top, h - line_h)
+                tops[label] = top
+                next_top = top + line_h
+            return tops
+
+        font = QFont(painter.font())
+        font.setFamilies(theme.ui_font_families())
+        font.setPixelSize(theme.TOKENS["typography"]["caption_sm"])
+        avail = max(1, w - text_x)
+        while True:
+            metrics = QFontMetrics(font)
+            line_h = metrics.height()
+            widest = max(
+                metrics.horizontalAdvance(s)
+                for s in (*labels, self._UNIT_LABEL)
+            )
+            tops = {k: max(v, line_h) for k, v in _layout(line_h).items()}
+            ordered = sorted(tops.values())
+            fits = (
+                max(ordered) + line_h <= h
+                and all(
+                    a + line_h <= b for a, b in zip(ordered, ordered[1:])
+                )
+            )
+            if (
+                (widest <= avail and line_h <= min_gap and fits)
+                or font.pixelSize() <= 7
+            ):
+                break
+            font.setPixelSize(font.pixelSize() - 1)
+        painter.setFont(font)
+        align = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+
         painter.setPen(QColor(c["sub"]))
-        for db in (-60, -40, -20, -10, -6, -3, 0):
-            y = int(h - (db / floor) * h)
+        for label in labels:
+            y = int(ys[label])
             if 0 <= y < h:
-                painter.drawLine(bar_x + bar_w + 2, y, w - 1, y)
+                painter.drawLine(
+                    bar_x + bar_w, y, bar_x + bar_w + self._TICK_LEN, y
+                )
+            painter.drawText(
+                text_x, tops[label], w - text_x, line_h, align, label
+            )
+        # 顶部留单位带，刻度数字从其下方起排（防压顶档）
+        painter.drawText(text_x, 0, w - text_x, line_h, align, self._UNIT_LABEL)
 
         painter.end()
 
@@ -424,21 +504,21 @@ class WaveformWidget(QWidget):
         tb_btn = _tb_btn_qss(theme.colors())
 
         self.btn_zoom_in = QPushButton("🔍+")
-        self.btn_zoom_in.setToolTip("放大 (Ctrl+=)")
+        self.btn_zoom_in.setToolTip(tr("waveform.tip_zoom_in"))
         self.btn_zoom_in.setStyleSheet(tb_btn)
         self.btn_zoom_in.setFixedWidth(36)
         self.btn_zoom_in.clicked.connect(self.zoom_in)
         self.toolbar.addWidget(self.btn_zoom_in)
 
         self.btn_zoom_out = QPushButton("🔍−")
-        self.btn_zoom_out.setToolTip("缩小 (Ctrl+-)")
+        self.btn_zoom_out.setToolTip(tr("waveform.tip_zoom_out"))
         self.btn_zoom_out.setStyleSheet(tb_btn)
         self.btn_zoom_out.setFixedWidth(36)
         self.btn_zoom_out.clicked.connect(self.zoom_out)
         self.toolbar.addWidget(self.btn_zoom_out)
 
         self.btn_zoom_fit = QPushButton("⤢")
-        self.btn_zoom_fit.setToolTip("适应窗口")
+        self.btn_zoom_fit.setToolTip(tr("waveform.tip_fit"))
         self.btn_zoom_fit.setStyleSheet(tb_btn)
         self.btn_zoom_fit.setFixedWidth(36)
         self.btn_zoom_fit.clicked.connect(self.zoom_fit)
@@ -446,7 +526,7 @@ class WaveformWidget(QWidget):
 
         # Scrub 模式
         self.btn_scrub = QPushButton("⟿ Scrub")
-        self.btn_scrub.setToolTip("Scrub 模式：按住鼠标拖动播放（Ctrl+拖动也可触发）")
+        self.btn_scrub.setToolTip(tr("waveform.tip_scrub"))
         self.btn_scrub.setCheckable(True)
         self.btn_scrub.setStyleSheet(tool_btn)
         self.btn_scrub.clicked.connect(self._on_scrub_toggled)
@@ -454,14 +534,17 @@ class WaveformWidget(QWidget):
 
         # 归一化
         self.btn_normalize = QPushButton("归一化")
-        self.btn_normalize.setToolTip("切换波形归一化显示 (N)")
+        self.btn_normalize.setToolTip(tr("waveform.tip_normalize"))
+        # G9：「归一化」本身即切换语义（tooltip 已写「切换波形归一化显示」），
+        # 故设为 checkable，由 _tool_btn_qss 的 :checked 规则给出可见「已开启」态
+        # （accent 底 + accent_text 字 + accent 描边），与常态/悬停态三态互异。
+        self.btn_normalize.setCheckable(True)
+        self.btn_normalize.setAccessibleName(tr("waveform.tip_normalize"))
         self.btn_normalize.setStyleSheet(tool_btn)
         self.btn_normalize.clicked.connect(self.toggle_normalize)
         self.toolbar.addWidget(self.btn_normalize)
 
         # 去除开头静默
-        from acouscope.i18n import tr
-
         self.btn_trim_silence = QPushButton(tr("wave.trim_silence_btn"))
         self.btn_trim_silence.setToolTip(tr("wave.trim_silence_tip"))
         self.btn_trim_silence.setStyleSheet(tool_btn)
@@ -506,7 +589,7 @@ class WaveformWidget(QWidget):
 
         # 右侧 VU 表（Audacity 风格垂直电平表）
         self.vu_meter = VUMeter()
-        self.vu_meter.setToolTip("输出电平")
+        self.vu_meter.setToolTip(tr("waveform.tip_level"))
         self.vu_meter.setFixedWidth(32)
         self.vu_meter.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding
@@ -605,6 +688,15 @@ class WaveformWidget(QWidget):
         self.plot_widget.addItem(self.playhead)
         self.playhead.hide()  # 空态隐藏：不参与 autoRange，时间轴不出现负刻度
 
+        # H7：底轴原始刻度长度（空态置 0 由 _apply_empty_state 恢复真值）
+        try:
+            self._axis_tick_len = int(
+                self.plot_widget.getPlotItem().getAxis("bottom").style["tickLength"]
+            )
+        except Exception:  # noqa: BLE001 — 度量失败退默认（pyqtgraph 默认 -5）
+            self._axis_tick_len = 5
+        self._empty_state = True
+
         self._times = np.array([])
         self._data = np.array([])
         self._sample_rate = 44100.0
@@ -652,6 +744,45 @@ class WaveformWidget(QWidget):
         # Scrub 播放状态
         self._scrubbing = False
         self._scrub_position = 0.0
+
+        # H7：构造即空态——不画时间轴刻度、不显示任何游标（见 _apply_empty_state）
+        self._apply_empty_state(True)
+
+    # ------------------------------------------------------------------
+    # 空态呈现（H7）：无音频时不出现「假时间轴 + 游标」
+    # ------------------------------------------------------------------
+
+    def _apply_empty_state(self, empty: bool) -> None:
+        """空态/载入态切换：时间轴刻度与分析游标随之隐藏/恢复。
+
+        空态（未载入音频）此前仍画 0–0.5 s 时间轴刻度与一条红针竖线，观感等于
+        「已有数据」。现按数据有无统一切换：空态 `showValues=False` +
+        `tickLength=0`（轴标题与网格保留），游标（播放头 + 分析针）一并隐藏；
+        载入后逐项恢复原样式。幂等、绝不外抛。
+        """
+        self._empty_state = bool(empty)
+        try:
+            axis = self.plot_widget.getPlotItem().getAxis("bottom")
+            if axis is not None:
+                if empty:
+                    axis.setStyle(showValues=False, tickLength=0)
+                else:
+                    axis.setStyle(
+                        showValues=True, tickLength=getattr(self, "_axis_tick_len", 5)
+                    )
+                axis.update()
+        except Exception:  # noqa: BLE001 — 呈现切换永不抛
+            pass
+        for item in (
+            getattr(self, "playhead", None),
+            getattr(self, "analysis_cursor", None),
+        ):
+            if item is None:
+                continue
+            try:
+                item.setVisible(not empty)
+            except Exception:  # noqa: BLE001
+                pass
 
     # ------------------------------------------------------------------
     # 标注 API
@@ -1003,23 +1134,28 @@ class WaveformWidget(QWidget):
             b.setStyleSheet(tb)
         for b in (self.btn_scrub, self.btn_normalize, self.btn_trim_silence):
             b.setStyleSheet(tool)
-        if getattr(self, "_normalized", False):
-            self.btn_normalize.setStyleSheet(
-                f"font-size:{theme.TOKENS['typography']['caption']}px;"
-                f"padding:{theme.TOKENS['spacing']['xxs']}px"
-                f" {theme.TOKENS['spacing']['sm']}px;"
-                f"background:{theme.TOKENS['semantic']['success']};"
-                f"color:{theme.TOKENS['semantic']['success_text']};"
-            )
+        # G9：已开启态由 _tool_btn_qss 的 QPushButton:checked 规则表达（accent 底
+        # + accent_text 字），不再另设一套 success 绿色局部样式（那会与主题令牌
+        # 的双态语义打架，且按钮无勾选态可读）。
+
+    def _sync_normalize_button(self, normalized: bool) -> None:
+        """G9：按钮勾选态 ← 归一化实际状态（blockSignals 防 clicked 回环）。"""
+        btn = getattr(self, "btn_normalize", None)
+        if btn is None or btn.isChecked() == bool(normalized):
+            return
+        btn.blockSignals(True)
+        btn.setChecked(bool(normalized))
+        btn.blockSignals(False)
 
     def toggle_normalize(self):
-        """切换归一化显示。"""
-        self.set_normalized(not self._normalized)
-        self.btn_normalize.setChecked(self._normalized)
-        self._refresh_toolbutton_qss()
+        """切换归一化显示（按钮勾选态即状态源，G9）。"""
+        self.set_normalized(self.btn_normalize.isChecked())
 
     def set_normalized(self, normalized: bool):
-        """设置波形是否归一化显示（峰值 = 1.0 / 0 dB）。"""
+        """设置波形是否归一化显示（峰值 = 1.0 / 0 dB）；按钮勾选态双向同步。"""
+        normalized = bool(normalized)
+        # 先同步按钮（含「数据为空时仅回填勾选态」的路径），再做数据换算
+        self._sync_normalize_button(normalized)
         if normalized == self._normalized:
             return
         self._normalized = normalized
@@ -1407,6 +1543,8 @@ class WaveformWidget(QWidget):
                 xMax=float(times[-1]),
             )
             self.plot_widget.setXRange(times[0], times[-1], padding=0)
+            # H7：载入数据 → 恢复时间轴刻度与游标
+            self._apply_empty_state(False)
             self.playhead.setPos(0.0)
             self.playhead.show()
             self._update_scrollbar()
@@ -1414,6 +1552,9 @@ class WaveformWidget(QWidget):
             # 初始化分析指针到中间位置
             mid_time = times[len(times) // 2]
             self.set_analysis_position(mid_time, emit=False)
+
+        # G9：打开/切换文件后按当前归一化状态回填按钮勾选态（显示态不随文件丢失）
+        self._sync_normalize_button(self._normalized)
 
     def set_frame_size(self, frame_size_seconds: float):
         """设置分析帧宽（秒）。蓝条移除后仅存续状态，供检查器读数/3D 驱动。"""
@@ -1493,6 +1634,8 @@ class WaveformWidget(QWidget):
         self._ring_n = 0       # 已写入总采样数（绝对计数）
         self._ring_pos = 0     # 写游标（环内位置）
         self.curve.setData([], [])
+        # H7：录音进实时模式 = 有数据流 → 恢复时间轴刻度与游标
+        self._apply_empty_state(False)
         self.playhead.setPos(0.0)
         self.playhead.show()
         self._live_x0 = 0.0
@@ -1617,6 +1760,8 @@ class WaveformWidget(QWidget):
         self.clear_selection(emit=False)
         self.clear_regions()
         self.clear_instants()
+        # H7：清空 → 回空态（时间轴刻度与游标一并收起）
+        self._apply_empty_state(True)
 
     # ------------------------------------------------------------------
     # 析构收尾（CB-006 C2：GUI_backlog #15 偶发原生崩溃）

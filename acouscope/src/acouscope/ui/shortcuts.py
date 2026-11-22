@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import platform
+import re
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -24,7 +25,7 @@ def is_macos() -> bool:
 
 
 def sc(key: str) -> str:
-    """平台适配的快捷键字符串。
+    """平台适配的快捷键字符串（**绑定口径**，禁当显示文案用）。
 
     将 "Ctrl" 自动替换为 macOS 上的 "Meta"（即 Cmd 键），
     其他平台保持 "Ctrl" 不变。
@@ -34,6 +35,45 @@ def sc(key: str) -> str:
     if is_macos():
         return key.replace("Ctrl+", "Meta+")
     return key
+
+
+# ----------------------------------------------------------------------
+# 显示层键位文案（G12）：macOS 用户面用符号（⌘⌃⌥⇧），其它平台原样。
+# 语义按 Qt 的 macOS 约定：Ctrl→⌘（Command）/ Meta→⌃（Control）/
+# Alt→⌥（Option）/ Shift→⇧。★ 只改显示，**不动任何 keySequence 绑定**：
+# 绑定仍走 sc()（QKeySequence 解析不了符号字形）。
+# ----------------------------------------------------------------------
+_MAC_DISPLAY_TOKENS: tuple[tuple[str, str], ...] = (
+    ("Ctrl", "⌘"), ("Meta", "⌃"), ("Alt", "⌥"), ("Shift", "⇧"),
+)
+# 反向表（显示文案 → 绑定口径），用于快捷键表就地编辑后回写
+_MAC_BINDING_TOKENS: tuple[tuple[str, str], ...] = (
+    ("⌘", "Ctrl"), ("⌃", "Meta"), ("⌥", "Alt"), ("⇧", "Shift"),
+)
+_KEY_TOKEN_RE = re.compile(r"\b(Ctrl|Meta|Alt|Shift)\b")
+
+
+def display_key(key: str) -> str:
+    """把绑定口径的键位串转成平台显示文案（macOS 用 ⌘⌃⌥⇧；其它平台原样）。
+
+    macOS 惯例是符号直接连写（⌘⇧R），故替换后去掉修饰符与下一键之间的 `+`。
+    """
+    if not key or not is_macos():
+        return key
+    out = _KEY_TOKEN_RE.sub(lambda m: dict(_MAC_DISPLAY_TOKENS)[m.group(1)], str(key))
+    return re.sub(r"([⌘⌃⌥⇧])\+", r"\1", out)
+
+
+def unmap_key(key: str) -> str:
+    """把显示文案还原为绑定口径（display_key 的反函数）；非 macOS 原样返回。"""
+    if not key or not is_macos():
+        return key
+    out = str(key)
+    for symbol, token in _MAC_BINDING_TOKENS:
+        # 符号后补回分隔符：⌘⇧R → Ctrl+Shift+R（连写形式可逆）
+        out = out.replace(symbol, token + "+")
+    out = re.sub(r"\++", "+", out)
+    return out.rstrip("+")
 
 
 @dataclass

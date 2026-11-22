@@ -232,7 +232,7 @@ class TestSpectrogramCache:
         )
         monkeypatch.setattr(
             "acouscope.analysis.pitch_grid.build_pitch_grid",
-            lambda times, f0, conf, mode: None,
+            lambda times, f0, conf, mode, **kwargs: None,
         )
 
         class _FakeTrack:

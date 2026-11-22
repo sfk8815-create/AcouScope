@@ -76,7 +76,7 @@ from acouscope.ai.prompts import (
     build_context,  # noqa: F401
 )
 from acouscope.i18n import tr
-from acouscope.ui.theme import TOKENS, style_when_theme
+from acouscope.ui.theme import TOKENS, style_when_theme, ui_mono_family_qss
 from acouscope.ui.widgets.toast import show_toast
 from acouscope.utils.config import data_dir_candidates
 
@@ -1135,7 +1135,7 @@ class _MessageBubble(QFrame):
         try:
             bg = c.get("input") or c.get("bg2") or "transparent"
             fg = c.get("text") or "inherit"
-            mono = TOKENS["typography"]["mono"]
+            mono = ui_mono_family_qss()
             self.text_view.document().setDefaultStyleSheet(
                 f"pre {{ background-color: {bg}; color: {fg};"
                 f" font-family: {mono}; }}")
@@ -1347,6 +1347,12 @@ class AIInterpretDialog(QWidget):
         self._top_grid = None     # 装配完成前 resizeEvent 不做顶部行重排
         self.lbl_source = QLabel(tr("settings.ai_source"))
         self.lbl_source.setObjectName("aiSourceLabel")
+        # A2：长文本标签窄栏两行 + tooltip 全文，且可压缩（不把宿主最小宽顶大）
+        self.lbl_source.setWordWrap(True)
+        self.lbl_source.setToolTip(tr("settings.ai_source"))
+        self.lbl_source.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                     QSizePolicy.Policy.Preferred)
+        self.lbl_source.setMinimumWidth(0)
         self.cmb_source = QComboBox()
         self.cmb_source.setObjectName("aiSourceCombo")
         for _key in SOURCE_KEYS:
@@ -1384,7 +1390,8 @@ class AIInterpretDialog(QWidget):
         # T-1022 §5：探测结论一行（硬件规格；GPU 核数不在此路径探测）
         self.lbl_probe = QLabel(hardware_summary())
         self.lbl_probe.setObjectName("aiProbeLabel")
-        self.lbl_probe.setWordWrap(True)
+        self.lbl_probe.setWordWrap(True)                  # A2：两行不横向裁断
+        self.lbl_probe.setToolTip(self.lbl_probe.text())  # A2：tooltip 全文
         self.lbl_probe.setMinimumWidth(0)
         self.lbl_probe.setSizePolicy(QSizePolicy.Policy.Ignored,
                                      QSizePolicy.Policy.Preferred)
@@ -1411,6 +1418,11 @@ class AIInterpretDialog(QWidget):
         self.msg_hint = QLabel(tr("ai_panel.stream_hint"))
         self.msg_hint.setObjectName("aiStreamHint")
         self.msg_hint.setWordWrap(True)
+        # A2：「对话尚未开始」等长文本两行 + tooltip 全文，不横向裁断
+        self.msg_hint.setToolTip(tr("ai_panel.stream_hint"))
+        self.msg_hint.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                    QSizePolicy.Policy.Preferred)
+        self.msg_hint.setMinimumWidth(0)
         self.msg_layout.addWidget(self.msg_hint)
 
         # T-1022 §9.2①：空态提醒（无可用视觉模型 / 未下载）——原因 + 硬件匹配的
@@ -1514,18 +1526,30 @@ class AIInterpretDialog(QWidget):
         self.splitter.setSizes([_MSG_MIN_HEIGHT, _INPUT_DEFAULT_HEIGHT])
         root.addWidget(self.splitter, 1)
 
-        # 窄宽可压缩：不因标签/输入框 sizeHint 把宿主最小宽度顶大；
-        # 动作钮（⚙/发送/停止/移除）保留 sizeHint，避免被压到不可见。
+        # 窄宽可压缩（A2）：不因标签/输入框 sizeHint 把宿主最小宽度顶大（真机
+        # 右栏默认 300 宽被撑到 355）。动作钮（⚙/发送/停止/移除）与档位下拉
+        # 保留 _KEEP_SIZE_HINT 的 sizeHint，避免被压到不可见；其余控件一律
+        # Ignored + minWidth 0，长文本 QLabel 统一 wordWrap + tooltip 全文
+        # （elide 兜底）。原实现只处理 Minimum/MinimumExpanding/Fixed，漏掉
+        # Preferred 的标签/输入框，正是窄栏横向溢出的根因。
         for w in self.findChildren(QWidget):
-            if w.objectName() in _KEEP_SIZE_HINT:
+            name = w.objectName()
+            if name in _KEEP_SIZE_HINT:
+                # 白名单里的长文本标签仍须两行 + 全文（创建处已设，此处兜底）
+                if isinstance(w, QLabel):
+                    w.setWordWrap(True)
+                    if not w.toolTip() and w.text():
+                        w.setToolTip(w.text())
                 continue
-            pol_h = w.sizePolicy().horizontalPolicy()
-            if pol_h in (QSizePolicy.Policy.Minimum,
-                         QSizePolicy.Policy.MinimumExpanding,
-                         QSizePolicy.Policy.Fixed):
-                sp = w.sizePolicy()
+            sp = w.sizePolicy()
+            if sp.horizontalPolicy() != QSizePolicy.Policy.Ignored:
                 sp.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
                 w.setSizePolicy(sp)
+            w.setMinimumWidth(0)
+            if isinstance(w, QLabel):
+                w.setWordWrap(True)
+                if not w.toolTip() and w.text():
+                    w.setToolTip(w.text())
         self.setMinimumWidth(0)
 
     # ------------------------------------------------------------------
@@ -1553,10 +1577,15 @@ class AIInterpretDialog(QWidget):
         宽栏单行：`来源 [▼] 模型名 ▾ ⚙`；窄栏两行：第一行 `来源 [▼] ▾ ⚙`、
         第二行模型名整行（wordWrap 完整呈现，不再被压成 0 宽而完全不可见）。
         """
-        two_row = available < self._top_single_row_need()
+        # A2：边界（available 恰等于所需宽）也按窄栏处理，保证 300 宽必进两行
+        two_row = available <= self._top_single_row_need()
         if two_row == self._top_two_row:
             return
         self._top_two_row = two_row
+        # A2：两行模式下模型名整行呈现（wordWrap + tooltip 全文），绝不横向裁断
+        self.lbl_model.setWordWrap(True)
+        if not self.lbl_model.toolTip() and self.lbl_model.text():
+            self.lbl_model.setToolTip(self.lbl_model.text())
         g = self._top_grid
         for w in (self.lbl_source, self.cmb_source, self.lbl_model,
                   self.btn_model_pick, self.btn_ai_settings):

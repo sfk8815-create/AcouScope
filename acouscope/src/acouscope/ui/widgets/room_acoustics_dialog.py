@@ -28,6 +28,7 @@ from acouscope.analysis.room_acoustics import (
     extract_ir_peak,
     rt60_from_ir,
 )
+from acouscope.i18n import tr
 from acouscope.ui import theme
 from acouscope.ui.widgets.toast import show_toast
 
@@ -91,7 +92,7 @@ class RoomAcousticsDialog(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("房间声学工具")
+        self.setWindowTitle(tr("room_acoustics.title"))
         self.setMinimumSize(0, 480)   # 宽度交抽屉决定，仅保留高度下限
 
         self._recorded_data = None
@@ -410,7 +411,7 @@ class RoomAcousticsDialog(QWidget):
         layout.addLayout(btn_row)
 
         # 状态信息
-        self.lbl_ir_status = QLabel("请先生成扫频信号，播放并录制房间响应，然后加载录制文件。")
+        self.lbl_ir_status = QLabel(tr("room_acoustics.sweep_hint"))
         self.lbl_ir_status.setStyleSheet(
             _panel_qss(f"{theme.TOKENS['spacing']['sm']}px", "body_sm")
         )
@@ -454,8 +455,7 @@ class RoomAcousticsDialog(QWidget):
             self._sweep_data = sweep
             self._sweep_sr = sr
             self.lbl_ir_status.setText(
-                f"扫频信号已生成并保存：{filepath}\n"
-                f"请在被测房间中播放此信号并录制响应。"
+                tr("room_acoustics.status.sweep_saved").format(filepath=filepath)
             )
         except Exception as e:
             show_toast(self, f"保存扫频信号失败：{e}", level="error")
@@ -477,9 +477,11 @@ class RoomAcousticsDialog(QWidget):
             self._recorded_data = data
             self._recorded_sr = sr
             self.lbl_ir_status.setText(
-                f"已加载录制文件：{filepath}\n"
-                f"时长：{len(data)/sr:.2f} s，采样率：{sr} Hz\n"
-                f"点击「计算冲激响应」开始分析。"
+                tr("room_acoustics.status.rec_loaded").format(
+                    path=filepath,
+                    duration=f"{len(data) / sr:.2f}",
+                    sample_rate=sr,
+                )
             )
         except Exception as e:
             show_toast(self, f"加载音频失败：{e}", level="error")
@@ -527,10 +529,10 @@ class RoomAcousticsDialog(QWidget):
         self._ir_sr = sr
 
         self.lbl_ir_status.setText(
-            f"冲激响应计算完成！\n"
-            f"IR 长度：{len(ir_peak)/sr:.3f} s\n"
-            f"峰值位置：{peak_idx/sr*1000:.1f} ms\n\n"
-            f"切换到「RT60 分析」选项卡进行混响时间分析。"
+            tr("room_acoustics.status.ir_done").format(
+                length=f"{len(ir_peak) / sr:.3f}",
+                peak=f"{peak_idx / sr * 1000:.1f}",
+            )
         )
 
     # ==================================================================
@@ -549,7 +551,7 @@ class RoomAcousticsDialog(QWidget):
         self.btn_load_ir.clicked.connect(self._on_load_ir_audio)
         ctrl_row.addWidget(self.btn_load_ir)
 
-        ctrl_row.addWidget(QLabel("方法："))
+        ctrl_row.addWidget(QLabel(tr("room_acoustics.method_label")))
         self.cmb_rt60_method = QComboBox()
         self.cmb_rt60_method.addItem("T30 (-5 ~ -35 dB)", "T30")
         self.cmb_rt60_method.addItem("T20 (-5 ~ -25 dB)", "T20")
@@ -566,7 +568,7 @@ class RoomAcousticsDialog(QWidget):
         layout.addLayout(ctrl_row)
 
         # 结果显示
-        self.lbl_rt60_result = QLabel("请加载冲激响应并计算 RT60。")
+        self.lbl_rt60_result = QLabel(tr("room_acoustics.rt60_hint"))
         self.lbl_rt60_result.setStyleSheet(
             _note_qss("success",
                       f"{theme.TOKENS['spacing']['sm'] + theme.TOKENS['spacing']['xs']}px",
@@ -593,7 +595,9 @@ class RoomAcousticsDialog(QWidget):
             self._ir_data = data
             self._ir_sr = sr
             self.lbl_rt60_result.setText(
-                f"已加载 IR：{len(data)/sr:.3f} s，{sr} Hz\n点击「计算 RT60」进行分析。"
+                tr("room_acoustics.status.ir_loaded").format(
+                    length=f"{len(data) / sr:.3f}", sample_rate=sr
+                )
             )
         except Exception as e:
             show_toast(self, f"加载音频失败：{e}", level="error")
@@ -611,12 +615,15 @@ class RoomAcousticsDialog(QWidget):
 
         if result["valid"]:
             self.lbl_rt60_result.setText(
-                f"RT60 ({method}) = {result['rt60']:.3f} 秒\n"
-                f"衰减斜率：{result['slope']:.1f} dB/s\n"
-                f"拟合区间：{result['db_start']} ~ {result['db_end']} dB"
+                tr("room_acoustics.status.rt60_result").format(
+                    method=method,
+                    rt60=f"{result['rt60']:.3f}",
+                    slope=f"{result['slope']:.1f}",
+                    db_start=result["db_start"],
+                    db_end=result["db_end"],
+                )
             )
         else:
             self.lbl_rt60_result.setText(
-                f"RT60 计算失败：无法在 {method} 区间找到足够数据点。\n"
-                "请检查冲激响应是否有效。"
+                tr("room_acoustics.status.rt60_failed").format(method=method)
             )

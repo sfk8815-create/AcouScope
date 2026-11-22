@@ -219,8 +219,8 @@ def test_readout_box_mono_and_value_hierarchy(dlg):
     box = dlg.readout_reference
     assert isinstance(box, ReadoutBox)
     assert box.value().strip(), "读数框为空"
-    # 等宽：令牌字链进 QSS（T-1037 红线：族链 helper 只允许 theme.py / __main__.py 引用）
-    assert theme.TOKENS["typography"]["mono"] in box.styleSheet()
+    # 等宽：过滤后的字链进 QSS（单一来源 theme.ui_mono_family_qss）
+    assert theme.ui_mono_family_qss() in box.styleSheet()
     families = list(box.lbl_value.font().families()) or [box.lbl_value.font().family()]
     assert theme.ui_mono_families()[0] in families, f"读数未等宽：{families}"
     c = theme.colors()
@@ -237,10 +237,10 @@ def test_inspector_readout_box_and_values_mono(qapp):
     qss = InspectorPanel._build_qss(theme.colors())  # noqa: SLF001
     c = theme.colors()
     ty = theme.TOKENS["typography"]
-    assert ty["mono"] in qss, "检视器读数未走等宽字链"
+    assert theme.ui_mono_family_qss() in qss, "检视器读数未走等宽字链"
     assert f"background: {c['bg2']}" in qss, "检视器读数未内嵌框（缺底色）"
     rule = re.search(r"QLineEdit#metaLineEdit \{([^}]*)\}", qss)
-    assert rule and ty["mono"] in rule.group(1), "键值网格的「值」未等宽"
+    assert rule and theme.ui_mono_family_qss() in rule.group(1), "键值网格的「值」未等宽"
     panel.deleteLater()
 
 

@@ -12,6 +12,10 @@ from typing import Optional
 import numpy as np
 
 from acouscope.audio import AudioIO, AudioInfo, AudioPlayer
+from acouscope.analysis.params_snapshot import (
+    ANALYSIS_PARAMS_METADATA_KEY,
+    params_snapshot_to_metadata,
+)
 from acouscope.analysis.pitch_grid import PitchGridModel
 from acouscope.app.project import ProjectManager
 from acouscope.dsp.cache import AnalysisCache
@@ -270,6 +274,11 @@ class AppController:
                 entry.analysis_results["harmonic_marks"] = annotations
             if grid_model is not None:
                 entry.analysis_results["pitch_grid"] = grid_model
+                # B1-03：参数快照绑定（保存时点即本次分析时点；参数面为全局单源
+                # + 静态参数表）。值为 JSON 字符串，合 Dict[str, str] 不变式。
+                entry.metadata[ANALYSIS_PARAMS_METADATA_KEY] = (
+                    params_snapshot_to_metadata()
+                )
 
         if as_snapshot:
             self.project.save_to(filepath)

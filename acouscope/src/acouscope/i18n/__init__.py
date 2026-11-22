@@ -500,6 +500,75 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "multitrack.compare.heatmap_colorbar_unit": {
         "en_US": "frames/bin", "zh_CN": "帧/格", "zh_TW": "幀/格",
     },
+    # --- 多轨测量结果表格界面键（M3）---
+    "multitrack.measure.col_file": {
+        "en_US": "File", "zh_CN": "文件", "zh_TW": "檔案",
+        "ko_KR": "파일", "ja_JP": "ファイル",
+    },
+    "multitrack.measure.col_duration_s": {
+        "en_US": "Duration (s)", "zh_CN": "时长（秒）", "zh_TW": "時長（秒）",
+        "ko_KR": "길이(초)", "ja_JP": "長さ(秒)",
+    },
+    "multitrack.measure.col_sample_rate": {
+        "en_US": "Sample Rate", "zh_CN": "采样率", "zh_TW": "取樣率",
+        "ko_KR": "샘플레이트", "ja_JP": "サンプリングレート",
+    },
+    "multitrack.measure.col_channels": {
+        "en_US": "Channels", "zh_CN": "声道", "zh_TW": "聲道",
+        "ko_KR": "채널", "ja_JP": "チャネル",
+    },
+    "multitrack.measure.col_rms_db": {
+        "en_US": "RMS (dB)", "zh_CN": "有效值（dB）", "zh_TW": "有效值（dB）",
+        "ko_KR": "RMS(dB)", "ja_JP": "RMS(dB)",
+    },
+    "multitrack.measure.col_peak_db": {
+        "en_US": "Peak (dB)", "zh_CN": "峰值（dB）", "zh_TW": "峰值（dB）",
+        "ko_KR": "피크(dB)", "ja_JP": "ピーク(dB)",
+    },
+    "multitrack.measure.col_f0_median_hz": {
+        "en_US": "F0 Median (Hz)", "zh_CN": "基频中位值（Hz）", "zh_TW": "基頻中位值（Hz）",
+        "ko_KR": "F0 중앙값(Hz)", "ja_JP": "F0中央値(Hz)",
+    },
+    "multitrack.measure.col_status": {
+        "en_US": "Status", "zh_CN": "状态", "zh_TW": "狀態",
+        "ko_KR": "상태", "ja_JP": "状態",
+    },
+    "multitrack.measure.tab": {
+        "en_US": "Measurements", "zh_CN": "测量结果", "zh_TW": "測量結果",
+        "ko_KR": "측정 결과", "ja_JP": "測定結果",
+    },
+    "multitrack.measure.measure": {
+        "en_US": "Measure All", "zh_CN": "测量全部", "zh_TW": "測量全部",
+        "ko_KR": "전체 측정", "ja_JP": "全測定",
+    },
+    "multitrack.measure.export": {
+        "en_US": "Export CSV", "zh_CN": "导出 CSV", "zh_TW": "匯出 CSV",
+        "ko_KR": "CSV 내보내기", "ja_JP": "CSVエクスポート",
+    },
+    "multitrack.measure.empty": {
+        "en_US": "No measurement results yet. Click \"Measure All\" to start.",
+        "zh_CN": "尚无测量结果。点击「测量全部」开始。",
+        "zh_TW": "尚無測量結果。點擊「測量全部」開始。",
+        "ko_KR": "측정 결과가 없습니다. \"전체 측정\"을 클릭하십시오.",
+        "ja_JP": "測定結果がありません。「全測定」をクリックしてください。",
+    },
+    "multitrack.measure.done": {
+        "en_US": "Measured {n} files", "zh_CN": "已测量 {n} 个文件",
+        "zh_TW": "已測量 {n} 個檔案",
+        "ko_KR": "{n}개 파일 측정 완료", "ja_JP": "{n}ファイル測定完了",
+    },
+    "multitrack.measure.status_measured": {
+        "en_US": "Measured", "zh_CN": "已测量", "zh_TW": "已測量",
+        "ko_KR": "측정됨", "ja_JP": "測定済み",
+    },
+    "multitrack.measure.status_partial": {
+        "en_US": "Partial", "zh_CN": "部分", "zh_TW": "部分",
+        "ko_KR": "일부", "ja_JP": "一部",
+    },
+    "multitrack.measure.status_missing": {
+        "en_US": "Missing", "zh_CN": "缺失", "zh_TW": "缺失",
+        "ko_KR": "누락", "ja_JP": "欠落",
+    },
     "action.batch": {
         "en_US": "Batch Processing…", "zh_CN": "批处理…", "zh_TW": "批次處理…",
     },
@@ -730,6 +799,43 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "toolbar.room_modal": {"en_US": "Room Modal", "zh_CN": "房间模态", "zh_TW": "房間模態"},
     "toolbar.room_acoustic": {"en_US": "Room Acoustics", "zh_CN": "房间声学", "zh_TW": "房間聲學"},
     "toolbar.chart_designer": {"en_US": "Chart Designer", "zh_CN": "图表设计器", "zh_TW": "圖表設計器"},
+    # G10：溢出菜单「图表设计器」撞名消歧——工作区页入口加「（工作区）」限定，
+    # 对话框入口沿用 action.chart_designer（「图表设计器…」带省略号）。
+    "overflow.chart_designer_workspace": {
+        "en_US": "Chart Designer (Workspace)",
+        "zh_CN": "图表设计器（工作区）",
+        "zh_TW": "圖表設計器（工作區）",
+        "ko_KR": "차트 디자이너 (작업 공간)",
+        "ja_JP": "チャートデザイナー（ワークスペース）",
+    },
+    # G11：图标型开关按钮的无障碍名（AX 树里原为 name 为空的 button）
+    "toolbar.overflow_more": {
+        "en_US": "More tools", "zh_CN": "更多工具", "zh_TW": "更多工具",
+        "ko_KR": "추가 도구", "ja_JP": "その他のツール",
+    },
+    # 溢出钮**标签**（短词；tooltip/AX 另用 toolbar.overflow_more）
+    "toolbar.more": {
+        "en_US": "More", "zh_CN": "更多", "zh_TW": "更多",
+        "ko_KR": "더 보기", "ja_JP": "その他",
+    },
+    # --- 命令面板（T-1120）---
+    "command_palette.title": {
+        "en_US": "Command Palette", "zh_CN": "命令面板", "zh_TW": "命令面板",
+        "ko_KR": "명령 팔레트", "ja_JP": "コマンドパレット",
+    },
+    "command_palette.placeholder": {
+        "en_US": "Type a command\u2026", "zh_CN": "输入命令\u2026", "zh_TW": "輸入指令\u2026",
+        "ko_KR": "명령 입력\u2026", "ja_JP": "コマンドを入力\u2026",
+    },
+    "command_palette.empty": {
+        "en_US": "No matching command", "zh_CN": "没有匹配的命令", "zh_TW": "沒有符合的指令",
+        "ko_KR": "일치하는 명령 없음", "ja_JP": "一致するコマンドなし",
+    },
+    "command_palette.hint": {
+        "en_US": "Enter to run \u00b7 Esc to close", "zh_CN": "Enter 执行 \u00b7 Esc 关闭",
+        "zh_TW": "Enter 執行 \u00b7 Esc 關閉",
+        "ko_KR": "Enter 실행 \u00b7 Esc 닫기", "ja_JP": "Enter 実行 \u00b7 Esc 閉じる",
+    },
     # --- 左右栏 tab 标题（T-1010 侧栏信息架构统一；每类内容唯一宿主）---
     "sidebar.tab.files":    {"en_US": "Files",           "zh_CN": "文件",             "zh_TW": "檔案"},
     "sidebar.tab.settings": {"en_US": "Settings",        "zh_CN": "设置",             "zh_TW": "設定"},
@@ -772,8 +878,110 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "status.seg.play_position":{"en_US": "Play Position",  "zh_CN": "播放位置",       "zh_TW": "播放位置"},
     "status.seg.record_timer":{"en_US": "Record Timer",    "zh_CN": "录音计时",       "zh_TW": "錄音計時"},
     "status.seg.zoom":    {"en_US": "Zoom",                "zh_CN": "缩放",           "zh_TW": "縮放"},
+    # --- G-2a：main_window.py Qt 汇点硬编码清零（32 键，三语齐、ko/ja 随批后补）---
+    "update.downloading_model": {"en_US": "Downloading {backend} model…",
+                                 "zh_CN": "下载 {backend} 模型…",
+                                 "zh_TW": "下載 {backend} 模型…"},
+    "status.autosave_restored": {"en_US": "Project restored from autosave snapshot",
+                                 "zh_CN": "已从自动保存快照恢复项目",
+                                 "zh_TW": "已從自動儲存快照復原專案"},
+    "status.loading":     {"en_US": "Loading: {name}...",
+                           "zh_CN": "正在加载: {name}...",
+                           "zh_TW": "正在載入: {name}..."},
+    "status.loaded":      {"en_US": "Loaded: {name}",
+                           "zh_CN": "已加载: {name}",
+                           "zh_TW": "已載入: {name}"},
+    "status.play_rate":   {"en_US": "Playback rate: {rate}x",
+                           "zh_CN": "播放速率: {rate}x",
+                           "zh_TW": "播放速率: {rate}x"},
+    "status.computing_fft": {"en_US": "Computing FFT spectrum...",
+                             "zh_CN": "计算 FFT 频谱...",
+                             "zh_TW": "計算 FFT 頻譜..."},
+    "status.fft_info_pos": {"en_US": "FFT spectrum ({n}-point FFT, position: {pos}s)",
+                            "zh_CN": "FFT 频谱 ({n} 点 FFT, 位置: {pos}s)",
+                            "zh_TW": "FFT 頻譜 ({n} 點 FFT, 位置: {pos}s)"},
+    "status.fft_info_window": {"en_US": "FFT spectrum ({n}-point FFT, {window} window)",
+                               "zh_CN": "FFT 频谱 ({n} 点 FFT, {window}窗)",
+                               "zh_TW": "FFT 頻譜 ({n} 點 FFT, {window} 窗)"},
+    "status.fft_info_hint": {"en_US": "FFT spectrum ({n}-point FFT = internal zero-padding FFT size; window length set by the drop-down; drag the red cursor to inspect positions)",
+                             "zh_CN": "FFT 频谱 ({n} 点 FFT 为内部补零/零填充后的 FFT 点数，窗长由下拉设置；拖动红色指针查看不同位置)",
+                             "zh_TW": "FFT 頻譜 ({n} 點 FFT 為內部補零/零填充後的 FFT 點數，窗長由下拉設定；拖曳紅色指標查看不同位置)"},
+    "status.computing_spectrogram": {"en_US": "Computing spectrogram...",
+                                     "zh_CN": "计算语谱图...",
+                                     "zh_TW": "計算語譜圖..."},
+    "status.recomputing_spectrogram": {"en_US": "Recomputing spectrogram...",
+                                       "zh_CN": "重新计算语谱图...",
+                                       "zh_TW": "重新計算語譜圖..."},
+    "status.computing_3d": {"en_US": "Computing 3D spectrogram...",
+                            "zh_CN": "计算 3D 频谱图...",
+                            "zh_TW": "計算 3D 頻譜圖..."},
+    "status.project_created": {"en_US": "Project created: {path}",
+                               "zh_CN": "项目已创建: {path}",
+                               "zh_TW": "專案已建立: {path}"},
+    "status.project_loading": {"en_US": "Loading project: {name}...",
+                               "zh_CN": "正在加载项目: {name}...",
+                               "zh_TW": "正在載入專案: {name}..."},
+    "status.project_loaded": {"en_US": "Project loaded: {name}",
+                              "zh_CN": "项目已加载: {name}",
+                              "zh_TW": "專案已載入: {name}"},
+    "status.project_saved": {"en_US": "Project saved: {path}",
+                             "zh_CN": "项目已保存: {path}",
+                             "zh_TW": "專案已儲存: {path}"},
+    "status.exporting_audio": {"en_US": "Exporting {fmt} audio...",
+                               "zh_CN": "导出 {fmt} 音频...",
+                               "zh_TW": "匯出 {fmt} 音訊..."},
+    "status.audio_exported": {"en_US": "Audio exported: {path}",
+                              "zh_CN": "音频已导出: {path}",
+                              "zh_TW": "音訊已匯出: {path}"},
+    "status.exporting_chart": {"en_US": "Exporting chart...",
+                               "zh_CN": "导出图表...",
+                               "zh_TW": "匯出圖表..."},
+    "status.chart_exported": {"en_US": "Chart exported: {path}",
+                              "zh_CN": "图表已导出: {path}",
+                              "zh_TW": "圖表已匯出: {path}"},
+    "app.window_title_project": {"en_US": "{name} - AcouScope",
+                                 "zh_CN": "{name} - AcouScope 音析",
+                                 "zh_TW": "{name} - AcouScope 音析"},
+    "record.device_none": {"en_US": "(no input device)",
+                           "zh_CN": "（无输入设备）",
+                           "zh_TW": "（無輸入裝置）"},
+    "record.device_unavailable": {"en_US": "(unavailable)",
+                                  "zh_CN": "（不可用）",
+                                  "zh_TW": "（不可用）"},
+    "record.finished_title": {"en_US": "Recording Complete",
+                              "zh_CN": "录音完成",
+                              "zh_TW": "錄音完成"},
+    "record.recorded_seconds": {"en_US": "Recorded {seconds} s.",
+                                "zh_CN": "已录制 {seconds} 秒。",
+                                "zh_TW": "已錄製 {seconds} 秒。"},
+    "record.load_question": {"en_US": "Load it into the waveform for analysis?",
+                             "zh_CN": "是否加载到波形中进行分析？",
+                             "zh_TW": "是否載入波形中進行分析？"},
+    "pitch.backend_label": {"en_US": "Pitch algorithm:",
+                            "zh_CN": "音高算法:",
+                            "zh_TW": "音高演算法:"},
+    "pitch.backend_pyin": {"en_US": "pYIN (streaming)",
+                           "zh_CN": "pYIN (流式)",
+                           "zh_TW": "pYIN (串流)"},
+    "pitch.backend_swiftf0": {"en_US": "SwiftF0 (deep)",
+                              "zh_CN": "SwiftF0 (深度)",
+                              "zh_TW": "SwiftF0 (深度)"},
+    "pitch.backend_rmvpe": {"en_US": "RMVPE (vocal)",
+                            "zh_CN": "RMVPE (人声)",
+                            "zh_TW": "RMVPE (人聲)"},
+    "pitch.model_missing_title": {"en_US": "Model Not Installed",
+                                  "zh_CN": "模型未安装",
+                                  "zh_TW": "模型未安裝"},
+    "pitch.model_missing_text": {"en_US": "The {backend} model has not been downloaded yet. Download it now?\n(Network connection required; download in advance before fieldwork.)",
+                                 "zh_CN": "{backend} 模型尚未下载。是否现在下载？\n（需要网络连接，田野调查前请预下载）",
+                                 "zh_TW": "{backend} 模型尚未下載。是否現在下載？\n（需要網路連線，田野調查前請預先下載）"},
     # --- 传输条（CB-013 D-1）---
     "transport.speed_readout":{"en_US": "Playback Rate",   "zh_CN": "播放速率",       "zh_TW": "播放速率"},
+    # G13：速率读数前缀（与相邻倍速下拉的裸 1.0x 区分，避免两个裸 x 值并排）
+    "transport.rate_label": {
+        "en_US": "Rate", "zh_CN": "速率", "zh_TW": "速率",
+        "ko_KR": "재생 속도", "ja_JP": "再生速度",
+    },
     # --- 全局快捷键（CB-013 D-1）---
     "shortcut.record":    {"en_US": "Record",              "zh_CN": "录音",           "zh_TW": "錄音"},
     "shortcut.stop_playback":{"en_US": "Stop Playback",    "zh_CN": "停止播放",       "zh_TW": "停止播放"},
@@ -821,6 +1029,16 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "settings.tab.export":{"en_US": "Export",           "zh_CN": "导出",             "zh_TW": "匯出"},
     # IM-41：快捷键标签 tr() 化（原 settings_dialog 硬编码「快捷键」，英文界面中英混排）
     "settings.tab.shortcuts":{"en_US": "Shortcuts",     "zh_CN": "快捷键",           "zh_TW": "快捷鍵"},
+    # MCP（模型上下文协议）设置页 — 9 键 × 5 语齐
+    "settings.tab.mcp": {"en_US": "MCP", "zh_CN": "MCP", "zh_TW": "MCP", "ko_KR": "MCP", "ja_JP": "MCP"},
+    "settings.mcp.title": {"en_US": "Allowed Root Directories", "zh_CN": "允许访问的根目录", "zh_TW": "允許訪問的根目錄", "ko_KR": "허용된 루트 디렉토리", "ja_JP": "許可されたルートディレクトリ"},
+    "settings.mcp.enable": {"en_US": "Enable MCP integration", "zh_CN": "启用 MCP 集成", "zh_TW": "啟用 MCP 整合", "ko_KR": "MCP 통합 활성화", "ja_JP": "MCP 統合を有効化"},
+    "settings.mcp.roots_hint": {"en_US": "Separate multiple absolute paths with the system path separator", "zh_CN": "多个绝对路径请用系统路径分隔符号隔开", "zh_TW": "多個絕對路徑請用系統路徑分隔符號隔開", "ko_KR": "여러 절대 경로는 시스템 경로 구분자로 분리하십시오", "ja_JP": "複数の絶対パスはシステムパス区切り文字で区切ってください"},
+    "settings.mcp.out_hint": {"en_US": "Output directory for MCP artifacts (leave empty for default)", "zh_CN": "MCP 输出工作目录（留空使用默认）", "zh_TW": "MCP 輸出工作目錄（留空使用預設）", "ko_KR": "MCP 산출물 출력 디렉토리(비우면 기본값)", "ja_JP": "MCP アーティファクト出力ディレクトリ（空はデフォルト）"},
+    "settings.mcp.check": {"en_US": "Check Readiness", "zh_CN": "就绪检查", "zh_TW": "就緒檢查", "ko_KR": "준비 상태 확인", "ja_JP": "準備状況を確認"},
+    "settings.mcp.copy": {"en_US": "Copy Host Config", "zh_CN": "复制 Host 配置", "zh_TW": "複製 Host 設定", "ko_KR": "호스트 구성 복사", "ja_JP": "ホスト設定をコピー"},
+    "settings.mcp.ready": {"en_US": "MCP ready", "zh_CN": "MCP 就绪", "zh_TW": "MCP 就緒", "ko_KR": "MCP 준비 완료", "ja_JP": "MCP 準備完了"},
+    "settings.mcp.not_ready": {"en_US": "MCP not ready", "zh_CN": "MCP 未就绪", "zh_TW": "MCP 未就緒", "ko_KR": "MCP 준비 안 됨", "ja_JP": "MCP 準備未完了"},
     "settings.language":  {"en_US": "Language:",        "zh_CN": "语言：",           "zh_TW": "語言："},
     "settings.lang_hint": {"en_US": "Restart required after changing language",
                            "zh_CN": "更改语言后需重启应用生效",
@@ -898,6 +1116,9 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "en_US": "Restored to the version bundled with the app.",
         "zh_CN": "已恢复随软件自带的版本",
         "zh_TW": "已恢復隨軟體自帶的版本"},
+    "settings.engine_cancelled": {"en_US": "Update cancelled",
+                                  "zh_CN": "已取消更新",
+                                  "zh_TW": "已取消更新"},
     # --- UP-2：应用更新检查（只通知；帮助菜单 + 结果提示 + 设置开关 + 首次征询）---
     "action.check_updates": {"en_US": "Check for Updates…",
                              "zh_CN": "检查更新…",
@@ -1023,6 +1244,14 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "rt.plot_bars":       {"en_US": "Band Energy Bars", "zh_CN": "频段能量条",      "zh_TW": "頻段能量條"},
     "rt.axis_time":       {"en_US": "Time",            "zh_CN": "时间",             "zh_TW": "時間"},
     "rt.axis_freq":       {"en_US": "Frequency",       "zh_CN": "频率",             "zh_TW": "頻率"},
+    # H4：左下「场景可视化」块的标题与 X/Y 轴标（en/zh_CN/zh_TW 三语齐；ko/ja 随批补齐，
+    # 保持 parity 守卫的 ko_ja 缺口单调不增）
+    "rt.plot_scene":      {"en_US": "Scene Visualization", "zh_CN": "场景可视化",
+                           "zh_TW": "場景視覺化", "ko_KR": "장면 시각화", "ja_JP": "シーン可視化"},
+    "rt.axis_scene_x":    {"en_US": "Horizontal",      "zh_CN": "横向",
+                           "zh_TW": "橫向", "ko_KR": "가로", "ja_JP": "横方向"},
+    "rt.axis_scene_y":    {"en_US": "Vertical",        "zh_CN": "纵向",
+                           "zh_TW": "縱向", "ko_KR": "세로", "ja_JP": "縦方向"},
     "rt.band_low":        {"en_US": "Low",             "zh_CN": "低",               "zh_TW": "低"},
     "rt.band_mid":        {"en_US": "Mid",             "zh_CN": "中",               "zh_TW": "中"},
     "rt.band_high":       {"en_US": "High",            "zh_CN": "高",               "zh_TW": "高"},
@@ -1053,6 +1282,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "menu.export":      {"en_US": "Export",           "zh_CN": "导出",             "zh_TW": "匯出"},
     "toolbar.tips":      {"en_US": "Tips",             "zh_CN": "提示",             "zh_TW": "提示"},
     "tip.prefix":        {"en_US": "Tip",              "zh_CN": "提示",             "zh_TW": "提示"},
+    # G14：提示条右侧 × 关闭钮（只隐藏本条，不落盘）
+    "tip.close":         {
+        "en_US": "Dismiss this tip", "zh_CN": "关闭本条提示", "zh_TW": "關閉本條提示",
+        "ko_KR": "이 팁 닫기", "ja_JP": "このヒントを閉じる",
+    },
     "tip.1":             {"en_US": "Drag & drop an audio file onto the window to open it.",
                            "zh_CN": "把音频文件拖放到窗口即可打开。",
                            "zh_TW": "將音訊檔案拖放到視窗即可開啟。"},
@@ -1546,6 +1780,16 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "zh_CN": "无可用项目管理器",
         "zh_TW": "無可用的專案管理器",
     },
+    "batch.meta.warn_missing_fields": {
+        "en_US": "Missing required: {fields}",
+        "zh_CN": "必填缺失：{fields}",
+        "zh_TW": "必填缺失：{fields}",
+    },
+    "batch.meta.err_fields_missing": {
+        "en_US": "Missing required fields: {fields}",
+        "zh_CN": "必填字段缺失：{fields}",
+        "zh_TW": "必填欄位缺失：{fields}",
+    },
     "batch.meta.applied": {
         "en_US": "Done: {ok} succeeded / {fail} failed",
         "zh_CN": "已完成：{ok} 成功 / {fail} 失败",
@@ -1605,6 +1849,16 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "zh_CN": "✓ 已保存",
         "zh_TW": "✓ 已儲存",
     },
+    "inspector.meta.missing_required": {
+        "en_US": "Missing required fields for {standard}: {fields}. Nothing was saved.",
+        "zh_CN": "该标准（{standard}）必填项未填：{fields}，已阻止保存。",
+        "zh_TW": "該標準（{standard}）必填項未填：{fields}，已阻止儲存。",
+    },
+    "inspector.meta.format_warn": {
+        "en_US": "Value format warning: {fields} should use YYYY-MM-DD.",
+        "zh_CN": "值域提示：{fields} 应为 YYYY-MM-DD 格式（已保存，请核对）。",
+        "zh_TW": "值域提示：{fields} 應為 YYYY-MM-DD 格式（已儲存，請核對）。",
+    },
     "inspector.meta.empty": {
         "en_US": "Select an audio file in the File panel to view or edit its archive metadata.",
         "zh_CN": "在文件管理器中选择一个音频文件，以查看/编辑其档案元数据。",
@@ -1634,15 +1888,15 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "en_US": "· Nature: industry standard of the National Archives Administration, “Metadata Scheme for Audio and Video Electronic Records” (final released edition, verified).\n"
                  "· Scope: audio/video electronic records of archives at all levels, organizations, and enterprises.\n"
                  "· Features: four-entity model (records/business/agents/authorization; records entity mandatory); some elements are auto-extracted by system (recording time, audio parameters).\n"
-                 "· Note: this software supports a subset mapping of its records entity, not the full scheme; archive code/title/creator/time are mandatory items.",
+                 "· Note: this software supports a subset mapping of its records entity (Table 2; M76-M96 not covered), not the full scheme; archive code/title/creator/time are mandatory items.",
         "zh_CN": "· 性质：国家档案局档案行业标准《录音录像类电子档案元数据方案》（正式发布版，已核对）。\n"
                  "· 适用范围：各级机关/团体/企事业单位和国家档案馆的录音、录像类电子档案。\n"
                  "· 特点：四实体模式（档案实体/业务/机构人员/授权；档案实体必选）；部分元素由系统自动提取（如摄录时间、音频参数）。\n"
-                 "· 注意：本软件支持其档案实体的子集映射，不等同于完整方案；档号/题名/责任者/时间等为标准必选。",
+                 "· 注意：本软件支持其档案实体的子集映射（表2，不含 M76-M96 三个业务实体），不等同于完整方案；档号/题名/责任者/时间等为标准必选。",
         "zh_TW": "· 性質：國家檔案局檔案行業標準《錄音錄影類電子檔案元資料方案》（正式發布版，已核對）。\n"
                  "· 適用範圍：各級機關/團體/企事業單位和國家檔案館的錄音、錄影類電子檔案。\n"
                  "· 特點：四實體模式（檔案實體/業務/機構人員/授權；檔案實體必選）；部分元素由系統自動提取（如攝錄時間、音訊參數）。\n"
-                 "· 注意：本軟體支援其檔案實體的子集對映，不等同於完整方案；檔號/題名/責任者/時間等為標準必選。",
+                 "· 注意：本軟體支援其檔案實體的子集對映（表2，不含 M76-M96 三個業務實體），不等同於完整方案；檔號/題名/責任者/時間等為標準必選。",
     },
     "inspector.meta.desc_gbt": {
         "en_US": "· Nature: national standard “Digitization Processing Specifications for Library Collection Resources — Part 4: Audio Resources” (digitization processing specification).\n"
@@ -1662,6 +1916,25 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "en_US": "Use the custom cataloging fields of this software (for field-research scenarios such as intangible cultural heritage and ethnomusicology).",
         "zh_CN": "使用本软件自定义著录字段（面向非遗/民族音乐学等田野研究场景）。",
         "zh_TW": "使用本軟體自訂著錄欄位（面向非遺/民族音樂學等田野研究場景）。",
+    },
+    "inspector.meta.std_imdi": {
+        "en_US": "IMDI 3.0.22 (ISLE Meta Data Initiative)",
+        "zh_CN": "IMDI 3.0.22（ISLE 元数据计划）",
+        "zh_TW": "IMDI 3.0.22（ISLE 元資料計畫）",
+    },
+    "inspector.meta.desc_imdi": {
+        "en_US": "· Nature: IMDI (ISLE Meta Data Initiative) session metadata schema, official XSD 3.0.22 (2015-08-26).\n"
+                 "· Status: succeeded by CLARIN CMDI (ISO 24648:2012); field-level mapping follows the 3.0.22 XSD.\n"
+                 "· Features: Session structure (Title/Date/MDGroup/Resources…); Identifier uses the short-name slot Session/Name; technical parameters are carried in MediaFile/Keys.\n"
+                 "· Validation: the output is a METATRANSCRIPT document-level structure which passes structural validation against the official IMDI 3.0.22 XSD; closed-vocabulary conformance is outside that check.",
+        "zh_CN": "· 性质：IMDI（ISLE Meta Data Initiative）会话元数据模式，官方 XSD 3.0.22（2015-08-26）。\n"
+                 "· 状态：已由 CLARIN CMDI（ISO 24648:2012）承接；字段级映射以 3.0.22 XSD 为准。\n"
+                 "· 特点：Session 结构（Title/Date/MDGroup/Resources…）；Identifier 挂短名槽 Session/Name；技术参数挂 MediaFile/Keys。\n"
+                 "· 校验：输出为 METATRANSCRIPT 文档级结构，已通过官方 IMDI 3.0.22 XSD 的结构校验；闭集受控词表合规不在该校验范围内。",
+        "zh_TW": "· 性質：IMDI（ISLE Meta Data Initiative）會話元資料模式，官方 XSD 3.0.22（2015-08-26）。\n"
+                 "· 狀態：已由 CLARIN CMDI（ISO 24648:2012）承接；欄位級對映以 3.0.22 XSD 為準。\n"
+                 "· 特點：Session 結構（Title/Date/MDGroup/Resources…）；Identifier 掛短名槽 Session/Name；技術參數掛 MediaFile/Keys。\n"
+                 "· 校驗：輸出為 METATRANSCRIPT 文件級結構，已通過官方 IMDI 3.0.22 XSD 的結構校驗；閉集受控詞表合規不在該校驗範圍內。",
     },
     "inspector.meta.sampling_rate": {
         "en_US": "Sampling Rate (Hz)",
@@ -1683,6 +1956,27 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         "en_US": "Duration",
         "zh_CN": "时长",
         "zh_TW": "時長",
+    },
+    # M-8a：DA/T 四项自动/预设值的报告/检查器共用标签（三语齐；ko/ja 随批后补）
+    "inspector.meta.file_name": {
+        "en_US": "File name",
+        "zh_CN": "文件名",
+        "zh_TW": "檔名",
+    },
+    "inspector.meta.file_size": {
+        "en_US": "File size",
+        "zh_CN": "文件大小",
+        "zh_TW": "檔案大小",
+    },
+    "inspector.meta.aggregation_level": {
+        "en_US": "Aggregation level",
+        "zh_CN": "聚合层次",
+        "zh_TW": "聚合層次",
+    },
+    "inspector.meta.retention_period": {
+        "en_US": "Retention period",
+        "zh_CN": "保管期限",
+        "zh_TW": "保管期限",
     },
     "inspector.meta.date": {
         "en_US": "Recording Date",
@@ -2697,6 +2991,1996 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     "param.led.off": {
         "en_US": "Not available", "zh_CN": "不可用", "zh_TW": "不可用",
         "ko_KR": "사용 불가", "ja_JP": "利用不可",
+    },
+    # --- G-2b：设置/录音设置/房间声学/房间模态/图表字体五面汇点清零 ---
+    # （43 键，三语齐、ko/ja 随批后补；「频谱图」settings.category_spectrogram
+    #   与「语谱图」view.spectrogram 为两条既有文案，禁合并）
+    # 通用：默认分析视图下拉（settings_dialog:603-611 / 1655-1657 复用）
+    "settings.default_view": {
+        "en_US": "Default analysis view:", "zh_CN": "默认分析视图：", "zh_TW": "預設分析檢視：",
+    },
+    "view.waveform": {
+        "en_US": "Waveform", "zh_CN": "波形", "zh_TW": "波形",
+    },
+    "view.fft": {
+        "en_US": "FFT Spectrum", "zh_CN": "FFT 频谱", "zh_TW": "FFT 頻譜",
+    },
+    "view.spectrogram": {
+        "en_US": "Spectrogram", "zh_CN": "语谱图", "zh_TW": "語譜圖",
+    },
+    "view.pitch": {
+        "en_US": "Pitch", "zh_CN": "音高", "zh_TW": "音高",
+    },
+    "view.formants": {
+        "en_US": "Formants", "zh_CN": "共振峰", "zh_TW": "共振峰",
+    },
+    "view.timbre": {
+        "en_US": "Timbre", "zh_CN": "音色", "zh_TW": "音色",
+    },
+    "view.spectrogram3d": {
+        "en_US": "3D Spectrogram", "zh_CN": "3D 频谱图", "zh_TW": "3D 頻譜圖",
+    },
+    "view.ai_interpret": {
+        "en_US": "AI Interpret", "zh_CN": "AI 释图", "zh_TW": "AI 釋圖",
+    },
+    # 通用：音频设备占位（复用 record.device_none / device_unavailable 之外的新键）
+    "record.device_none_output": {
+        "en_US": "(no output device)", "zh_CN": "（无输出设备）", "zh_TW": "（無輸出裝置）",
+    },
+    # 通用：快捷键分类下拉（1654「频谱图」≠ 607「语谱图」）
+    "settings.category_filter": {
+        "en_US": "Category:", "zh_CN": "分类：", "zh_TW": "分類：",
+    },
+    "settings.category_all": {
+        "en_US": "All", "zh_CN": "全部", "zh_TW": "全部",
+    },
+    "settings.category_global": {
+        "en_US": "General", "zh_CN": "通用", "zh_TW": "一般",
+    },
+    "settings.category_spectrogram": {
+        "en_US": "Spectrogram", "zh_CN": "频谱图", "zh_TW": "頻譜圖",
+    },
+    # 录音设置面板
+    "record_settings.title": {
+        "en_US": "Recording Settings", "zh_CN": "录音设置", "zh_TW": "錄音設定",
+    },
+    "record_settings.output_location": {
+        "en_US": "Output location", "zh_CN": "输出位置", "zh_TW": "輸出位置",
+    },
+    "record_settings.filename_placeholder": {
+        "en_US": "File name (without extension)",
+        "zh_CN": "文件名（不含扩展名）",
+        "zh_TW": "檔案名稱（不含副檔名）",
+    },
+    "record_settings.compress_auto": {
+        "en_US": "Compressed (auto quality)",
+        "zh_CN": "压缩格式（自动质量）",
+        "zh_TW": "壓縮格式（自動品質）",
+    },
+    "record_settings.autosave_path": {
+        "en_US": "Auto-saved to after recording stops:\n{path}",
+        "zh_CN": "停止录音后将自动保存到：\n{path}",
+        "zh_TW": "停止錄音後將自動儲存至：\n{path}",
+    },
+    "record_settings.err_need_dir_and_name": {
+        "en_US": "Please set both directory and file name.",
+        "zh_CN": "请填写目录与文件名。",
+        "zh_TW": "請填寫目錄與檔案名稱。",
+    },
+    "record_settings.err_need_name": {
+        "en_US": "Please enter a file name.",
+        "zh_CN": "请填写文件名。",
+        "zh_TW": "請填寫檔案名稱。",
+    },
+    "record_settings.err_dir_missing": {
+        "en_US": "Directory does not exist; please choose again.",
+        "zh_CN": "目录不存在，请重新选择。",
+        "zh_TW": "目錄不存在，請重新選擇。",
+    },
+    "record_settings.overwrite_title": {
+        "en_US": "File already exists", "zh_CN": "文件已存在", "zh_TW": "檔案已存在",
+    },
+    "record_settings.overwrite_question": {
+        "en_US": "{path}\nAlready exists. Overwrite?",
+        "zh_CN": "{path}\n已存在，是否覆盖？",
+        "zh_TW": "{path}\n已存在，是否覆寫？",
+    },
+    # 房间声学工具
+    "room_acoustics.title": {
+        "en_US": "Room Acoustics Tool", "zh_CN": "房间声学工具", "zh_TW": "房間聲學工具",
+    },
+    "room_acoustics.sweep_hint": {
+        "en_US": "Generate a sweep, play and record the room response, then load the recording.",
+        "zh_CN": "请先生成扫频信号，播放并录制房间响应，然后加载录制文件。",
+        "zh_TW": "請先產生掃頻信號，播放並錄製房間響應，然後載入錄製檔案。",
+    },
+    "room_acoustics.method_label": {
+        "en_US": "Method:", "zh_CN": "方法：", "zh_TW": "方法：",
+    },
+    "room_acoustics.rt60_hint": {
+        "en_US": "Load an impulse response to compute RT60.",
+        "zh_CN": "请加载冲激响应并计算 RT60。",
+        "zh_TW": "請載入衝激響應並計算 RT60。",
+    },
+    # 房间模态分析（预设显示串保留尺寸；itemData 数值元组不动）
+    "room_modes.length_lx": {
+        "en_US": "Length Lx:", "zh_CN": "长度 Lx：", "zh_TW": "長度 Lx：",
+    },
+    "room_modes.width_ly": {
+        "en_US": "Width Ly:", "zh_CN": "宽度 Ly：", "zh_TW": "寬度 Ly：",
+    },
+    "room_modes.height_lz": {
+        "en_US": "Height Lz:", "zh_CN": "高度 Lz：", "zh_TW": "高度 Lz：",
+    },
+    "room_modes.max_order": {
+        "en_US": "Max order:", "zh_CN": "最大阶数：", "zh_TW": "最大階數：",
+    },
+    "room_modes.max_freq": {
+        "en_US": "Max frequency:", "zh_CN": "最高频率：", "zh_TW": "最高頻率：",
+    },
+    "room_modes.speed_of_sound": {
+        "en_US": "Speed of sound:", "zh_CN": "声速：", "zh_TW": "聲速：",
+    },
+    "room_modes.modal_q": {
+        "en_US": "Modal Q:", "zh_CN": "模态 Q 值：", "zh_TW": "模態 Q 值：",
+    },
+    "room_modes.preset_custom": {
+        "en_US": "Custom", "zh_CN": "自定义", "zh_TW": "自訂",
+    },
+    "room_modes.preset_small_room": {
+        "en_US": "Small listening room (4×3×2.5m)",
+        "zh_CN": "小型听音室 (4×3×2.5m)",
+        "zh_TW": "小型試聽室 (4×3×2.5m)",
+    },
+    "room_modes.preset_medium_studio": {
+        "en_US": "Medium studio (6×4.5×3m)",
+        "zh_CN": "中型录音室 (6×4.5×3m)",
+        "zh_TW": "中型錄音室 (6×4.5×3m)",
+    },
+    "room_modes.preset_large_studio": {
+        "en_US": "Large studio (10×8×4m)",
+        "zh_CN": "大型演播室 (10×8×4m)",
+        "zh_TW": "大型演播室 (10×8×4m)",
+    },
+    "room_modes.preset_living_room": {
+        "en_US": "Living room (5×4×2.7m)",
+        "zh_CN": "起居室 (5×4×2.7m)",
+        "zh_TW": "客廳 (5×4×2.7m)",
+    },
+    "room_modes.preset_bedroom": {
+        "en_US": "Bedroom (3.5×3×2.6m)",
+        "zh_CN": "卧室 (3.5×3×2.6m)",
+        "zh_TW": "臥室 (3.5×3×2.6m)",
+    },
+    "room_modes.preset_concert_hall": {
+        "en_US": "Concert hall (30×20×12m)",
+        "zh_CN": "音乐厅 (30×20×12m)",
+        "zh_TW": "音樂廳 (30×20×12m)",
+    },
+    # 图表字体（预览样例，仅文案；预览控件逻辑不动）
+    "chart_font.preview_sample": {
+        "en_US": "Aa 440 Hz · Harmonics · Harmonic series · Spectrogram",
+        "zh_CN": "Aa 440 Hz · Harmonics · 谐波列 · 语谱图",
+        "zh_TW": "Aa 440 Hz · Harmonics · 諧波列 · 語譜圖",
+    },
+    # --- G-2c 笔 1：口径升级（括号配平）新捕获 26 处补漏 ---
+    # main_window（状态栏 / 信息条 / toast）
+    "main_window.info.summary": {
+        "en_US": "{sample_rate} Hz · {channels} ch · {duration} · {format}",
+        "zh_CN": "{sample_rate} Hz · {channels} 声道 · {duration} · {format}",
+        "zh_TW": "{sample_rate} Hz · {channels} 聲道 · {duration} · {format}",
+    },
+    "main_window.realtime.title": {
+        "en_US": "Waveform · Real-time features ({bpm}, onsets low {low}/mid {mid}/high {high})",
+        "zh_CN": "波形 · 实时特征 ({bpm}, 起音 低 {low}/中 {mid}/高 {high})",
+        "zh_TW": "波形 · 即時特徵 ({bpm}, 起音 低 {low}/中 {mid}/高 {high})",
+    },
+    "main_window.realtime.no_beat": {
+        "en_US": "no stable beat",
+        "zh_CN": "无稳定节拍",
+        "zh_TW": "無穩定節拍",
+    },
+    "main_window.chart.region_avg": {
+        "en_US": "Region average spectrum ({t0}–{t1}s, {fft_size}-point FFT)",
+        "zh_CN": "区域平均谱 ({t0}–{t1}s, {fft_size} 点 FFT)",
+        "zh_TW": "區域平均譜 ({t0}–{t1}s, {fft_size} 點 FFT)",
+    },
+    "main_window.chart.spectrogram_title": {
+        "en_US": "Spectrogram ({n_fft}-point FFT, hop {hop} samples, {window} window)",
+        "zh_CN": "语谱图 ({n_fft} 点 FFT, 帧移 {hop} 样点, {window}窗)",
+        "zh_TW": "語譜圖 ({n_fft} 點 FFT, 幀移 {hop} 樣點, {window}窗)",
+    },
+    "main_window.chart.spectrum3d_title": {
+        "en_US": "3D spectrum (segment {t0}–{t1} s, {mode})",
+        "zh_CN": "3D 频谱图 (乐段 {t0}–{t1} s, {mode})",
+        "zh_TW": "3D 頻譜圖 (樂段 {t0}–{t1} s, {mode})",
+    },
+    "main_window.status.formants_done": {
+        "en_US": "Formant analysis complete ({frames} frames, {valid} valid formants)",
+        "zh_CN": "共振峰分析完成 ({frames} 帧, {valid} 个有效共振峰)",
+        "zh_TW": "共振峰分析完成 ({frames} 幀, {valid} 個有效共振峰)",
+    },
+    "main_window.status.timbre_done": {
+        "en_US": "Timbre analysis complete ({frames} frames, mean HNR {hnr} dB)",
+        "zh_CN": "音色分析完成 ({frames} 帧, HNR 均值 {hnr} dB)",
+        "zh_TW": "音色分析完成 ({frames} 幀, HNR 均值 {hnr} dB)",
+    },
+    "main_window.toast.chart_font_updated": {
+        "en_US": "Chart fonts updated: Latin {latin} / CJK {cjk}",
+        "zh_CN": "图表字体已更新：西文 {latin} / 中文 {cjk}",
+        "zh_TW": "圖表字體已更新：西文 {latin} / 中文 {cjk}",
+    },
+    "main_window.toast.font_auto": {
+        "en_US": "Auto",
+        "zh_CN": "自动",
+        "zh_TW": "自動",
+    },
+    # 图表字体（G-2b 遗留的多行说明，G-2c 笔 1 补清）
+    "chart_font.hint_scope": {
+        "en_US": "Latin/numeric and CJK fonts are set separately and apply to "
+                 "all exported charts and 3D views.\nWith \"Auto\", the recommended "
+                 "font is chosen from the UI language.",
+        "zh_CN": "西文/数字字体与中文字体分开设置，应用于全部导出图表与 3D 视图。\n"
+                 "「自动」时按界面语言选择推荐字体。",
+        "zh_TW": "西文/數字字體與中文字體分開設定，套用於全部匯出圖表與 3D 檢視。\n"
+                 "「自動」時依介面語言選擇推薦字體。",
+    },
+    "chart_font.hint_academic": {
+        "en_US": "Tip: academic charts commonly use Times New Roman (Latin) + "
+                 "Songti/PingFang (CJK); settings persist across restarts.",
+        "zh_CN": "提示：学术图表常用 Times New Roman（西文）+ 宋体/苹方（中文）；"
+                 "设置会持久化，重启后保留。",
+        "zh_TW": "提示：學術圖表常用 Times New Roman（西文）+ 宋體/蘋方（中文）；"
+                 "設定會持久化，重啟後保留。",
+    },
+    # 文件信息条（信号特征）
+    "metadata_bar.status.peak_rms": {
+        "en_US": "Peak {peak} dBFS · RMS {rms} dBFS · Crest {crest} dB",
+        "zh_CN": "峰值 {peak} dBFS · RMS {rms} dBFS · 波峰因数 {crest} dB",
+        "zh_TW": "峰值 {peak} dBFS · RMS {rms} dBFS · 波峰因數 {crest} dB",
+    },
+    # 录音设置（有损格式说明）
+    "record_settings.compress_lossy": {
+        "en_US": "{fmt} is a lossy format, so no bit depth applies; "
+                 "encoding uses the default quality.",
+        "zh_CN": "{fmt} 为有损压缩格式，不设采样深度；以默认质量编码。",
+        "zh_TW": "{fmt} 為有損壓縮格式，不設取樣深度；以預設品質編碼。",
+    },
+    # 房间声学（状态面板多行提示）
+    "room_acoustics.status.sweep_saved": {
+        "en_US": "Sweep signal generated and saved: {filepath}\n"
+                 "Play this signal in the room under test and record the response.",
+        "zh_CN": "扫频信号已生成并保存：{filepath}\n请在被测房间中播放此信号并录制响应。",
+        "zh_TW": "掃頻訊號已產生並儲存：{filepath}\n請在被測房間中播放此訊號並錄製響應。",
+    },
+    "room_acoustics.status.rec_loaded": {
+        "en_US": "Recording loaded: {path}\n"
+                 "Duration: {duration} s, sample rate: {sample_rate} Hz\n"
+                 "Click \"Compute impulse response\" to start the analysis.",
+        "zh_CN": "已加载录制文件：{path}\n时长：{duration} s，采样率：{sample_rate} Hz\n"
+                 "点击「计算冲激响应」开始分析。",
+        "zh_TW": "已載入錄製檔案：{path}\n時長：{duration} s，取樣率：{sample_rate} Hz\n"
+                 "點擊「計算衝擊響應」開始分析。",
+    },
+    "room_acoustics.status.ir_done": {
+        "en_US": "Impulse response computed.\n"
+                 "IR length: {length} s\nPeak position: {peak} ms\n\n"
+                 "Switch to the \"RT60 analysis\" tab for reverberation time analysis.",
+        "zh_CN": "冲激响应计算完成！\nIR 长度：{length} s\n峰值位置：{peak} ms\n\n"
+                 "切换到「RT60 分析」选项卡进行混响时间分析。",
+        "zh_TW": "衝擊響應計算完成！\nIR 長度：{length} s\n峰值位置：{peak} ms\n\n"
+                 "切換到「RT60 分析」索引標籤進行殘響時間分析。",
+    },
+    "room_acoustics.status.ir_loaded": {
+        "en_US": "IR loaded: {length} s, {sample_rate} Hz\n"
+                 "Click \"Compute RT60\" to analyse.",
+        "zh_CN": "已加载 IR：{length} s，{sample_rate} Hz\n点击「计算 RT60」进行分析。",
+        "zh_TW": "已載入 IR：{length} s，{sample_rate} Hz\n點擊「計算 RT60」進行分析。",
+    },
+    "room_acoustics.status.rt60_result": {
+        "en_US": "RT60 ({method}) = {rt60} s\nDecay slope: {slope} dB/s\n"
+                 "Fit range: {db_start} ~ {db_end} dB",
+        "zh_CN": "RT60 ({method}) = {rt60} 秒\n衰减斜率：{slope} dB/s\n"
+                 "拟合区间：{db_start} ~ {db_end} dB",
+        "zh_TW": "RT60 ({method}) = {rt60} 秒\n衰減斜率：{slope} dB/s\n"
+                 "擬合區間：{db_start} ~ {db_end} dB",
+    },
+    "room_acoustics.status.rt60_failed": {
+        "en_US": "RT60 computation failed: not enough data points in the "
+                 "{method} range.\nCheck that the impulse response is valid.",
+        "zh_CN": "RT60 计算失败：无法在 {method} 区间找到足够数据点。\n"
+                 "请检查冲激响应是否有效。",
+        "zh_TW": "RT60 計算失敗：無法在 {method} 區間找到足夠資料點。\n"
+                 "請檢查衝擊響應是否有效。",
+    },
+    # 设置（快捷键表说明）
+    "settings_dialog.shortcut_hint": {
+        "en_US": "Double-click the \"Shortcut\" column to change a key. "
+                 "Press Esc to cancel, Enter to confirm.",
+        "zh_CN": "双击「快捷键」列可修改按键。按 Esc 取消，按 Enter 确认。",
+        "zh_TW": "雙擊「快速鍵」欄可修改按鍵。按 Esc 取消，按 Enter 確認。",
+    },
+    # 语谱图（游标读数）
+    "spectrogram.cursor_readout": {
+        "en_US": "Time: {time} s | Freq: {freq} | Level: {db} dB",
+        "zh_CN": "时间: {time} s | 频率: {freq} | 强度: {db} dB",
+        "zh_TW": "時間: {time} s | 頻率: {freq} | 強度: {db} dB",
+    },
+    # 3D 频谱图（字体按钮提示）
+    "spectrogram3d.font_tooltip": {
+        "en_US": "Set the Latin/CJK fonts for 3D charts (shared with exported "
+                 "charts; applies to exported images too)",
+        "zh_CN": "设置 3D 图表的西文/中文字体（与导出图表共用，导出图片同样生效）",
+        "zh_TW": "設定 3D 圖表的西文/中文字體（與匯出圖表共用，匯出圖片同樣生效）",
+    },
+    # 频谱（Y 轴跟随提示 / 标记操作说明）
+    "spectrum.y_follow_tooltip": {
+        "en_US": "Y axis follows visible data automatically (default)\n"
+                 "Shift+wheel zoom locks Y manually\n"
+                 "Click this button to return to auto",
+        "zh_CN": "Y 轴自动跟随可见数据（默认）\n"
+                 "Shift+滚轮手动缩放 Y 后自动锁定\n点击此按钮恢复自动",
+        "zh_TW": "Y 軸自動跟隨可見資料（預設）\n"
+                 "Shift+滾輪手動縮放 Y 後自動鎖定\n點擊此按鈕恢復自動",
+    },
+    "spectrum.peak_mark_hint": {
+        "en_US": "Click a peak: toggle mark · Right-click: menu · Drag: pan · "
+                 "Wheel: zoom frequency axis · Shift+wheel: zoom amplitude axis · "
+                 "Double-click: reset · Delete: remove selected mark",
+        "zh_CN": "单击峰：添加/取消标记 · 右键：菜单 · 拖动：平移 · 滚轮：缩放频率轴 · "
+                 "Shift+滚轮：缩放幅度轴 · 双击：重置 · Delete：删除选中标记",
+        "zh_TW": "單擊峰：新增/取消標記 · 右鍵：選單 · 拖曳：平移 · 滾輪：縮放頻率軸 · "
+                 "Shift+滾輪：縮放幅度軸 · 雙擊：重設 · Delete：刪除選取標記",
+    },
+    # 音色（MFCC 概要）
+    "timbre.status.mfcc_summary": {
+        "en_US": "{order}-order MFCC · {frames} frames · mean HNR {hnr} dB",
+        "zh_CN": "{order} 阶 MFCC · {frames} 帧 · HNR 均值 {hnr} dB",
+        "zh_TW": "{order} 階 MFCC · {frames} 幀 · HNR 均值 {hnr} dB",
+    },
+    # --- G-2c 笔 2：新口径守护下余 86 处大清零 ---
+    # 频谱（工具栏标签 / 提示 / 读数；38 处 → 34 键，同串复用 4 组）
+    "spectrum.title": {
+        "en_US": "Spectrum",
+        "zh_CN": "频谱",
+        "zh_TW": "頻譜",
+    },
+    "spectrum.single_tone_none": {
+        "en_US": "Single note: --",
+        "zh_CN": "单音: --",
+        "zh_TW": "單音: --",
+    },
+    "spectrum.single_tone": {
+        "en_US": "Single note: {name}",
+        "zh_CN": "单音: {name}",
+        "zh_TW": "單音: {name}",
+    },
+    "spectrum.chord": {
+        "en_US": "Chord: {name} ({conf}%)",
+        "zh_CN": "和弦: {name} ({conf}%)",
+        "zh_TW": "和弦: {name} ({conf}%)",
+    },
+    "spectrum.notes_count": {
+        "en_US": "{n} notes",
+        "zh_CN": "{n} 个音",
+        "zh_TW": "{n} 個音",
+    },
+    "spectrum.marks_notes": {
+        "en_US": "Marks: {n} notes",
+        "zh_CN": "标记: {n} 个音",
+        "zh_TW": "標記: {n} 個音",
+    },
+    "spectrum.axis_x": {
+        "en_US": "X axis:",
+        "zh_CN": "X轴:",
+        "zh_TW": "X 軸:",
+    },
+    "spectrum.axis_y": {
+        "en_US": "Y axis:",
+        "zh_CN": "Y轴:",
+        "zh_TW": "Y 軸:",
+    },
+    "spectrum.window": {
+        "en_US": "Window:",
+        "zh_CN": "窗:",
+        "zh_TW": "窗:",
+    },
+    "spectrum.range": {
+        "en_US": "Range:",
+        "zh_CN": "范围:",
+        "zh_TW": "範圍:",
+    },
+    "spectrum.harmonic_marks": {
+        "en_US": "Harmonic marks ({n})",
+        "zh_CN": "谐波标记 ({n})",
+        "zh_TW": "諧波標記 ({n})",
+    },
+    "spectrum.resolution_info": {
+        "en_US": "Resolution: {res} Hz | Zero-padded FFT: {n} points",
+        "zh_CN": "分辨率: {res} Hz | 补零后 FFT: {n} 点",
+        "zh_TW": "解析度: {res} Hz | 補零後 FFT: {n} 點",
+    },
+    "spectrum.y_locked": {
+        "en_US": "Y locked",
+        "zh_CN": "Y锁定",
+        "zh_TW": "Y 鎖定",
+    },
+    "spectrum.y_auto": {
+        "en_US": "Y auto",
+        "zh_CN": "Y自动",
+        "zh_TW": "Y 自動",
+    },
+    "spectrum.freq_none": {
+        "en_US": "Freq: -- Hz",
+        "zh_CN": "频率: -- Hz",
+        "zh_TW": "頻率: -- Hz",
+    },
+    "spectrum.amp_none": {
+        "en_US": "Amp: --",
+        "zh_CN": "幅度: --",
+        "zh_TW": "幅度: --",
+    },
+    "spectrum.note_none": {
+        "en_US": "Note: --",
+        "zh_CN": "音符: --",
+        "zh_TW": "音符: --",
+    },
+    "spectrum.freq_unit": {
+        "en_US": "Freq: {value} {unit}",
+        "zh_CN": "频率: {value} {unit}",
+        "zh_TW": "頻率: {value} {unit}",
+    },
+    "spectrum.freq_hz": {
+        "en_US": "Freq: {value} Hz",
+        "zh_CN": "频率: {value} Hz",
+        "zh_TW": "頻率: {value} Hz",
+    },
+    "spectrum.freq_value": {
+        "en_US": "Freq: {value}",
+        "zh_CN": "频率: {value}",
+        "zh_TW": "頻率: {value}",
+    },
+    "spectrum.cents": {
+        "en_US": "Cents: {value} cents",
+        "zh_CN": "音分: {value} cents",
+        "zh_TW": "音分: {value} cents",
+    },
+    "spectrum.amp_unit": {
+        "en_US": "Amp: {value} {unit}",
+        "zh_CN": "幅度: {value} {unit}",
+        "zh_TW": "幅度: {value} {unit}",
+    },
+    "spectrum.amp_pct": {
+        "en_US": "Amp: {value}%",
+        "zh_CN": "幅度: {value}%",
+        "zh_TW": "幅度: {value}%",
+    },
+    "spectrum.amp_value": {
+        "en_US": "Amp: {value}",
+        "zh_CN": "幅度: {value}",
+        "zh_TW": "幅度: {value}",
+    },
+    "spectrum.note_cents": {
+        "en_US": "Note: {name} ({cents} cents)",
+        "zh_CN": "音符: {name} ({cents} 音分)",
+        "zh_TW": "音符: {name} ({cents} 音分)",
+    },
+    "spectrum.tip_peak_detect": {
+        "en_US": "Detect spectral peaks and list their frequency and amplitude",
+        "zh_CN": "自动检测频谱峰值并列出频率和幅度",
+        "zh_TW": "自動偵測頻譜峰值並列出頻率與幅度",
+    },
+    "spectrum.tip_toggle_marks": {
+        "en_US": "Expand/collapse the peak marker panel",
+        "zh_CN": "展开/收起峰值标记面板",
+        "zh_TW": "展開/收合峰值標記面板",
+    },
+    "spectrum.tip_peak_hold": {
+        "en_US": "Peak hold",
+        "zh_CN": "峰值保持 (Peak Hold)",
+        "zh_TW": "峰值保持 (Peak Hold)",
+    },
+    "spectrum.tip_auto_mark": {
+        "en_US": "Auto-mark the 6 strongest partials "
+                 "(amplitude ≥ 0.1% of the strongest peak)",
+        "zh_CN": "自动标记最强的前 6 个分音（幅度 ≥ 最大峰的 0.1%）",
+        "zh_TW": "自動標記最強的前 6 個分音（幅度 ≥ 最大峰的 0.1%）",
+    },
+    "spectrum.tip_clear_marks": {
+        "en_US": "Clear all harmonic marks",
+        "zh_CN": "清除全部谐波标记",
+        "zh_TW": "清除全部諧波標記",
+    },
+    "spectrum.tip_copy_table": {
+        "en_US": "Copy the marker table (tab-separated; paste into Excel)",
+        "zh_CN": "复制标记数值表（制表符分隔，可粘贴到 Excel）",
+        "zh_TW": "複製標記數值表（定位字元分隔，可貼上到 Excel）",
+    },
+    "spectrum.tip_zoom_in": {
+        "en_US": "Zoom in (Ctrl+=)",
+        "zh_CN": "放大 (Ctrl+=)",
+        "zh_TW": "放大 (Ctrl+=)",
+    },
+    "spectrum.tip_zoom_out": {
+        "en_US": "Zoom out (Ctrl+-)",
+        "zh_CN": "缩小 (Ctrl+-)",
+        "zh_TW": "縮小 (Ctrl+-)",
+    },
+    "spectrum.tip_fit": {
+        "en_US": "Fit to window / reset zoom (Ctrl+0 or double-click)",
+        "zh_CN": "适应窗口 / 重置缩放 (Ctrl+0 或双击)",
+        "zh_TW": "適應視窗 / 重設縮放 (Ctrl+0 或雙擊)",
+    },
+    # 播放条（12 处 → 11 键，录音提示复用）
+    "transport.tip_rewind": {
+        "en_US": "Go to start (Home)",
+        "zh_CN": "跳到开头 (Home)",
+        "zh_TW": "跳到開頭 (Home)",
+    },
+    "transport.tip_play": {
+        "en_US": "Play / Pause (Space)",
+        "zh_CN": "播放 / 暂停 (Space)",
+        "zh_TW": "播放 / 暫停 (Space)",
+    },
+    "transport.tip_stop": {
+        "en_US": "Stop (Esc)",
+        "zh_CN": "停止 (Esc)",
+        "zh_TW": "停止 (Esc)",
+    },
+    "transport.tip_end": {
+        "en_US": "Go to end (End)",
+        "zh_CN": "跳到结尾 (End)",
+        "zh_TW": "跳到結尾 (End)",
+    },
+    "transport.tip_record": {
+        "en_US": "Record (R)",
+        "zh_CN": "录音 (R)",
+        "zh_TW": "錄音 (R)",
+    },
+    "transport.tip_stop_record": {
+        "en_US": "Stop recording (R)",
+        "zh_CN": "停止录音 (R)",
+        "zh_TW": "停止錄音 (R)",
+    },
+    "transport.tip_input_device": {
+        "en_US": "Select the recording input device",
+        "zh_CN": "选择录音输入设备",
+        "zh_TW": "選擇錄音輸入裝置",
+    },
+    "transport.tip_sample_rate": {
+        "en_US": "Recording sample rate",
+        "zh_CN": "录音采样率",
+        "zh_TW": "錄音取樣率",
+    },
+    "transport.tip_loop": {
+        "en_US": "Loop the selected region (no effect without a selection) (L)",
+        "zh_CN": "循环播放选中区域（未选区域则无效）(L)",
+        "zh_TW": "循環播放選取區域（未選取區域則無效）(L)",
+    },
+    "transport.tip_rate": {
+        "en_US": "Playback rate (changes speed and pitch)",
+        "zh_CN": "播放速率（变速变调）",
+        "zh_TW": "播放速率（變速變調）",
+    },
+    "transport.tip_position": {
+        "en_US": "Playback position",
+        "zh_CN": "播放位置",
+        "zh_TW": "播放位置",
+    },
+    # 语谱图（9 处 → 8 键，标题复用 view.spectrogram）
+    "spectrogram.range": {
+        "en_US": "Range:",
+        "zh_CN": "范围:",
+        "zh_TW": "範圍:",
+    },
+    "spectrogram.axis_y": {
+        "en_US": "Y axis:",
+        "zh_CN": "Y轴:",
+        "zh_TW": "Y 軸:",
+    },
+    "spectrogram.colormap": {
+        "en_US": "Colormap:",
+        "zh_CN": "色板:",
+        "zh_TW": "色板:",
+    },
+    "spectrogram.readout_none": {
+        "en_US": "Time: -- s | Freq: -- Hz | Level: -- dB",
+        "zh_CN": "时间: -- s | 频率: -- Hz | 强度: -- dB",
+        "zh_TW": "時間: -- s | 頻率: -- Hz | 強度: -- dB",
+    },
+    "spectrogram.tip_measure": {
+        "en_US": "Measure tool (drag to measure time/frequency difference)",
+        "zh_CN": "测量工具（拖动测量时间差/频率差）",
+        "zh_TW": "測量工具（拖曳測量時間差/頻率差）",
+    },
+    "spectrogram.tip_peak_track": {
+        "en_US": "Peak frequency tracking (strongest frequency per frame)",
+        "zh_CN": "峰值频率追踪（显示每帧最强频率曲线）",
+        "zh_TW": "峰值頻率追蹤（顯示每幀最強頻率曲線）",
+    },
+    "spectrogram.tip_pitch_overlay": {
+        "en_US": "Pitch contour overlay (pYIN track)",
+        "zh_CN": "音高曲线叠加（pYIN 轨迹）",
+        "zh_TW": "音高曲線疊加（pYIN 軌跡）",
+    },
+    "spectrogram.tip_advanced": {
+        "en_US": "Advanced settings",
+        "zh_CN": "高级设置",
+        "zh_TW": "進階設定",
+    },
+    # 音高（8 处 → 8 键）
+    "pitch.title": {
+        "en_US": "Pitch contour",
+        "zh_CN": "音高轨迹",
+        "zh_TW": "音高軌跡",
+    },
+    "pitch.axis_y": {
+        "en_US": "Y axis:",
+        "zh_CN": "Y轴:",
+        "zh_TW": "Y 軸:",
+    },
+    "pitch.time_none": {
+        "en_US": "Time: -- s",
+        "zh_CN": "时间: -- s",
+        "zh_TW": "時間: -- s",
+    },
+    "pitch.freq_none": {
+        "en_US": "Freq: -- Hz",
+        "zh_CN": "频率: -- Hz",
+        "zh_TW": "頻率: -- Hz",
+    },
+    "pitch.cents_none": {
+        "en_US": "Cents (rel. A4): -- cents",
+        "zh_CN": "相对 A4 音分: -- cents",
+        "zh_TW": "相對 A4 音分: -- cents",
+    },
+    "pitch.time": {
+        "en_US": "Time: {time} s",
+        "zh_CN": "时间: {time} s",
+        "zh_TW": "時間: {time} s",
+    },
+    "pitch.freq_hz": {
+        "en_US": "Freq: {value} Hz",
+        "zh_CN": "频率: {value} Hz",
+        "zh_TW": "頻率: {value} Hz",
+    },
+    "pitch.cents": {
+        "en_US": "Cents (rel. A4): {value} cents",
+        "zh_CN": "相对 A4 音分: {value} cents",
+        "zh_TW": "相對 A4 音分: {value} cents",
+    },
+    # 3D 频谱图（7 处 → 6 键，标题复用 view.spectrogram3d）
+    "spectrogram3d.segment": {
+        "en_US": "Segment:",
+        "zh_CN": "乐段:",
+        "zh_TW": "樂段:",
+    },
+    "spectrogram3d.tip_segment": {
+        "en_US": "Centre on the waveform playhead and take ±2 s",
+        "zh_CN": "以波形分析指针为中心，取前后各 2 秒的乐段",
+        "zh_TW": "以波形分析指標為中心，取前後各 2 秒的樂段",
+    },
+    "spectrogram3d.mode": {
+        "en_US": "Mode:",
+        "zh_CN": "模式:",
+        "zh_TW": "模式:",
+    },
+    "spectrogram3d.scale": {
+        "en_US": "Scale:",
+        "zh_CN": "标度:",
+        "zh_TW": "標度:",
+    },
+    "spectrogram3d.freq": {
+        "en_US": "Frequency:",
+        "zh_CN": "频率:",
+        "zh_TW": "頻率:",
+    },
+    "spectrogram3d.colormap": {
+        "en_US": "Colormap:",
+        "zh_CN": "色板:",
+        "zh_TW": "色板:",
+    },
+    # 波形（6 处 → 6 键，均 setToolTip）
+    "waveform.tip_zoom_in": {
+        "en_US": "Zoom in (Ctrl+=)",
+        "zh_CN": "放大 (Ctrl+=)",
+        "zh_TW": "放大 (Ctrl+=)",
+    },
+    "waveform.tip_zoom_out": {
+        "en_US": "Zoom out (Ctrl+-)",
+        "zh_CN": "缩小 (Ctrl+-)",
+        "zh_TW": "縮小 (Ctrl+-)",
+    },
+    "waveform.tip_fit": {
+        "en_US": "Fit to window",
+        "zh_CN": "适应窗口",
+        "zh_TW": "適應視窗",
+    },
+    "waveform.tip_scrub": {
+        "en_US": "Scrub mode: hold and drag to play (Ctrl+drag also works)",
+        "zh_CN": "Scrub 模式：按住鼠标拖动播放（Ctrl+拖动也可触发）",
+        "zh_TW": "Scrub 模式：按住滑鼠拖曳播放（Ctrl+拖曳也可觸發）",
+    },
+    "waveform.tip_normalize": {
+        "en_US": "Toggle waveform normalization (N)",
+        "zh_CN": "切换波形归一化显示 (N)",
+        "zh_TW": "切換波形正規化顯示 (N)",
+    },
+    "waveform.tip_level": {
+        "en_US": "Output level",
+        "zh_CN": "输出电平",
+        "zh_TW": "輸出電平",
+    },
+    # 共振峰（4 处 → 4 键）
+    "formants.title": {
+        "en_US": "Formant contour (LPC)",
+        "zh_CN": "共振峰轨迹 (LPC)",
+        "zh_TW": "共振峰軌跡 (LPC)",
+    },
+    "formants.axis_y": {
+        "en_US": "Y axis:",
+        "zh_CN": "Y轴:",
+        "zh_TW": "Y 軸:",
+    },
+    "formants.time_none": {
+        "en_US": "Time: -- s",
+        "zh_CN": "时间: -- s",
+        "zh_TW": "時間: -- s",
+    },
+    "formants.time": {
+        "en_US": "Time: {time} s",
+        "zh_CN": "时间: {time} s",
+        "zh_TW": "時間: {time} s",
+    },
+    # 文件信息条（空态）
+    "metadata_bar.empty": {
+        "en_US": "No file loaded",
+        "zh_CN": "未加载文件",
+        "zh_TW": "未載入檔案",
+    },
+    # 音色（标题）
+    "timbre.title": {
+        "en_US": "Timbre feature analysis",
+        "zh_CN": "音色特征分析",
+        "zh_TW": "音色特徵分析",
+    },
+    # H5b：MFCC 色标轴标签——系数不是分贝，标签即「系数值」（非 dB；三语齐，
+    # ko/ja 同批补齐，保持既有 parity 计数不减）
+    "timbre.colorbar.unit": {
+        "en_US": "Coefficient",
+        "zh_CN": "系数值",
+        "zh_TW": "係數值",
+        "ko_KR": "계수 값",
+        "ja_JP": "係数値",
+    },
+    # --- PI-P5-B3-01i 论文图导出入口（菜单项 + 对话框；三语齐，ko/ja 随批已给） ---
+    "action.export_paper_figure": {
+        "en_US": "Export Paper Figure…",
+        "zh_CN": "论文图导出…",
+        "zh_TW": "論文圖匯出…",
+        "ko_KR": "논문 그림 내보내기…",
+        "ja_JP": "論文図の書き出し…",
+    },
+    "figure_export.title": {
+        "en_US": "Export Paper Figure",
+        "zh_CN": "论文图导出",
+        "zh_TW": "論文圖匯出",
+        "ko_KR": "논문 그림 내보내기",
+        "ja_JP": "論文図の書き出し",
+    },
+    "figure_export.figure": {
+        "en_US": "Figure",
+        "zh_CN": "图型",
+        "zh_TW": "圖型",
+        "ko_KR": "그림 유형",
+        "ja_JP": "図の種類",
+    },
+    "figure_export.preset_a": {
+        "en_US": "Figure A · Segment curve",
+        "zh_CN": "图 A · 段曲线",
+        "zh_TW": "圖 A · 段曲線",
+        "ko_KR": "그림 A · 구간 곡선",
+        "ja_JP": "図 A · 区間カーブ",
+    },
+    "figure_export.preset_b": {
+        "en_US": "Figure B · Type × oscillation",
+        "zh_CN": "图 B · 形态 × 往复度",
+        "zh_TW": "圖 B · 形態 × 往復度",
+        "ko_KR": "그림 B · 형태 × 왕복도",
+        "ja_JP": "図 B · 形態 × 往復度",
+    },
+    "figure_export.preset_c": {
+        "en_US": "Figure C · Reference comparison",
+        "zh_CN": "图 C · 参照系对比",
+        "zh_TW": "圖 C · 參照系對比",
+        "ko_KR": "그림 C · 기준계 비교",
+        "ja_JP": "図 C · 参照系比較",
+    },
+    "figure_export.output_dir": {
+        "en_US": "Output folder",
+        "zh_CN": "输出目录",
+        "zh_TW": "輸出目錄",
+        "ko_KR": "출력 폴더",
+        "ja_JP": "出力フォルダー",
+    },
+    "figure_export.browse": {
+        "en_US": "Browse…",
+        "zh_CN": "浏览…",
+        "zh_TW": "瀏覽…",
+        "ko_KR": "찾아보기…",
+        "ja_JP": "参照…",
+    },
+    "figure_export.start_s": {
+        "en_US": "Segment start (s)",
+        "zh_CN": "段起点（秒）",
+        "zh_TW": "段起點（秒）",
+        "ko_KR": "구간 시작(초)",
+        "ja_JP": "区間開始（秒）",
+    },
+    "figure_export.end_s": {
+        "en_US": "Segment end (s)",
+        "zh_CN": "段终点（秒）",
+        "zh_TW": "段終點（秒）",
+        "ko_KR": "구간 끝(초)",
+        "ja_JP": "区間終了（秒）",
+    },
+    "figure_export.window_start": {
+        "en_US": "Window start (s)",
+        "zh_CN": "窗起点（秒）",
+        "zh_TW": "窗起點（秒）",
+        "ko_KR": "창 시작(초)",
+        "ja_JP": "ウィンドウ開始（秒）",
+    },
+    "figure_export.anchor_cents": {
+        "en_US": "Anchor offset (cents)",
+        "zh_CN": "锚定偏移（音分）",
+        "zh_TW": "錨定偏移（音分）",
+        "ko_KR": "앵커 오프셋(센트)",
+        "ja_JP": "アンカーオフセット（セント）",
+    },
+    "figure_export.anchor_source": {
+        "en_US": "Anchor source",
+        "zh_CN": "锚来源（实践／文献）",
+        "zh_TW": "錨來源（實踐／文獻）",
+        "ko_KR": "앵커 출처(실연/문헌)",
+        "ja_JP": "アンカー出典（実践／文献）",
+    },
+    "figure_export.anchor_pending": {
+        "en_US": "Not provided",
+        "zh_CN": "未提供（不填）",
+        "zh_TW": "未提供（不填）",
+        "ko_KR": "미제공(미입력)",
+        "ja_JP": "未提供（入力しない）",
+    },
+    "figure_export.anchor_note": {
+        "en_US": "The anchor offset comes from performance practice or the literature; "
+                 "the platform does not guess. Without an anchor this preset cannot be exported.",
+        "zh_CN": "锚定偏移由演奏实践／文献给，平台不猜；缺锚则该预设不出图（导出按钮禁用）。",
+        "zh_TW": "錨定偏移由演奏實踐／文獻給，平台不猜；缺錨則該預設不出圖（匯出按鈕停用）。",
+        "ko_KR": "앵커 오프셋은 연주 실천이나 문헌이 주는 값이며 플랫폼은 추측하지 않습니다. "
+                 "앵커가 없으면 이 프리셋은 내보낼 수 없습니다.",
+        "ja_JP": "アンカーオフセットは演奏実践や文献が与える値で、プラットフォームは推測しません。"
+                 "アンカーが無い場合、このプリセットは書き出せません。",
+    },
+    "figure_export.panels_file": {
+        "en_US": "Panel data file (JSON/CSV)",
+        "zh_CN": "分面数据文件（JSON/CSV）",
+        "zh_TW": "分面資料檔（JSON/CSV）",
+        "ko_KR": "분면 데이터 파일(JSON/CSV)",
+        "ja_JP": "パネルデータファイル（JSON/CSV）",
+    },
+    "figure_export.export": {
+        "en_US": "Export",
+        "zh_CN": "导出",
+        "zh_TW": "匯出",
+        "ko_KR": "내보내기",
+        "ja_JP": "書き出し",
+    },
+    "figure_export.cancel": {
+        "en_US": "Cancel",
+        "zh_CN": "取消",
+        "zh_TW": "取消",
+        "ko_KR": "취소",
+        "ja_JP": "キャンセル",
+    },
+    "figure_export.done": {
+        "en_US": "Paper figure exported to {path}",
+        "zh_CN": "论文图已导出至 {path}",
+        "zh_TW": "論文圖已匯出至 {path}",
+        "ko_KR": "논문 그림을 {path}에 내보냈습니다",
+        "ja_JP": "論文図を {path} に書き出しました",
+    },
+    "figure_export.failed": {
+        "en_US": "Paper figure export failed",
+        "zh_CN": "论文图导出失败",
+        "zh_TW": "論文圖匯出失敗",
+        "ko_KR": "논문 그림 내보내기 실패",
+        "ja_JP": "論文図の書き出しに失敗しました",
+    },
+    "figure_export.publication_note": {
+        "en_US": "300 dpi · PNG + PDF",
+        "zh_CN": "300 dpi · PNG + PDF",
+        "zh_TW": "300 dpi · PNG + PDF",
+        "ko_KR": "300 dpi · PNG + PDF",
+        "ja_JP": "300 dpi · PNG + PDF",
+    },
+    "figure_export.need_audio": {
+        "en_US": "Open an audio file first",
+        "zh_CN": "请先加载音频文件",
+        "zh_TW": "請先載入音訊檔案",
+        "ko_KR": "먼저 오디오 파일을 여십시오",
+        "ja_JP": "先に音声ファイルを開いてください",
+    },
+    "figure_export.need_panels": {
+        "en_US": "Choose a panel data file (JSON/CSV) first",
+        "zh_CN": "请先选择分面数据文件（JSON/CSV）",
+        "zh_TW": "請先選擇分面資料檔（JSON/CSV）",
+        "ko_KR": "먼저 분면 데이터 파일(JSON/CSV)을 선택하십시오",
+        "ja_JP": "先にパネルデータファイル（JSON/CSV）を選んでください",
+    },
+    "action.batch_readout": {
+        "en_US": "Batch Readout Run…",
+        "zh_CN": "批量读数运行…",
+        "zh_TW": "批次讀數執行…",
+        "ko_KR": "배치 판독 실행…",
+        "ja_JP": "バッチ読み出し実行…",
+    },
+    "batch_readout.title": {
+        "en_US": "Batch Readout Run",
+        "zh_CN": "批量读数运行",
+        "zh_TW": "批次讀數執行",
+        "ko_KR": "배치 판독 실행",
+        "ja_JP": "バッチ読み出し実行",
+    },
+    "batch_readout.cases": {
+        "en_US": "Recordings",
+        "zh_CN": "录音清单",
+        "zh_TW": "錄音清單",
+        "ko_KR": "녹음 목록",
+        "ja_JP": "録音リスト",
+    },
+    "batch_readout.col_file": {
+        "en_US": "File",
+        "zh_CN": "文件",
+        "zh_TW": "檔案",
+        "ko_KR": "파일",
+        "ja_JP": "ファイル",
+    },
+    "batch_readout.col_label": {
+        "en_US": "Display name",
+        "zh_CN": "呈现名",
+        "zh_TW": "呈現名",
+        "ko_KR": "표시 이름",
+        "ja_JP": "表示名",
+    },
+    "batch_readout.col_anchor": {
+        "en_US": "Anchor (cents)",
+        "zh_CN": "锚偏移（音分）",
+        "zh_TW": "錨偏移（音分）",
+        "ko_KR": "앵커 오프셋(음분)",
+        "ja_JP": "アンカー（セント）",
+    },
+    "batch_readout.col_source": {
+        "en_US": "Anchor source",
+        "zh_CN": "锚来源",
+        "zh_TW": "錨來源",
+        "ko_KR": "앵커 출처",
+        "ja_JP": "アンカーの出典",
+    },
+    "batch_readout.add": {
+        "en_US": "Add…",
+        "zh_CN": "添加…",
+        "zh_TW": "新增…",
+        "ko_KR": "추가…",
+        "ja_JP": "追加…",
+    },
+    "batch_readout.remove": {
+        "en_US": "Remove",
+        "zh_CN": "移除",
+        "zh_TW": "移除",
+        "ko_KR": "제거",
+        "ja_JP": "削除",
+    },
+    "batch_readout.add_title": {
+        "en_US": "Select recordings",
+        "zh_CN": "选择录音文件",
+        "zh_TW": "選擇錄音檔案",
+        "ko_KR": "녹음 파일 선택",
+        "ja_JP": "録音ファイルを選択",
+    },
+    "batch_readout.browse": {
+        "en_US": "Browse…",
+        "zh_CN": "浏览…",
+        "zh_TW": "瀏覽…",
+        "ko_KR": "찾아보기…",
+        "ja_JP": "参照…",
+    },
+    "batch_readout.output_dir": {
+        "en_US": "Output folder",
+        "zh_CN": "输出目录",
+        "zh_TW": "輸出目錄",
+        "ko_KR": "출력 폴더",
+        "ja_JP": "出力フォルダ",
+    },
+    "batch_readout.figure_out": {
+        "en_US": "Also render the figure (same run, same τ)",
+        "zh_CN": "同时出图（同源同 τ）",
+        "zh_TW": "同時出圖（同源同 τ）",
+        "ko_KR": "같은 실행에서 그림도 출력(동일 τ)",
+        "ja_JP": "同時に図も出力（同一実行・同一 τ）",
+    },
+    "batch_readout.figure_dir": {
+        "en_US": "Figure folder",
+        "zh_CN": "图件输出目录",
+        "zh_TW": "圖件輸出目錄",
+        "ko_KR": "그림 출력 폴더",
+        "ja_JP": "図の出力フォルダ",
+    },
+    "batch_readout.params_group": {
+        "en_US": "Acquisition parameters (any change changes the numbers)",
+        "zh_CN": "取数参数（换任一即换数）",
+        "zh_TW": "取數參數（換任一即換數）",
+        "ko_KR": "취수 파라미터(하나만 바뀌어도 값이 바뀝니다)",
+        "ja_JP": "取得パラメータ（1 つ変えると数値も変わる）",
+    },
+    "batch_readout.window_s": {
+        "en_US": "Window length",
+        "zh_CN": "分析窗长",
+        "zh_TW": "分析窗長",
+        "ko_KR": "분석 창 길이",
+        "ja_JP": "分析窓長",
+    },
+    "batch_readout.min_window_s": {
+        "en_US": "Minimum tail window",
+        "zh_CN": "最短尾窗",
+        "zh_TW": "最短尾窗",
+        "ko_KR": "최소 꼬리 창",
+        "ja_JP": "最小末尾窓",
+    },
+    "batch_readout.fmin": {
+        "en_US": "Lower pitch bound",
+        "zh_CN": "音高下限",
+        "zh_TW": "音高下限",
+        "ko_KR": "음역 하한",
+        "ja_JP": "ピッチ下限",
+    },
+    "batch_readout.fmax": {
+        "en_US": "Upper pitch bound",
+        "zh_CN": "音高上限",
+        "zh_TW": "音高上限",
+        "ko_KR": "음역 상한",
+        "ja_JP": "ピッチ上限",
+    },
+    "batch_readout.tonic_window_s": {
+        "en_US": "Tonic fitting window",
+        "zh_CN": "主音拟合窗",
+        "zh_TW": "主音擬合窗",
+        "ko_KR": "주음 피팅 창",
+        "ja_JP": "主音フィット窓",
+    },
+    "batch_readout.overlap_ratio": {
+        "en_US": "Pairing overlap ratio",
+        "zh_CN": "配对重叠比",
+        "zh_TW": "配對重疊比",
+        "ko_KR": "쌍 매칭 겹침 비율",
+        "ja_JP": "ペア重なり率",
+    },
+    "batch_readout.smooth_k": {
+        "en_US": "Turn smoothing window",
+        "zh_CN": "往复度平滑窗",
+        "zh_TW": "往復度平滑窗",
+        "ko_KR": "왕복도 평활 창",
+        "ja_JP": "往復度平滑窓",
+    },
+    "batch_readout.min_thr": {
+        "en_US": "Valid-frame threshold",
+        "zh_CN": "有效帧阈值",
+        "zh_TW": "有效幀閾值",
+        "ko_KR": "유효 프레임 임계값",
+        "ja_JP": "有効フレーム閾値",
+    },
+    "batch_readout.taus": {
+        "en_US": "τ scan steps (none = uncalibrated)",
+        "zh_CN": "τ 扫描档位（none = 未标定）",
+        "zh_TW": "τ 掃描檔位（none = 未標定）",
+        "ko_KR": "τ 주사 단계(none = 미표정)",
+        "ja_JP": "τ 走査ステップ（none = 未校正）",
+    },
+    "batch_readout.tau_analysis": {
+        "en_US": "Main τ (run-config declared)",
+        "zh_CN": "主分析 τ（运行口径声明）",
+        "zh_TW": "主分析 τ（執行口徑宣告）",
+        "ko_KR": "주 분석 τ(실행 기준 선언)",
+        "ja_JP": "主分析 τ（実行口径の宣言）",
+    },
+    "batch_readout.tau_analysis_hint": {
+        "en_US": "cents; leave blank to emit the sign-based control band only",
+        "zh_CN": "音分；留空则只出按符号判对照档",
+        "zh_TW": "音分；留空則只出按符號判對照檔",
+        "ko_KR": "센트; 비우면 부호 판정 대조군만 산출",
+        "ja_JP": "セント；空欄なら符号判定の対照のみ出力",
+    },
+    "batch_readout.err_bad_tau_analysis": {
+        "en_US": "Main τ must be a positive number (or left blank).",
+        "zh_CN": "主分析 τ 须为正数（或留空）。",
+        "zh_TW": "主分析 τ 須為正數（或留空）。",
+        "ko_KR": "주 분석 τ는 양수여야 합니다(또는 비워 두십시오).",
+        "ja_JP": "主分析 τ は正の数値（または空欄）にしてください。",
+    },
+    "batch_readout.segmenter": {
+        "en_US": "Segmenter",
+        "zh_CN": "分段器",
+        "zh_TW": "分段器",
+        "ko_KR": "분할기",
+        "ja_JP": "セグメンタ",
+    },
+    "batch_readout.seg_hmm": {
+        "en_US": "Note HMM (three-state)",
+        "zh_CN": "Note HMM 三态分段",
+        "zh_TW": "Note HMM 三態分段",
+        "ko_KR": "Note HMM 3상 분할",
+        "ja_JP": "Note HMM 3 状態分割",
+    },
+    "batch_readout.seg_simple": {
+        "en_US": "Simple contour",
+        "zh_CN": "简易轮廓分段",
+        "zh_TW": "簡易輪廓分段",
+        "ko_KR": "단순 윤곽 분할",
+        "ja_JP": "単純輪廓分割",
+    },
+    "batch_readout.template": {
+        "en_US": "Tuning template",
+        "zh_CN": "律制模板",
+        "zh_TW": "律制模板",
+        "ko_KR": "율제 템플릿",
+        "ja_JP": "音律テンプレート",
+    },
+    "batch_readout.ref_absolute": {
+        "en_US": "Absolute",
+        "zh_CN": "绝对口径",
+        "zh_TW": "絕對口徑",
+        "ko_KR": "절대 기준",
+        "ja_JP": "絶対基準",
+    },
+    "batch_readout.ref_main_tone": {
+        "en_US": "Main-tone relative",
+        "zh_CN": "主音相对口径",
+        "zh_TW": "主音相對口徑",
+        "ko_KR": "주음 상대 기준",
+        "ja_JP": "主音相対基準",
+    },
+    "batch_readout.cancel": {
+        "en_US": "Cancel",
+        "zh_CN": "取消",
+        "zh_TW": "取消",
+        "ko_KR": "취소",
+        "ja_JP": "キャンセル",
+    },
+    "batch_readout.run": {
+        "en_US": "Run",
+        "zh_CN": "运行",
+        "zh_TW": "執行",
+        "ko_KR": "실행",
+        "ja_JP": "実行",
+    },
+    "batch_readout.err_no_case": {
+        "en_US": "Add at least one recording",
+        "zh_CN": "请至少添加一条录音",
+        "zh_TW": "請至少新增一筆錄音",
+        "ko_KR": "녹음을 하나 이상 추가하십시오",
+        "ja_JP": "録音を 1 件以上追加してください",
+    },
+    "batch_readout.err_no_dir": {
+        "en_US": "Choose an output folder",
+        "zh_CN": "请选择输出目录",
+        "zh_TW": "請選擇輸出目錄",
+        "ko_KR": "출력 폴더를 선택하십시오",
+        "ja_JP": "出力フォルダを選んでください",
+    },
+    "batch_readout.err_no_figure_dir": {
+        "en_US": "Choose a figure folder (or turn the figure off)",
+        "zh_CN": "请选择图件输出目录（或取消出图）",
+        "zh_TW": "請選擇圖件輸出目錄（或取消出圖）",
+        "ko_KR": "그림 출력 폴더를 선택하십시오(또는 그림 출력을 끄십시오)",
+        "ja_JP": "図の出力フォルダを選ぶ（または図出力をオフに）",
+    },
+    "batch_readout.err_no_mode": {
+        "en_US": "Keep at least one reference mode",
+        "zh_CN": "请至少保留一个口径",
+        "zh_TW": "請至少保留一個口徑",
+        "ko_KR": "기준을 하나 이상 남겨 두십시오",
+        "ja_JP": "基準を 1 つ以上残してください",
+    },
+    "batch_readout.err_bad_taus": {
+        "en_US": "τ steps must be numbers or 'none'",
+        "zh_CN": "τ 档位须为数字或 none",
+        "zh_TW": "τ 檔位須為數字或 none",
+        "ko_KR": "τ 단계는 숫자 또는 none 이어야 합니다",
+        "ja_JP": "τ ステップは数値または none",
+    },
+    "batch_readout.done": {
+        "en_US": "Batch readout done · run_id {rid}",
+        "zh_CN": "批量读数完成 · run_id {rid}",
+        "zh_TW": "批次讀數完成 · run_id {rid}",
+        "ko_KR": "배치 판독 완료 · run_id {rid}",
+        "ja_JP": "バッチ読み出し完了 · run_id {rid}",
+    },
+    "batch_readout.failed": {
+        "en_US": "Batch readout failed",
+        "zh_CN": "批量读数失败",
+        "zh_TW": "批次讀數失敗",
+        "ko_KR": "배치 판독 실패",
+        "ja_JP": "バッチ読み出し失敗",
+    },
+    "batch_readout.cancelled": {
+        "en_US": "Batch readout cancelled",
+        "zh_CN": "批量读数已取消",
+        "zh_TW": "批次讀數已取消",
+        "ko_KR": "배치 판독 취소됨",
+        "ja_JP": "バッチ読み出しは取り消されました",
+    },
+    "task_center.title.readout": {
+        "en_US": "Batch readout · {n} recordings",
+        "zh_CN": "批量读数 · {n} 条",
+        "zh_TW": "批次讀數 · {n} 筆",
+        "ko_KR": "배치 판독 · {n}건",
+        "ja_JP": "バッチ読み出し · {n} 件",
+    },
+    "figure_export.same_run": {
+        "en_US": "Require same run as the tables (T-3)",
+        "zh_CN": "要求与表格同源（T-3）",
+        "zh_TW": "要求與表格同源（T-3）",
+        "ko_KR": "표와 동일 실행일 것(T-3)",
+        "ja_JP": "表と同一実行を要求（T-3）",
+    },
+    "figure_export.same_run_note": {
+        "en_US": "Panel data and the table must come from one run (same run_id, same τ). Without a companion distribution file this cannot be checked.",
+        "zh_CN": "图件与表格须出自同一次运行（同一 run_id、同一 τ）；缺配套分布件时无法核验，将如实登记为未核验。",
+        "zh_TW": "圖件與表格須出自同一次執行（同一 run_id、同一 τ）；缺配套分佈檔時無法核驗，將如實登記為未核驗。",
+        "ko_KR": "그림과 표는 같은 실행(동일 run_id·동일 τ)이어야 합니다. 분포 파일이 없으면 검증할 수 없으며 미검증으로 기록됩니다.",
+        "ja_JP": "図と表は同一実行（同じ run_id・同じ τ）でなければなりません。分布ファイルが無い場合は検証できず、未検証として記録されます。",
+    },
+    "figure_export.error_same_run": {
+        "en_US": "Refusing to render: panel data run_id {panels} does not match the table run_id {table}. They are not from the same run.",
+        "zh_CN": "拒绝出图：图件 run_id {panels} 与表格 run_id {table} 不一致，二者非同一次运行。",
+        "zh_TW": "拒絕出圖：圖件 run_id {panels} 與表格 run_id {table} 不一致，二者非同一次執行。",
+        "ko_KR": "그림 출력을 거부합니다: 그림 run_id {panels} 와 표 run_id {table} 가 다릅니다. 같은 실행이 아닙니다.",
+        "ja_JP": "図の出力を拒否します：図の run_id {panels} と表の run_id {table} が一致しません。同一実行ではありません。",
+    },
+    "batch_readout.load_json": {
+        "en_US": "Load list…",
+        "zh_CN": "载入清单…",
+        "zh_TW": "載入清單…",
+        "ko_KR": "목록 불러오기…",
+        "ja_JP": "リスト読込…",
+    },
+    "batch_readout.load_title": {
+        "en_US": "Select a case list (cases.json)",
+        "zh_CN": "选择清单文件（cases.json）",
+        "zh_TW": "選擇清單檔（cases.json）",
+        "ko_KR": "케이스 목록 파일 선택(cases.json)",
+        "ja_JP": "ケース一覧ファイル選択（cases.json）",
+    },
+    "batch_readout.load_json_tip": {
+        "en_US": "Load the same cases.json used by the CLI — then GUI and CLI reproduce the very same run_id.",
+        "zh_CN": "载入与命令行同一份 cases.json ⇒ GUI 与命令行可复现同一个 run_id。",
+        "zh_TW": "載入與命令列同一份 cases.json ⇒ GUI 與命令列可重現同一個 run_id。",
+        "ko_KR": "CLI 와 같은 cases.json 을 불러오면 GUI 와 CLI 가 동일한 run_id 를 재현합니다.",
+        "ja_JP": "CLI と同じ cases.json を読み込むと、GUI と CLI が同じ run_id を再現します。",
+    },
+    # --- W-14（2026-11-01）平台公共能力补齐：GUI 文案（五语齐） ---
+    "w14.template.custom_item": {
+        "en_US": "Custom (.scl)…",
+        "zh_CN": "自定义 (.scl)…",
+        "zh_TW": "自訂 (.scl)…",
+        "ko_KR": "사용자 정의(.scl)…",
+        "ja_JP": "カスタム(.scl)…",
+    },
+    "w14.template.custom_filter": {
+        "en_US": "Scala scale (*.scl);;All files (*)",
+        "zh_CN": "Scala 音阶 (*.scl);;所有文件 (*)",
+        "zh_TW": "Scala 音階 (*.scl);;所有檔案 (*)",
+        "ko_KR": "Scala 음계 (*.scl);;모든 파일 (*)",
+        "ja_JP": "Scala 音階 (*.scl);;すべてのファイル (*)",
+    },
+    "w14.template.custom_bound": {
+        "en_US": "Custom scale: {name}",
+        "zh_CN": "自定义音阶：{name}",
+        "zh_TW": "自訂音階：{name}",
+        "ko_KR": "사용자 정의 음계: {name}",
+        "ja_JP": "カスタム音階：{name}",
+    },
+    "w14.template.custom_failed": {
+        "en_US": "Cannot load the .scl file: {error}",
+        "zh_CN": "无法载入 .scl 文件：{error}",
+        "zh_TW": "無法載入 .scl 檔案：{error}",
+        "ko_KR": ".scl 파일을 불러올 수 없습니다: {error}",
+        "ja_JP": ".scl ファイルを読み込めません: {error}",
+    },
+    "w14.template.save_scl": {
+        "en_US": "Save as .scl",
+        "zh_CN": "另存为 .scl",
+        "zh_TW": "另存為 .scl",
+        "ko_KR": ".scl 로 저장",
+        "ja_JP": ".scl として保存",
+    },
+    "w14.template.save_scl_done": {
+        "en_US": "Scale written: {path}",
+        "zh_CN": "音阶已写出：{path}",
+        "zh_TW": "音階已寫出：{path}",
+        "ko_KR": "음계를 저장했습니다: {path}",
+        "ja_JP": "音階を書き出しました: {path}",
+    },
+    "w14.template.info": {
+        "en_US": "Template: {name}｜source: {source}｜fingerprint: {fingerprint}",
+        "zh_CN": "模板：{name}｜来源：{source}｜指纹：{fingerprint}",
+        "zh_TW": "模板：{name}｜來源：{source}｜指紋：{fingerprint}",
+        "ko_KR": "템플릿: {name}｜출처: {source}｜지문: {fingerprint}",
+        "ja_JP": "テンプレート：{name}｜出典：{source}｜指紋：{fingerprint}",
+    },
+    "w14.template.info_label": {
+        "en_US": "Template name / source / fingerprint",
+        "zh_CN": "模板名称／来源／指纹",
+        "zh_TW": "模板名稱／來源／指紋",
+        "ko_KR": "템플릿 이름／출처／지문",
+        "ja_JP": "テンプレート名／出典／指紋",
+    },
+    "tuning.user.manage": {
+        "en_US": "Manage Custom Tuning Templates…",
+        "zh_CN": "管理自定义律制模板…",
+        "zh_TW": "管理自訂律制範本…",
+        "ko_KR": "사용자 정의 율제 템플릿 관리…",
+        "ja_JP": "カスタム律制テンプレートの管理…",
+    },
+    "tuning.user.group": {
+        "en_US": "My Templates",
+        "zh_CN": "我的模板",
+        "zh_TW": "我的範本",
+        "ko_KR": "내 템플릿",
+        "ja_JP": "マイテンプレート",
+    },
+    "tuning.user.title": {
+        "en_US": "Custom Tuning Templates",
+        "zh_CN": "自定义律制模板",
+        "zh_TW": "自訂律制範本",
+        "ko_KR": "사용자 정의 율제 템플릿",
+        "ja_JP": "カスタム律制テンプレート",
+    },
+    "tuning.user.name": {
+        "en_US": "Name",
+        "zh_CN": "名称",
+        "zh_TW": "名稱",
+        "ko_KR": "이름",
+        "ja_JP": "名前",
+    },
+    "tuning.user.source": {
+        "en_US": "Source (required)",
+        "zh_CN": "来源（必填）",
+        "zh_TW": "來源（必填）",
+        "ko_KR": "출처 (필수)",
+        "ja_JP": "出典（必須）",
+    },
+    "tuning.user.degrees": {
+        "en_US": "Degrees (one cent value or n/d ratio per line)",
+        "zh_CN": "音级（每行一个音分值或 n/d 比值）",
+        "zh_TW": "音級（每行一個音分值或 n/d 比值）",
+        "ko_KR": "음급 (줄마다 음분값 또는 n/d 비율)",
+        "ja_JP": "音級（1行に音分値または n/d 比）",
+    },
+    "tuning.user.new": {
+        "en_US": "New",
+        "zh_CN": "新建",
+        "zh_TW": "新增",
+        "ko_KR": "새로 만들기",
+        "ja_JP": "新規",
+    },
+    "tuning.user.save": {
+        "en_US": "Save",
+        "zh_CN": "保存",
+        "zh_TW": "儲存",
+        "ko_KR": "저장",
+        "ja_JP": "保存",
+    },
+    "tuning.user.delete": {
+        "en_US": "Delete",
+        "zh_CN": "删除",
+        "zh_TW": "刪除",
+        "ko_KR": "삭제",
+        "ja_JP": "削除",
+    },
+    "tuning.user.delete_arm": {
+        "en_US": "Click again to confirm",
+        "zh_CN": "再点一次确认删除",
+        "zh_TW": "再點一次確認刪除",
+        "ko_KR": "한 번 더 눌러 삭제",
+        "ja_JP": "もう一度クリックで削除",
+    },
+    "tuning.user.import": {
+        "en_US": "Import .scl",
+        "zh_CN": "导入 .scl",
+        "zh_TW": "匯入 .scl",
+        "ko_KR": ".scl 가져오기",
+        "ja_JP": ".scl を読み込む",
+    },
+    "tuning.user.export": {
+        "en_US": "Export .scl",
+        "zh_CN": "导出 .scl",
+        "zh_TW": "匯出 .scl",
+        "ko_KR": ".scl 내보내기",
+        "ja_JP": ".scl を書き出す",
+    },
+    "tuning.user.close": {
+        "en_US": "Close",
+        "zh_CN": "关闭",
+        "zh_TW": "關閉",
+        "ko_KR": "닫기",
+        "ja_JP": "閉じる",
+    },
+    "tuning.user.err_bad": {
+        "en_US": "Cannot parse degrees: {error}",
+        "zh_CN": "无法解析音级：{error}",
+        "zh_TW": "無法解析音級：{error}",
+        "ko_KR": "음급을 해석할 수 없습니다: {error}",
+        "ja_JP": "音級を解析できません: {error}",
+    },
+    "tuning.user.err_empty": {
+        "en_US": "Name, source and degrees are all required",
+        "zh_CN": "名称、来源与音级均不可为空",
+        "zh_TW": "名稱、來源與音級均不可為空",
+        "ko_KR": "이름, 출처, 음급은 모두 필수입니다",
+        "ja_JP": "名前・出典・音級はすべて必須です",
+    },
+    "tuning.user.empty_hint": {
+        "en_US": "(no custom templates yet)",
+        "zh_CN": "（尚无自定义模板）",
+        "zh_TW": "（尚無自訂範本）",
+        "ko_KR": "(사용자 정의 템플릿 없음)",
+        "ja_JP": "（カスタムテンプレートはまだありません）",
+    },
+    "tuning.user.saved": {
+        "en_US": "Saved: {name}",
+        "zh_CN": "已保存：{name}",
+        "zh_TW": "已儲存：{name}",
+        "ko_KR": "저장됨: {name}",
+        "ja_JP": "保存しました: {name}",
+    },
+    "tuning.user.deleted": {
+        "en_US": "Deleted: {name}",
+        "zh_CN": "已删除：{name}",
+        "zh_TW": "已刪除：{name}",
+        "ko_KR": "삭제됨: {name}",
+        "ja_JP": "削除しました: {name}",
+    },
+    "w14.cavity_core.button": {
+        "en_US": "Cavity-core candidates…",
+        "zh_CN": "腔核候选…",
+        "zh_TW": "腔核候選…",
+        "ko_KR": "공진 핵 후보…",
+        "ja_JP": "腔核候補…",
+    },
+    "w14.cavity_core.title": {
+        "en_US": "Cavity-core candidates (candidates only, not a verdict)",
+        "zh_CN": "腔核候选（只给候选，不给判定）",
+        "zh_TW": "腔核候選（只給候選，不給判定）",
+        "ko_KR": "공진 핵 후보(후보만 제공, 판정 아님)",
+        "ja_JP": "腔核候補（候補のみ・判定ではない）",
+    },
+    "w14.cavity_core.need_case": {
+        "en_US": "Select one case in the list first.",
+        "zh_CN": "请先在清单里选中一条案例。",
+        "zh_TW": "請先在清單裡選中一條案例。",
+        "ko_KR": "먼저 목록에서 사례를 하나 선택하세요.",
+        "ja_JP": "先に一覧からケースを 1 件選択してください。",
+    },
+    "w14.cavity_core.col_id": {
+        "en_US": "Candidate ID",
+        "zh_CN": "候选 ID",
+        "zh_TW": "候選 ID",
+        "ko_KR": "후보 ID",
+        "ja_JP": "候補 ID",
+    },
+    "w14.cavity_core.col_range": {
+        "en_US": "Start–end (s)",
+        "zh_CN": "起讫（秒）",
+        "zh_TW": "起訖（秒）",
+        "ko_KR": "시작–끝(초)",
+        "ja_JP": "開始–終了(秒)",
+    },
+    "w14.cavity_core.col_degree": {
+        "en_US": "Scale step",
+        "zh_CN": "音级",
+        "zh_TW": "音級",
+        "ko_KR": "음계 단계",
+        "ja_JP": "音階段",
+    },
+    "w14.cavity_core.col_deviation": {
+        "en_US": "Deviation (cents)",
+        "zh_CN": "偏离（音分）",
+        "zh_TW": "偏離（音分）",
+        "ko_KR": "편차(센트)",
+        "ja_JP": "偏差（セント）",
+    },
+    "w14.cavity_core.col_share": {
+        "en_US": "Stable frame share",
+        "zh_CN": "稳定帧占比",
+        "zh_TW": "穩定幀佔比",
+        "ko_KR": "안정 프레임 비율",
+        "ja_JP": "安定フレーム比率",
+    },
+    "w14.cavity_core.col_duration": {
+        "en_US": "Duration (s)",
+        "zh_CN": "时长（秒）",
+        "zh_TW": "時長（秒）",
+        "ko_KR": "길이(초)",
+        "ja_JP": "長さ(秒)",
+    },
+    "w14.cavity_core.col_ci95": {
+        "en_US": "Median CI95 (±cents)",
+        "zh_CN": "中位 CI95（±音分）",
+        "zh_TW": "中位 CI95（±音分）",
+        "ko_KR": "중앙값 CI95(±센트)",
+        "ja_JP": "中央値 CI95（±セント）",
+    },
+    "w14.cavity_core.run": {
+        "en_US": "Compute",
+        "zh_CN": "计算",
+        "zh_TW": "計算",
+        "ko_KR": "계산",
+        "ja_JP": "計算",
+    },
+    "w14.cavity_core.export": {
+        "en_US": "Export JSON…",
+        "zh_CN": "导出 JSON…",
+        "zh_TW": "匯出 JSON…",
+        "ko_KR": "JSON 내보내기…",
+        "ja_JP": "JSON 書き出し…",
+    },
+    "w14.cavity_core.close": {
+        "en_US": "Close",
+        "zh_CN": "关闭",
+        "zh_TW": "關閉",
+        "ko_KR": "닫기",
+        "ja_JP": "閉じる",
+    },
+    "w14.cavity_core.max_gap": {
+        "en_US": "Max gap for grouping (s)",
+        "zh_CN": "同音级成组最大间隔（秒）",
+        "zh_TW": "同音級成組最大間隔（秒）",
+        "ko_KR": "동일 음계 그룹 최대 간격(초)",
+        "ja_JP": "同音級グループ最大間隔(秒)",
+    },
+    "w14.cavity_core.summary": {
+        "en_US": "{n} candidates｜template {template}｜params max_gap={max_gap}s｜filter {filter}",
+        "zh_CN": "{n} 个候选｜模板 {template}｜参数 max_gap={max_gap}s｜过滤 {filter}",
+        "zh_TW": "{n} 個候選｜模板 {template}｜參數 max_gap={max_gap}s｜過濾 {filter}",
+        "ko_KR": "후보 {n}개｜템플릿 {template}｜매개변수 max_gap={max_gap}s｜필터 {filter}",
+        "ja_JP": "候補 {n} 件｜テンプレート {template}｜パラメータ max_gap={max_gap}s｜フィルタ {filter}",
+    },
+    "w14.cavity_core.empty": {
+        "en_US": "No candidate under current parameters (honest empty result).",
+        "zh_CN": "当前参数下无候选（如实为空）。",
+        "zh_TW": "目前參數下無候選（如實為空）。",
+        "ko_KR": "현재 매개변수에서 후보가 없습니다(사실대로 비어 있음).",
+        "ja_JP": "現在のパラメータでは候補がありません（正直に空）。",
+    },
+    "w14.figure.note_name": {
+        "en_US": "Add note-name calibre (cross-template comparison)",
+        "zh_CN": "增出音名口径（跨模板比较以此为准）",
+        "zh_TW": "增出音名口徑（跨模板比較以此為準）",
+        "ko_KR": "음이름 기준 추가(템플릿 간 비교 기준)",
+        "ja_JP": "音名基準を追加（テンプレート間比較の基準）",
+    },
+    "w14.figure.note_name_tip": {
+        "en_US": "The note-name calibre is a display convention (nearest semitone), not a tuning claim.",
+        "zh_CN": "音名口径为显示/索引约定（最近半音），不是律学断言。",
+        "zh_TW": "音名口徑為顯示/索引約定（最近半音），不是律學斷言。",
+        "ko_KR": "음이름 기준은 표시·색인 규약(최근 반음)이며 율학적 단정이 아닙니다.",
+        "ja_JP": "音名基準は表示・索引の約定（最近半音）であり、律学的な断定ではありません。",
+    },
+    "w14.figure.denominator": {
+        "en_US": "Denominator",
+        "zh_CN": "分母口径",
+        "zh_TW": "分母口徑",
+        "ko_KR": "분모 기준",
+        "ja_JP": "分母基準",
+    },
+    "w14.figure.denominator_all": {
+        "en_US": "all (current behaviour)",
+        "zh_CN": "all（现行为）",
+        "zh_TW": "all（現行為）",
+        "ko_KR": "all(현재 동작)",
+        "ja_JP": "all（現行の動作）",
+    },
+    "w14.figure.denominator_judgable": {
+        "en_US": "judgable (valid segments only)",
+        "zh_CN": "judgable（仅可判段）",
+        "zh_TW": "judgable（僅可判段）",
+        "ko_KR": "judgable(판정 가능 구간만)",
+        "ja_JP": "judgable（判定可能区間のみ）",
+    },
+    "w14.figure.denominator_body": {
+        "en_US": "body (main-text baseline, low-frequency excluded)",
+        "zh_CN": "body（正文基准，剔低频不可靠）",
+        "zh_TW": "body（正文基準，剔低頻不可靠）",
+        "ko_KR": "body(본문 기준, 저주파 제외)",
+        "ja_JP": "body（本文基準・低域除外）",
+    },
+    "w14.morph.group": {
+        "en_US": "Chinese music morphology (project extension)",
+        "zh_CN": "中国音乐形态学（项目扩展词汇）",
+        "zh_TW": "中國音樂形態學（專案擴展詞彙）",
+        "ko_KR": "중국 음악 형태학(프로젝트 확장 어휘)",
+        "ja_JP": "中国音楽形態学（プロジェクト拡張語彙）",
+    },
+    "w14.morph.note": {
+        "en_US": "Project extension vocabulary — not a core element of DA/T 63, GB/T 31219.4 or IMDI.",
+        "zh_CN": "项目扩展词汇——不属 DA/T 63、GB/T 31219.4、IMDI 核心元素。",
+        "zh_TW": "專案擴展詞彙——不屬 DA/T 63、GB/T 31219.4、IMDI 核心元素。",
+        "ko_KR": "프로젝트 확장 어휘 — DA/T 63, GB/T 31219.4, IMDI 핵심 요소가 아닙니다.",
+        "ja_JP": "プロジェクト拡張語彙 — DA/T 63、GB/T 31219.4、IMDI の中核要素ではありません。",
+    },
+    "w14.morph.cavity_position": {
+        "en_US": "Cavity position",
+        "zh_CN": "腔位",
+        "zh_TW": "腔位",
+        "ko_KR": "강 위치",
+        "ja_JP": "腔位",
+    },
+    "w14.morph.cavity_type": {
+        "en_US": "Cavity type",
+        "zh_CN": "腔格",
+        "zh_TW": "腔格",
+        "ko_KR": "강 유형",
+        "ja_JP": "腔格",
+    },
+    "w14.morph.note_position": {
+        "en_US": "Note position",
+        "zh_CN": "乐位",
+        "zh_TW": "樂位",
+        "ko_KR": "음 위치",
+        "ja_JP": "楽位",
+    },
+    "w14.morph.cavity_core_annotation": {
+        "en_US": "Cavity-core annotation",
+        "zh_CN": "腔核标注",
+        "zh_TW": "腔核標註",
+        "ko_KR": "공진 핵 주석",
+        "ja_JP": "腔核注記",
+    },
+    "w14.morph.annotator": {
+        "en_US": "Annotator",
+        "zh_CN": "标注者",
+        "zh_TW": "標註者",
+        "ko_KR": "주석자",
+        "ja_JP": "注記者",
+    },
+    "w14.morph.method": {
+        "en_US": "Method",
+        "zh_CN": "方法",
+        "zh_TW": "方法",
+        "ko_KR": "방법",
+        "ja_JP": "方法",
+    },
+    "w14.morph.template": {
+        "en_US": "Reference template",
+        "zh_CN": "参照模板",
+        "zh_TW": "參照模板",
+        "ko_KR": "참조 템플릿",
+        "ja_JP": "参照テンプレート",
+    },
+    "w14.morph.confidence": {
+        "en_US": "Confidence (0–1, blank = not given)",
+        "zh_CN": "置信度（0–1，留空＝未给）",
+        "zh_TW": "置信度（0–1，留空＝未給）",
+        "ko_KR": "신뢰도(0–1, 공백=미기재)",
+        "ja_JP": "信頼度（0–1、空欄＝未記入）",
+    },
+    "w14.morph.invalid": {
+        "en_US": "Morphology field check failed: {problems}",
+        "zh_CN": "形态学字段校验未通过：{problems}",
+        "zh_TW": "形態學欄位校驗未通過：{problems}",
+        "ko_KR": "형태학 필드 검증 실패: {problems}",
+        "ja_JP": "形態学フィールド検証に失敗：{problems}",
+    },
+    "w14.morph.saved": {
+        "en_US": "Morphology fields saved.",
+        "zh_CN": "形态学字段已保存。",
+        "zh_TW": "形態學欄位已儲存。",
+        "ko_KR": "형태학 필드를 저장했습니다.",
+        "ja_JP": "形態学フィールドを保存しました。",
+    },
+    "w14.morph.empty_enum": {
+        "en_US": "(not set)",
+        "zh_CN": "（未标注）",
+        "zh_TW": "（未標註）",
+        "ko_KR": "(미기재)",
+        "ja_JP": "（未記入）",
+    },
+    "w14.infer.button": {
+        "en_US": "Tuning inference…",
+        "zh_CN": "律制推断…",
+        "zh_TW": "律制推斷…",
+        "ko_KR": "율제 추론…",
+        "ja_JP": "律制推論…",
+    },
+    "w14.infer.title": {
+        "en_US": "Tuning candidates (ranking only, not a claim of conformity)",
+        "zh_CN": "律制候选（仅排序，不作「符合某律」断言）",
+        "zh_TW": "律制候選（僅排序，不作「符合某律」斷言）",
+        "ko_KR": "율제 후보(순위만, 특정 율 준수 주장 아님)",
+        "ja_JP": "律制候補（順位のみ、「ある律に適合」とは主張しない）",
+    },
+    "w14.infer.preset_paper": {
+        "en_US": "Paper six templates",
+        "zh_CN": "论文六模板",
+        "zh_TW": "論文六模板",
+        "ko_KR": "논문 6개 템플릿",
+        "ja_JP": "論文 6 テンプレート",
+    },
+    "w14.infer.preset_all": {
+        "en_US": "All eight templates",
+        "zh_CN": "全部八模板",
+        "zh_TW": "全部八模板",
+        "ko_KR": "전체 8개 템플릿",
+        "ja_JP": "全 8 テンプレート",
+    },
+    "w14.infer.top_k": {
+        "en_US": "Results (top k)",
+        "zh_CN": "结果条数（top k）",
+        "zh_TW": "結果條數（top k）",
+        "ko_KR": "결과 개수(top k)",
+        "ja_JP": "結果件数（top k）",
+    },
+    "w14.infer.window": {
+        "en_US": "Analysis window (s)",
+        "zh_CN": "分析窗（秒）",
+        "zh_TW": "分析窗（秒）",
+        "ko_KR": "분석 창(초)",
+        "ja_JP": "分析窓(秒)",
+    },
+    "w14.infer.run": {
+        "en_US": "Infer",
+        "zh_CN": "推断",
+        "zh_TW": "推斷",
+        "ko_KR": "추론",
+        "ja_JP": "推論",
+    },
+    "w14.infer.export": {
+        "en_US": "Export JSON…",
+        "zh_CN": "导出 JSON…",
+        "zh_TW": "匯出 JSON…",
+        "ko_KR": "JSON 내보내기…",
+        "ja_JP": "JSON 書き出し…",
+    },
+    "w14.infer.col_rank": {
+        "en_US": "Rank",
+        "zh_CN": "序",
+        "zh_TW": "序",
+        "ko_KR": "순위",
+        "ja_JP": "順位",
+    },
+    "w14.infer.col_template": {
+        "en_US": "Template",
+        "zh_CN": "模板",
+        "zh_TW": "模板",
+        "ko_KR": "템플릿",
+        "ja_JP": "テンプレート",
+    },
+    "w14.infer.col_source": {
+        "en_US": "Source",
+        "zh_CN": "来源",
+        "zh_TW": "來源",
+        "ko_KR": "출처",
+        "ja_JP": "出典",
+    },
+    "w14.infer.col_tonic": {
+        "en_US": "Tonic (cents)",
+        "zh_CN": "主音（音分）",
+        "zh_TW": "主音（音分）",
+        "ko_KR": "주음(센트)",
+        "ja_JP": "主音（セント）",
+    },
+    "w14.infer.col_score": {
+        "en_US": "Score",
+        "zh_CN": "得分",
+        "zh_TW": "得分",
+        "ko_KR": "점수",
+        "ja_JP": "スコア",
+    },
+    "w14.infer.col_margin": {
+        "en_US": "Margin",
+        "zh_CN": "领先幅度",
+        "zh_TW": "領先幅度",
+        "ko_KR": "격차",
+        "ja_JP": "差",
+    },
+    "w14.infer.need_case": {
+        "en_US": "Select one case in the list first.",
+        "zh_CN": "请先在清单里选中一条案例。",
+        "zh_TW": "請先在清單裡選中一條案例。",
+        "ko_KR": "먼저 목록에서 사례를 하나 선택하세요.",
+        "ja_JP": "先に一覧からケースを 1 件選択してください。",
+    },
+    "w14.infer.summary": {
+        "en_US": "{n} candidates｜{frames} frames｜window {window}s｜templates {templates}",
+        "zh_CN": "{n} 个候选｜{frames} 帧｜窗 {window}s｜模板 {templates}",
+        "zh_TW": "{n} 個候選｜{frames} 幀｜窗 {window}s｜模板 {templates}",
+        "ko_KR": "후보 {n}개｜{frames} 프레임｜창 {window}s｜템플릿 {templates}",
+        "ja_JP": "候補 {n} 件｜{frames} フレーム｜窓 {window}s｜テンプレート {templates}",
+    },
+    "w14.infer.note": {
+        "en_US": "Candidates ranked by score; the platform makes no 'conforms to' claim.",
+        "zh_CN": "候选按得分排序；平台不作「符合某律」断言。",
+        "zh_TW": "候選按得分排序；平台不作「符合某律」斷言。",
+        "ko_KR": "후보는 점수순이며 플랫폼은 '준수'를 주장하지 않습니다.",
+        "ja_JP": "候補はスコア順であり、プラットフォームは「適合」を主張しません。",
+    },
+    # --- PI-P6-PITCH-01 合成音高生成器（新增键一律五语齐）---
+    "action.pitch_generator": {
+        "en_US": "Pitch Generator…", "zh_CN": "合成音高生成器…", "zh_TW": "合成音高產生器…",
+        "ko_KR": "합성 음높이 생성기…", "ja_JP": "合成音高ジェネレーター…",
+    },
+    "pitchgen.title": {
+        "en_US": "Pitch Generator", "zh_CN": "合成音高生成器", "zh_TW": "合成音高產生器",
+        "ko_KR": "합성 음높이 생성기", "ja_JP": "合成音高ジェネレーター",
+    },
+    "pitchgen.group.formal": {
+        "en_US": "Formal standards (ISO / official)", "zh_CN": "正式标准（ISO / 官方）", "zh_TW": "正式標準（ISO／官方）",
+        "ko_KR": "공식 표준(ISO / 공식)", "ja_JP": "正式規格（ISO／公式）",
+    },
+    "pitchgen.group.historical": {
+        "en_US": "Historical pitches — NOT ISO standards", "zh_CN": "历史音高（非 ISO 标准）", "zh_TW": "歷史音高（非 ISO 標準）",
+        "ko_KR": "역사적 음높이(ISO 표준 아님)", "ja_JP": "歴史的音高（ISO 規格ではない）",
+    },
+    "pitchgen.group.orchestral": {
+        "en_US": "Orchestral conventions — NOT ISO standards", "zh_CN": "乐团惯例（非 ISO 标准）", "zh_TW": "樂團慣例（非 ISO 標準）",
+        "ko_KR": "오케스트라 관습(ISO 표준 아님)", "ja_JP": "オーケストラ慣例（ISO 規格ではない）",
+    },
+    "pitchgen.box.standard": {
+        "en_US": "Pitch standard", "zh_CN": "音高标准", "zh_TW": "音高標準",
+        "ko_KR": "음높이 표준", "ja_JP": "音高規格",
+    },
+    "pitchgen.box.tone": {
+        "en_US": "Note & parameters", "zh_CN": "音符与参数", "zh_TW": "音符與參數",
+        "ko_KR": "음표 및 매개변수", "ja_JP": "音符とパラメータ",
+    },
+    "pitchgen.box.readout": {
+        "en_US": "Live readout", "zh_CN": "实时读数", "zh_TW": "即時讀數",
+        "ko_KR": "실시간 판독값", "ja_JP": "リアルタイム読取値",
+    },
+    "pitchgen.standard": {
+        "en_US": "Standard", "zh_CN": "标准", "zh_TW": "標準",
+        "ko_KR": "표준", "ja_JP": "規格",
+    },
+    "pitchgen.note": {
+        "en_US": "Note", "zh_CN": "音名", "zh_TW": "音名",
+        "ko_KR": "음명", "ja_JP": "音名",
+    },
+    "pitchgen.octave": {
+        "en_US": "Octave", "zh_CN": "八度", "zh_TW": "八度",
+        "ko_KR": "옥타브", "ja_JP": "オクターブ",
+    },
+    "pitchgen.duration": {
+        "en_US": "Duration (s)", "zh_CN": "时长 (s)", "zh_TW": "時長 (s)",
+        "ko_KR": "지속 시간 (s)", "ja_JP": "長さ (s)",
+    },
+    "pitchgen.sample_rate": {
+        "en_US": "Sample rate (Hz)", "zh_CN": "采样率 (Hz)", "zh_TW": "取樣率 (Hz)",
+        "ko_KR": "샘플링 레이트 (Hz)", "ja_JP": "サンプリング周波数 (Hz)",
+    },
+    "pitchgen.amplitude": {
+        "en_US": "Amplitude", "zh_CN": "音量", "zh_TW": "音量",
+        "ko_KR": "음량", "ja_JP": "音量",
+    },
+    "pitchgen.waveform": {
+        "en_US": "Waveform", "zh_CN": "波形", "zh_TW": "波形",
+        "ko_KR": "파형", "ja_JP": "波形",
+    },
+    "pitchgen.waveform.sine": {
+        "en_US": "Sine", "zh_CN": "正弦", "zh_TW": "正弦",
+        "ko_KR": "사인파", "ja_JP": "正弦波",
+    },
+    "pitchgen.waveform.harmonic": {
+        "en_US": "Harmonic", "zh_CN": "谐波", "zh_TW": "諧波",
+        "ko_KR": "고조파", "ja_JP": "倍音",
+    },
+    "pitchgen.depth": {
+        "en_US": "Bit depth", "zh_CN": "位深", "zh_TW": "位元深度",
+        "ko_KR": "비트 심도", "ja_JP": "ビット深度",
+    },
+    "pitchgen.depth.pcm16": {
+        "en_US": "16-bit PCM", "zh_CN": "16 位 PCM", "zh_TW": "16 位元 PCM",
+        "ko_KR": "16비트 PCM", "ja_JP": "16-bit PCM",
+    },
+    "pitchgen.depth.pcm24": {
+        "en_US": "24-bit PCM", "zh_CN": "24 位 PCM", "zh_TW": "24 位元 PCM",
+        "ko_KR": "24비트 PCM", "ja_JP": "24ビット PCM",
+    },
+    "pitchgen.depth.float32": {
+        "en_US": "32-bit float", "zh_CN": "32 位浮点", "zh_TW": "32 位元浮點",
+        "ko_KR": "32비트 부동소수점", "ja_JP": "32-bit float",
+    },
+    "pitchgen.fade": {
+        "en_US": "Fade in/out (s)", "zh_CN": "淡入淡出 (s)", "zh_TW": "淡入淡出 (s)",
+        "ko_KR": "페이드 인/아웃 (s)", "ja_JP": "フェードイン／アウト (s)",
+    },
+    "pitchgen.frequency": {
+        "en_US": "Frequency", "zh_CN": "频率", "zh_TW": "頻率",
+        "ko_KR": "주파수", "ja_JP": "周波数",
+    },
+    "pitchgen.cents": {
+        "en_US": "Cents vs A440", "zh_CN": "相对 A440 音分", "zh_TW": "相對 A440 音分",
+        "ko_KR": "A440 대비 음분", "ja_JP": "A440 との音分差",
+    },
+    "pitchgen.source": {
+        "en_US": "Sources", "zh_CN": "依据来源", "zh_TW": "依據來源",
+        "ko_KR": "출처", "ja_JP": "出典",
+    },
+    "pitchgen.caveat": {
+        "en_US": "Caveat", "zh_CN": "注意事项", "zh_TW": "注意事項",
+        "ko_KR": "주의 사항", "ja_JP": "注意事項",
+    },
+    "pitchgen.preview": {
+        "en_US": "Waveform preview (first 20 ms)", "zh_CN": "波形预览（前 20 ms）", "zh_TW": "波形預覽（前 20 ms）",
+        "ko_KR": "파형 미리보기(처음 20 ms)", "ja_JP": "波形プレビュー（先頭 20 ms）",
+    },
+    "pitchgen.btn.export": {
+        "en_US": "Export WAV", "zh_CN": "导出 WAV", "zh_TW": "匯出 WAV",
+        "ko_KR": "WAV 내보내기", "ja_JP": "WAV 書き出し",
+    },
+    "pitchgen.btn.load": {
+        "en_US": "Load into workspace", "zh_CN": "载入工作区", "zh_TW": "載入工作區",
+        "ko_KR": "작업 공간에 불러오기", "ja_JP": "ワークスペースに読み込む",
+    },
+    "pitchgen.btn.close": {
+        "en_US": "Close", "zh_CN": "关闭", "zh_TW": "關閉",
+        "ko_KR": "닫기", "ja_JP": "閉じる",
+    },
+    "pitchgen.saved": {
+        "en_US": "WAV saved: {path}", "zh_CN": "已导出 WAV：{path}", "zh_TW": "已匯出 WAV：{path}",
+        "ko_KR": "WAV 저장됨: {path}", "ja_JP": "WAV を保存しました: {path}",
+    },
+    "pitchgen.loaded": {
+        "en_US": "Loaded into workspace: {name}", "zh_CN": "已载入工作区：{name}", "zh_TW": "已載入工作區：{name}",
+        "ko_KR": "작업 공간에 불러옴: {name}", "ja_JP": "ワークスペースに読み込みました: {name}",
+    },
+    "pitchgen.err.export": {
+        "en_US": "Export failed: {error}", "zh_CN": "导出失败：{error}", "zh_TW": "匯出失敗：{error}",
+        "ko_KR": "내보내기 실패: {error}", "ja_JP": "書き出し失敗: {error}",
+    },
+    "pitchgen.err.load": {
+        "en_US": "Load failed: {error}", "zh_CN": "载入失败：{error}", "zh_TW": "載入失敗：{error}",
+        "ko_KR": "불러오기 실패: {error}", "ja_JP": "読み込み失敗: {error}",
+    },
+    "pitchgen.filter": {
+        "en_US": "WAV (*.wav)", "zh_CN": "WAV (*.wav)", "zh_TW": "WAV (*.wav)",
+        "ko_KR": "WAV (*.wav)", "ja_JP": "WAV (*.wav)",
+    },
+    # --- PI-P7-PREC-A T02/T03：不确定度显示（三语齐；ko/ja 同步补齐以守 parity 单调闸）---
+    "region_stats.r_uncertainty": {
+        "en_US": "Pitch uncertainty ±{u} cent (effective n {n})",
+        "zh_CN": "音高不确定度 ±{u} 音分（有效帧数 {n}）",
+        "zh_TW": "音高不確定度 ±{u} 音分（有效幀數 {n}）",
+        "ko_KR": "음고 불확실도 ±{u} 센트 (유효 프레임 {n})",
+        "ja_JP": "音高不確かさ ±{u} セント（有効フレーム {n}）",
+    },
+    "measure_result.full_u": {
+        "en_US": "Δt {dt} s | ΔHz {df} | Δcent {dc} ± {u} | ratio {ratio}",
+        "zh_CN": "Δt {dt} s | ΔHz {df} | Δ音分 {dc} ± {u} | 频率比 {ratio}",
+        "zh_TW": "Δt {dt} s | ΔHz {df} | Δ音分 {dc} ± {u} | 頻率比 {ratio}",
+        "ko_KR": "Δt {dt} s | ΔHz {df} | Δcent {dc} ± {u} | 비율 {ratio}",
+        "ja_JP": "Δt {dt} s | ΔHz {df} | Δcent {dc} ± {u} | 比率 {ratio}",
+    },
+    # --- PI-P7-PREC-B T05：区间统计测量记录导出（三语齐；ko/ja 同步补齐
+    #     以守 test_i18n_parity_guard_up3.py 单调闸：新增键若缺 ko/ja 会把
+    #     gap 从 930 抬到 932 > 基线，与批 A T02/T03 追加键同款口径）---
+    "region_stats.export": {
+        "en_US": "Export Measurement…", "zh_CN": "导出测量记录…", "zh_TW": "匯出測量記錄…",
+        "ko_KR": "측정 기록 내보내기…", "ja_JP": "測定記録の書き出し…",
+    },
+    "region_stats.exported": {
+        "en_US": "Measurement exported: {name}", "zh_CN": "测量记录已导出：{name}", "zh_TW": "測量記錄已匯出：{name}",
+        "ko_KR": "측정 기록 내보냄: {name}", "ja_JP": "測定記録を書き出しました: {name}",
     },
 }
 

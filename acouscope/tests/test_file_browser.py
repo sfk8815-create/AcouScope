@@ -111,6 +111,12 @@ def paths_of(browser) -> list[str]:
             for i in range(browser.list.count())]
 
 
+def add_extra_audio(browser, files_dir) -> None:
+    """补第三个白名单内文件并重列（白名单后原 4 文件夹具只剩 2 项在列）。"""
+    (files_dir / "c2.wav").write_bytes(b"")
+    browser.refresh()
+
+
 def right_click(browser, index: int, capture_menu) -> QMenu:
     """对第 index 项发右键（**不改选中态**：用于「右键未选中项」构造）。"""
     item = browser.list.item(index)
@@ -144,7 +150,7 @@ class TestDirectoryRule:
     def test_project_dir_shown(self, browser):
         """② 有项目 → 显示 .acouproj 所在目录（本目录文件平铺）。"""
         names = sorted(Path(p).name for p in paths_of(browser))
-        assert names == ["a.wav", "b.txt", "c.png", "proj.acouproj"]
+        assert names == ["a.wav", "proj.acouproj"]
 
     def test_subdir_not_listed(self, browser):
         """子目录不列行（T-915 候选）：subdir/d.wav 不出现在列表。"""
@@ -157,7 +163,7 @@ class TestDirectoryRule:
         b = FileBrowser(manager=None, current_file=files_dir / "a.wav")
         try:
             names = sorted(Path(p).name for p in paths_of(b))
-            assert names == ["a.wav", "b.txt", "c.png", "proj.acouproj"]
+            assert names == ["a.wav", "proj.acouproj"]
         finally:
             b.close()
 
@@ -182,7 +188,31 @@ class TestDirectoryRule:
             assert [Path(p).name for p in paths_of(b)] == ["x.wav"]
             b.set_manager(FakeManager(files_dir / "proj.acouproj"))
             names = sorted(Path(p).name for p in paths_of(b))
-            assert names == ["a.wav", "b.txt", "c.png", "proj.acouproj"]
+            assert names == ["a.wav", "proj.acouproj"]
+        finally:
+            b.close()
+
+    def test_unsupported_files_filtered(self, qapp, files_dir):
+        """白名单：目录含 a.wav + 自造 n.txt ⇒ 只列白名单内文件（负对照）。"""
+        (files_dir / "n.txt").write_text("x", encoding="utf-8")
+        b = FileBrowser(manager=None, current_file=files_dir / "a.wav")
+        try:
+            names = [Path(p).name for p in paths_of(b)]
+            assert names == ["a.wav", "proj.acouproj"]
+            assert "n.txt" not in names
+        finally:
+            b.close()
+
+    def test_dir_with_only_unsupported_shows_empty(self, qapp, tmp_path):
+        """目录存在但无白名单条目（仅 n.txt）⇒ 空态提示（与 P2a 空态同口径）。"""
+        d = tmp_path / "only_txt"
+        d.mkdir()
+        (d / "n.txt").write_text("x", encoding="utf-8")
+        b = FileBrowser(manager=None, current_file=d / "a.wav")
+        try:
+            assert b.list.count() == 0
+            assert b._lbl_empty.isVisibleTo(b) is True
+            assert b.list.isVisibleTo(b) is False
         finally:
             b.close()
 
@@ -196,7 +226,7 @@ class TestSupportedColors:
         assert item.foreground().color() == QColor(c["text"])
 
     def test_unsupported_gray(self, browser):
-        """① 不支持（.txt/.png/.acouproj）→ 次级灰（colors()['sub']）。"""
+        """① 白名单后唯一非音频项 .acouproj → 次级灰（colors()['sub']）。"""
         c = theme.colors()
         for i in range(1, browser.list.count()):
             item = browser.list.item(i)
@@ -204,7 +234,8 @@ class TestSupportedColors:
             assert item.foreground().color() == QColor(c["sub"])
 
     def test_theme_switch_recolors(self, browser, monkeypatch):
-        """主题变化 → 逐 item 前景色随角色重刷（不真实切全局主题，打桩 colors()）。"""
+        """主题变化 → 逐 item 前景色随角色重刷（不真实切全局主题，打桩 colors()）。
+        （item(1)=proj.acouproj 仍走 sub 角色）"""
         light = dict(theme.THEMES["light"])
         monkeypatch.setattr(theme, "colors", lambda: light)
         browser._refresh_style()
@@ -220,8 +251,9 @@ class TestSelectionSignals:
         browser.list.itemClicked.emit(browser.list.item(0))
         assert got == [paths_of(browser)[0]]
 
-    def test_multi_select_selection_changed(self, browser):
+    def test_multi_select_selection_changed(self, browser, files_dir):
         """③ 多选 → selectionChanged(paths) 为全部选中路径（列表顺序）。"""
+        add_extra_audio(browser, files_dir)
         got: list[list[str]] = []
         browser.selectionChanged.connect(lambda p: got.append(list(p)))
         all_paths = paths_of(browser)
@@ -237,8 +269,9 @@ class TestSelectionSignals:
         browser.list.itemDoubleClicked.emit(browser.list.item(1))
         assert got == [paths_of(browser)[1]]
 
-    def test_enter_key_activated(self, browser):
+    def test_enter_key_activated(self, browser, files_dir):
         """④ 回车 → fileActivated（当前项）。"""
+        add_extra_audio(browser, files_dir)
         got: list[str] = []
         browser.fileActivated.connect(got.append)
         browser.list.setCurrentRow(2)
@@ -314,8 +347,9 @@ class TestContextMenu:
 class TestContextMenuTargetAlignment:
     """IM-26（T-1071 β）：右键目标 ≡ 扩展点 slot 目标 ≡ 批处理目标。"""
 
-    def test_right_click_unselected_item_three_way_aligned(self, browser, capture_menu):
+    def test_right_click_unselected_item_three_way_aligned(self, browser, files_dir, capture_menu):
         """核心：多选 {A,B} 下右键**未选中** C → 归一为 [C]，三向逐字相等。"""
+        add_extra_audio(browser, files_dir)
         all_paths = paths_of(browser)
         browser.list.item(0).setSelected(True)
         browser.list.item(1).setSelected(True)
@@ -327,8 +361,9 @@ class TestContextMenuTargetAlignment:
         assert r["selected"] == [all_paths[2]]
         assert r["builtin"] == r["extension"] == r["batch"]  # 三向一致
 
-    def test_right_click_within_multi_selection_not_degraded(self, browser, capture_menu):
+    def test_right_click_within_multi_selection_not_degraded(self, browser, files_dir, capture_menu):
         """负例：多选 {A,B} 内右键 A（已选中）→ 不归一、保持 [A,B]。"""
+        add_extra_audio(browser, files_dir)
         all_paths = paths_of(browser)
         browser.list.item(0).setSelected(True)
         browser.list.item(2).setSelected(True)
@@ -337,8 +372,9 @@ class TestContextMenuTargetAlignment:
         assert r["extension"] == [all_paths[0], all_paths[2]]
         assert r["batch"] == [all_paths[0], all_paths[2]]
 
-    def test_strip_beta_reproduces_mismatch(self, browser, capture_menu, monkeypatch):
+    def test_strip_beta_reproduces_mismatch(self, browser, files_dir, capture_menu, monkeypatch):
         """反证有牙（仿 T-1069 R-6）：剥 β → 三向错位复现、守卫 1 必 FAIL。"""
+        add_extra_audio(browser, files_dir)
         all_paths = paths_of(browser)
         browser.list.item(0).setSelected(True)
         browser.list.item(1).setSelected(True)
@@ -362,7 +398,7 @@ class TestInProjectMark:
         browser.refresh()
         texts = [browser.list.item(i).text() for i in range(browser.list.count())]
         assert "a.wav  ✓" in texts
-        assert "b.txt" in texts  # 未入档无角标
+        assert "proj.acouproj" in texts  # 未入档无角标（b.txt 已被白名单滤除）
 
     def test_no_manager_no_mark(self, qapp, files_dir):
         """无 manager → 不加任何角标。"""

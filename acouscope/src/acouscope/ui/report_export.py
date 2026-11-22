@@ -49,6 +49,11 @@ _LABEL_KEYS: dict[str, str] = {
     "Format": "inspector.meta.format",
     "Channels": "inspector.meta.channels",
     "Duration": "inspector.meta.duration",
+    # M-8a：DA/T 四项自动/预设（报告同源；「Filename」=report 降级技术行既有键，互不影响）
+    "FileName": "inspector.meta.file_name",
+    "FileSize": "inspector.meta.file_size",
+    "AggregationLevel": "inspector.meta.aggregation_level",
+    "RetentionPeriod": "inspector.meta.retention_period",
     "Filename": "report.filename",
 }
 

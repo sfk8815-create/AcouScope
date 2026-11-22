@@ -91,7 +91,17 @@ class TestInspectorPanelUnit:
         panel.reset()
         assert panel.lbl_view.text() == "—"
         assert panel.lbl_selection.text() == "无"
-        assert panel.lbl_playback.text() == "0.000 / 0.000 s"
+        assert panel.lbl_analysis.text() == "—"
+
+    def test_reset_keeps_file_info(self, qapp):
+        """D4：reset 不再清文件属性（播放位置/音频）。"""
+        panel = InspectorPanel()
+        panel.set_playback(1.234, 5.0)
+        panel.set_audio_info("44100 Hz · 2 声道")
+        panel.reset()
+        assert panel.lbl_playback.text() == "1.234 / 5.000 s"
+        assert "44100" in panel.lbl_audio.text()
+        assert "声道" in panel.lbl_audio.text()
 
 
 class TestInspectorPanelIntegration:

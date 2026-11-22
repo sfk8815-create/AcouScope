@@ -16,6 +16,16 @@ from acouscope.ui.widgets.freq_axis import PianoKeyboardStrip
 from acouscope.ui.widgets.plot_menu import install_plot_menu
 
 
+# F2：lbl_cents 读数是「相对 A4 参考频率的绝对音分」（dsp/units.hz_to_cents
+# = 1200·log2(f / A4_ref)），与谱波表「相对最近音名的音分偏差」同名不同义。
+# 说明同时挂 tooltip 与读屏描述；不改数值计算，也不新增 i18n key。
+_PITCH_CENTS_TIP = (
+    "音分读数口径：相对当前 A4 参考频率的绝对音分 "
+    "（1200·log2(f / A4_ref)，例 260.4 Hz ≈ -908 音分）；"
+    "与谱波表『相对最近音名的音分偏差』同名不同义，勿混读。"
+)
+
+
 def _meta_qss(extra: str = "") -> str:
     """次级读数标签 QSS（T-1038 M3：令牌插值，禁字面 hex/px）。"""
     return (f"color: {theme.colors()['text_sub']};"
@@ -60,7 +70,7 @@ class PitchContourWidget(QWidget):
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(4, 4, 4, 4)
 
-        self.lbl_title = QLabel("音高轨迹")
+        self.lbl_title = QLabel(tr("pitch.title"))
         toolbar.addWidget(self.lbl_title)
 
         toolbar.addStretch()
@@ -68,23 +78,26 @@ class PitchContourWidget(QWidget):
         # Y 轴单位切换（与 FFT 频谱窗口一致）
         from acouscope.ui.widgets.freq_axis import build_freq_unit_combo
 
-        toolbar.addWidget(QLabel("Y轴:"))
+        toolbar.addWidget(QLabel(tr("pitch.axis_y")))
         self.cmb_y_unit = build_freq_unit_combo()
         self.cmb_y_unit.currentIndexChanged.connect(self._on_y_unit_changed)
         toolbar.addWidget(self.cmb_y_unit)
 
-        self.lbl_time = QLabel("时间: -- s")
+        self.lbl_time = QLabel(tr("pitch.time_none"))
         self.lbl_time.setStyleSheet(_meta_qss())
         toolbar.addWidget(self.lbl_time)
 
-        self.lbl_freq = QLabel("频率: -- Hz")
+        self.lbl_freq = QLabel(tr("pitch.freq_none"))
         self.lbl_freq.setStyleSheet(
             _meta_qss(f" margin-left: {theme.TOKENS['control']['pad_x']}px;"))
         toolbar.addWidget(self.lbl_freq)
 
-        self.lbl_cents = QLabel("音分: -- cents")
+        self.lbl_cents = QLabel(tr("pitch.cents_none"))
         self.lbl_cents.setStyleSheet(
             _meta_qss(f" margin-left: {theme.TOKENS['control']['pad_x']}px;"))
+        # F2：口径消歧（读数文案已在 i18n value 标注 A4 基准，此处补足悬浮/读屏说明）
+        self.lbl_cents.setToolTip(_PITCH_CENTS_TIP)
+        self.lbl_cents.setAccessibleDescription(_PITCH_CENTS_TIP)
         toolbar.addWidget(self.lbl_cents)
 
         toolbar_widget = QWidget()
@@ -442,7 +455,7 @@ class PitchContourWidget(QWidget):
             return
 
         t = self.v_line.value()
-        self.lbl_time.setText(f"时间: {t:.3f} s")
+        self.lbl_time.setText(tr("pitch.time").format(time=f"{t:.3f}"))
 
         # 找最近的有效音高点
         valid = self._f0 > 0
@@ -451,13 +464,14 @@ class PitchContourWidget(QWidget):
             f0_valid = self._f0[valid]
             idx = np.argmin(np.abs(times_valid - t))
             f = f0_valid[idx]
-            self.lbl_freq.setText(f"频率: {f:.1f} Hz")
+            self.lbl_freq.setText(tr("pitch.freq_hz").format(value=f"{f:.1f}"))
 
-            # 计算音分偏差（相对于当前 A4 参考）
+            # F2：相对当前 A4 参考频率的绝对音分（非相对最近音名的音分偏差）；
+            # 数值口径沿用 units.hz_to_cents，计算与 setText 一字未改。
             from acouscope.dsp.units import hz_to_cents
 
             cents = hz_to_cents(f)
-            self.lbl_cents.setText(f"音分: {cents:+.0f} cents")
+            self.lbl_cents.setText(tr("pitch.cents").format(value=f"{cents:+.0f}"))
 
     # ------------------------------------------------------------------
     # T-326 Pδ：悬停读数 + 选区测量（overlay 就近读数 + 上抛状态栏临时段）
@@ -504,6 +518,25 @@ class PitchContourWidget(QWidget):
         fv = self._f0[valid]
         idx = int(np.argmin(np.abs(tv - float(t))))
         return float(fv[idx])
+
+    def freq_uncertainty_cent(self, t: float) -> float | None:
+        """t 附近 voiced f0 的音分标准差（1σ 读数不确定度）。
+
+        取 ``|times-t| <= 0.1 s`` 窗口内的 voiced f0，换算为相对当前 A4
+        的音分后求样本标准差（ddof=1）；``max(0.001, std)`` 防御零散布
+        导致的虚假零不确定度。窗口内无 voiced / 无数据 → None（禁臆造），
+        此时选区测量沿用旧键 ``measure_result.full``，文本不加 ``±``。
+        """
+        if not self._times.size or self._f0.size != self._times.size:
+            return None
+        from acouscope.dsp import units
+
+        near = (np.abs(self._times - float(t)) <= 0.1) & (self._f0 > 0)
+        if not bool(np.any(near)):
+            return None
+        cents = np.asarray(units.hz_to_cents(self._f0[near]), dtype=float)
+        std = float(np.std(cents, ddof=1)) if cents.size > 1 else 0.0
+        return float(max(0.001, std))
 
     def result_arrays(self) -> tuple:
         """返回当前音高结果 (times, f0) 只读引用（T-327 区间统计读取，禁调用方改动）。"""

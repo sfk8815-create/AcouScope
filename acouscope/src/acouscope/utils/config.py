@@ -183,6 +183,11 @@ class Settings:
     memguard_critical_threshold_mb: int = 200
     memguard_model_idle_minutes: int = 10
 
+    # MCP（模型上下文协议）集成设置
+    mcp_enabled: bool = False
+    mcp_allowed_roots: str = ""  # os.pathsep 分隔的绝对路径串（白名单根目录）
+    mcp_out_dir: str = ""        # MCP 输出工作目录（空 = 不指定）
+
     # 性能
     use_numba: bool = True
     max_memory_mb: int = 1024
@@ -286,6 +291,17 @@ class Settings:
             _palette.strip() if isinstance(_palette, str) and _palette.strip() else "default"
         )
         settings.chart_designer_grid = bool(getattr(settings, "chart_designer_grid", True))
+
+        # MCP 字段校验：布尔强制、字符串 strip；不做路径存在性检查（由 service 层负责）
+        settings.mcp_enabled = bool(getattr(settings, "mcp_enabled", False))
+        if not isinstance(settings.mcp_allowed_roots, str):
+            settings.mcp_allowed_roots = ""
+        else:
+            settings.mcp_allowed_roots = settings.mcp_allowed_roots.strip()
+        if not isinstance(settings.mcp_out_dir, str):
+            settings.mcp_out_dir = ""
+        else:
+            settings.mcp_out_dir = settings.mcp_out_dir.strip()
 
         return settings
 

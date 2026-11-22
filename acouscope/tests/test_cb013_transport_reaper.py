@@ -54,6 +54,22 @@ def test_speed_readout_follows_combo(bar):
     assert bar.lbl_speed_readout.text() == "0.50x"
 
 
+def test_speed_readout_visible_in_wide_state(bar):
+    """A10：宽态（≥_COMPACT_W）下速度读数位必须**真的展开**。
+
+    盲区成因（P3b 审计实证）：_COMPACT_W 若被改成永不展开（如 2000），
+    宽度守门条与 test_speed_readout_follows_combo 均恒绿——无判据锁住
+    「宽态下读数位可见」。本条先窄态（确保隐藏）再宽态，直锁
+    _apply_compact 的展开分支（reviewer 建议 2：两步式才真正走 show()）。
+    """
+    bar._apply_compact(400)                     # 400 < _COMPACT_W(760) ⇒ 窄态折叠
+    bar._apply_compact(800)                     # 800 ≥ _COMPACT_W(760) ⇒ 宽态展开
+    assert bar.lbl_speed_readout.isHidden() is False, (
+        f"宽态（800 ≥ _COMPACT_W）下速度读数位应展开，"
+        f"实际 isHidden={bar.lbl_speed_readout.isHidden()}"
+    )
+
+
 def _main_window_source() -> str:
     import inspect
     from pathlib import Path

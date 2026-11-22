@@ -9,6 +9,7 @@ pytest.importorskip("soundfile")
 from PyQt6.QtWidgets import QApplication
 
 from acouscope.audio.recorder import save_audio_file
+from acouscope.i18n import tr
 from acouscope.ui.widgets.record_settings_dialog import (
     RECORD_FORMATS,
     RecordSettingsDialog,
@@ -120,7 +121,7 @@ class TestRecordSettingsDialog:
         # MP3：深度禁用 + 提示
         dlg.cmb_format.setCurrentText("MP3")
         assert not dlg.cmb_depth.isEnabled()
-        assert "有损" in dlg.lbl_note.text()
+        assert tr("record_settings.compress_lossy").format(fmt="MP3") == dlg.lbl_note.text()
         assert dlg.file_path().endswith(".mp3")
 
         # FLAC：16/24

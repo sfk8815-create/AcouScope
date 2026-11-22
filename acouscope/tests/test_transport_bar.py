@@ -17,6 +17,7 @@ pytest.importorskip("PyQt6")
 
 from PyQt6.QtWidgets import QApplication
 
+from acouscope.i18n import tr
 from acouscope.ui.widgets.transport_bar import TransportBar
 
 
@@ -74,7 +75,7 @@ def test_setters_update_ui_without_signal(bar):
 
     bar.set_record_button_state(True)
     assert bar.btn_record.text() == "■"
-    assert "停止" in bar.btn_record.toolTip()
+    assert tr("transport.tip_stop_record") in bar.btn_record.toolTip()
 
     bar.set_loop_state(True)
     assert bar.btn_loop.isChecked()

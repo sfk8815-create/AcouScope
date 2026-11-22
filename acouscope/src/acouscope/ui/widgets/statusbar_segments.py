@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""状态栏数据段宿主（CB-013 D-2）。
+"""状态栏数据段宿主（CB-013 D-2 / P2b-D14）。
 
-段注册体系：段 key 注册表（默认五段）→ 每个段自动拥有一个 QLabel 承载控件
-与一个 QMenu checkable 菜单项；勾选即切该段显隐。右键菜单由宿主按注册表
-动态生成（新段只需注册，菜单/显隐/持久化逻辑零分支）。
+段注册体系：段 key 注册表（默认四段，删 sample_rate 段——与 lbl_audio_info 同源重复）
+→ 每个段自动拥有一个 ElidedLabel 承载控件（窄窗省略号截断）与一个 QMenu checkable
+菜单项；勾选即切该段显隐。右键菜单由宿主按注册表动态生成（新段只需注册，
+菜单/显隐/持久化逻辑零分支）。
 
 显隐配置持久化到 ``<get_data_dir()>/ui_statusbar_segments.json``：
 - 变更即存（json，``{"segments": {key: bool}}``）；
-- 启动加载；文件缺失/损坏回落默认五段全显。
+- 启动加载；文件缺失/损坏回落默认四段全显。
 
 注意：本文件只提供「段显隐 + 文本读写」机制，数据来源由 main_window 在
 既有更新点喂入（播放位置/录音计时/缩放/文件信息）。
@@ -19,10 +20,37 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtGui import QAction
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QFontMetrics
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMenu, QWidget
 
 from acouscope.i18n import tr
+
+
+class ElidedLabel(QLabel):
+    """可省略号截断的标签控件：窄窗下自动 elide right，保留 alignment。
+
+    - minimumSizeHint 宽度为 1（可收缩，防挤爆邻段）；
+    - paintEvent 用 elidedText 绘制（空文本安全）；
+    - 公开方法 elided_for_width(width) 供外部取证/测试调用。
+    """
+
+    def minimumSizeHint(self):
+        hint = super().minimumSizeHint()
+        return hint.__class__(1, hint.height())
+
+    def elided_for_width(self, width: int) -> str:
+        """返回按给定宽度 elide right 后的文本（不修改内部 text()）。"""
+        fm = QFontMetrics(self.font())
+        return fm.elidedText(self.text(), Qt.TextElideMode.ElideRight, max(0, width))
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter
+
+        painter = QPainter(self)
+        text = self.elided_for_width(self.contentsRect().width())
+        painter.drawText(self.contentsRect(), int(self.alignment()), text)
+        painter.end()
 
 
 @dataclass(frozen=True)
@@ -33,10 +61,9 @@ class SegmentSpec:
     label_key: str
 
 
-# 默认五段（注册顺序即状态栏显示顺序）
+# 默认四段（删 sample_rate 段——与 lbl_audio_info 同源重复，采样率信息由常驻信息条承载）
 DEFAULT_SEGMENTS: tuple[SegmentSpec, ...] = (
     SegmentSpec("file", "status.seg.file"),
-    SegmentSpec("sample_rate", "status.seg.sample_rate"),
     SegmentSpec("play_position", "status.seg.play_position"),
     SegmentSpec("record_timer", "status.seg.record_timer"),
     SegmentSpec("zoom", "status.seg.zoom"),
@@ -78,7 +105,7 @@ class StatusBarSegments(QWidget):
 
     def _register(self, spec: SegmentSpec) -> None:
         key = spec.key
-        label = QLabel("", self)
+        label = ElidedLabel("", self)
         label.setObjectName(f"seg_{key}")
         from acouscope.ui.theme import style_when_theme
 

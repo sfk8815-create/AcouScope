@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="授權條款：GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="平台">
-  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="版本 0.99.20260925（Beta）">
+  <img src="https://img.shields.io/badge/version-0.99.20261011_Beta-orange" alt="版本 0.99.20261011（Beta）">
 </p>
 
 <p align="center">
@@ -103,6 +103,63 @@ AcouScope（音析）是一款跨平台桌面聲學分析軟體，面向音樂�
 - 音訊編輯：波形視窗選區編輯
 - 169 條輪換提示（操作技巧 + 研究幽默）
 
+### 論文圖匯出（三預設）
+
+- **入口** —— 軟體內：**檔案 ▸ 匯出 ▸ 論文圖匯出…**；命令列：
+  `python -m acouscope.visualization.figures --preset paper_A …`，`--preset` 取 `paper_A`／`paper_B`／`paper_C`。
+- **預設 ↔ 通用圖形** —— `paper_A` → `segment_curve`（一段的波形＋相對段中位音分）、
+  `paper_B` → `type_oscillation`（形態 × 往復度分面）、`paper_C` → `reference_comparison`（多律制參照系對比）。
+- **出版參數固定** —— **300 dpi PNG ＋ 向量 PDF**；尺寸與裁切不靠猜。
+- **圖註歸使用者** —— 圖註由使用者撰寫；平台不寫圖註、不下結論句。
+- **錨定偏移** —— `paper_C` 需要**錨定偏移**（由演奏實踐／文獻給定，平台不猜）；缺錨不出圖。實際取數窗
+  隨回傳值登記為 `window_start_s`（按窗格對齊後的實際值），換窗即換數。
+
+### 精度標定匯出
+
+- **介面** —— `analysis.calibration_export.calibration_report(...)`；由 `export_calibration_json()`／
+  `export_calibration_csv()` 落盤 JSON／CSV。
+- **三檔狀態，不得混稱** —— `measured`（已提供參考音、實測實算）、`pending`（**未提供參考音 ⇒ 不出標定數**）、
+  `chain_only`（合成訊號只驗鏈路，不得稱為標定）。
+- **與參數快照綁定** —— 每份報告都攜帶參數快照 `analysis_params_snapshot`，標定數不脫離參數單獨引用。
+- **無真值即無宣稱** —— 參考真值（D 檔 A4 參考音）未提供時狀態恆為 `pending`，平台不作任何精度保證類宣稱。
+
+### 中繼資料欄位表
+
+- **介面** —— `annotation.export.profile_field_table()`；由 `export_profile_field_table_json()`／
+  `export_profile_field_table_csv()` 落盤。
+- **四種 profile** —— `DAT63`／`GBT31219.4`／`IMDI`／`custom`。
+- **機檢** —— `check_profile_field_table()` 回傳空清單，表示欄位表與執行期校驗一致。
+- **由匯出層自身產生，不是另抄** —— 欄位表由匯出層自己產出，不是另抄一份對應表，表與匯出不會分叉；讀取方
+  **按 CSV 表頭取欄**（v2 起含 `ref_mode` 欄）。
+
+### 主音兩階段與雙口徑
+
+- `fit_tonic_from_audio(...)` 的取數口徑固定：**0–30 s 窗**、**不過 HMM**（逐幀 f0 直接擬合）、
+  **只取 `isfinite(f0)&f0>0` 的幀**，不補零、不插值。
+- 錨定偏移由呼叫方給定；**無錨**時退回聯合搜尋（`stage="joint"`），其 `margin` 常為 0，**不得當作已確認主音**。
+- `degree_rows_both(model, tuning=..., fit=...)` 一次取回 `absolute` 與 `main_tone` 兩套行，**分鍵回傳**；
+  把兩套行合併成一個清單是禁止的。
+
+### 腔格類型分佈、容差宣告與執行識別
+
+- **入口** —— `analysis.readout.run_batch(cases, out_dir=...)`；命令列：
+  `python -m acouscope.analysis.readout --cases cases.json --out DIR [--figure-out DIR]`。
+  四例由**呼叫方**提供，平台不內建任何具體錄音。
+- **τ 由平台宣告** —— `analysis.type_distribution.tau_declaration()` 讀
+  `TAU_CENTS_PLACEHOLDER`；值為 `None` 時匯出件的 `tau_status` 為
+  `unspecified_sign_based`（未標定，按符號判）。使用者**不得**注入 τ 冒充標定結果。
+- **掃描 τ ≠ 標定 τ** —— 掃描件帶 `tau_status_by_tau`；數值掃描檔一律記
+  `assumed_for_scan`，絕不記 `calibrated`。
+- **欄位面（每件）** —— `run_id`／`tau_cents`／`tau_status`／`segment_source`
+  （分段器＋參數快照＋窗格）／`counts_per_recording`（上趋／下趋／平直／未分類 ＋ 合計）／
+  `ref_mode`（`absolute`／`main_tone`），另含 `reference_hz`／`reference_status`
+  與 `label_gloss`。
+- **執行識別採內容定址** —— `run_id` = sha256（輸入清單 × 參數面 × 分段快照
+  × τ／口徑面）[:16]，**非時間戳**：同輸入同參重跑得同一 id，故可據此斷言圖件與表件同源。
+
+- **GUI 入口** ——「分析 ▸ 批次讀數執行…」。對話框只採集參數產出 spec，跑批投遞到**任務中心**在 worker 執行緒執行，主執行緒不阻塞（依窗給確定式進度、可協作式取消）；用「載入清單…」讀入與命令列同一份 `cases.json`，即可重現同一個 `run_id`。
+
+
 ## 安裝
 
 ### 從原始碼執行
@@ -140,6 +197,11 @@ poetry install --with dev
 # 回歸測試（pytest）
 poetry run pytest --ignore tests/test_realtime_panel.py
 ```
+
+#### 逐檔案跑測試
+
+單一行程跑全量測試會在 Qt 用例處原生崩潰，故本倉庫自帶 `scripts/run_tests_per_file.sh`：每個測試檔案一個
+獨立 pytest 行程，並給出逐檔案彙總與收集數對帳。
 
 ## 環境需求
 
@@ -189,7 +251,7 @@ AcouScope/
 
 ## 路線圖
 
-- **v0.99.20260925（Beta，當前）** —— 九大分析引擎 + 三語介面 + 主題系統 + 出版級匯出；四平台安裝套件正式發行準備中 —— 本內測版**有意未做程式碼簽章/公證**，首啟遇阻請依官網「遇到問題怎麼辦」指引操作
+- **v0.99.20261011（Beta，當前）** —— 九大分析引擎 + 介面完整支援英文、簡體中文、繁體中文（韓語、日語為部分覆蓋，正在補齊）+ 主題系統 + 出版級匯出；四平台安裝套件已正式發行、可直接下載 —— 本內測版**有意未做程式碼簽章/公證**，首啟遇阻請依官網「遇到問題怎麼辦」指引操作
 - **v1.0** —— 批次處理、外掛機制、常 Q 變換 / 小波變換，正式發布
 
 ## 致謝

@@ -25,7 +25,9 @@ class TestV099SotaUi:
         """后端选择器方法存在。"""
         from acouscope.ui.main_window import MainWindow
         assert hasattr(MainWindow, "_create_backend_selector")
-        assert hasattr(MainWindow, "_run_sota_analysis")
+        # G-3：_run_sota_analysis 为死码已删（生产零引用，活路径 _detect_with_sota）——
+        # 断言反证保留判别力，防回潮
+        assert not hasattr(MainWindow, "_run_sota_analysis")
         assert hasattr(MainWindow, "_detect_with_sota")
 
     def test_default_backend_pyin(self):

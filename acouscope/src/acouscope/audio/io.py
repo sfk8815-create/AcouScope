@@ -11,16 +11,41 @@ Offline-First 设计：
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
 import shutil
 import subprocess
 import sys
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Tuple
 
 import numpy as np
+
+
+# ---------------------------------------------------------------------------
+# T06：重采样质量记录（最后一次重采样的质量标记）
+# ---------------------------------------------------------------------------
+# 模块级单例 dict：_resample() 每次重采样就地更新（clear + update），
+# last_resample_quality() 返回副本，调用方拿到的 dict 与记录互不影响。
+# 半 bin → 音分换算公式（线性回退无抗混叠时的保守不确定度上界）：
+#   half_bin_hz      = target_sr / (2 * n_fft),  n_fft = 2048（分析默认帧长）
+#   uncertainty_cent = 1200 * log2((ref + half_bin_hz) / ref)，ref 取 A4 单源
+#   （dsp.units.get_reference_hz，随用户在设置里改基准）
+# 线性插值不做带限，混叠误差以「半 bin」频率量化宽度折算为音分上界；
+# 该值仅为未评估口径的占位量级，不是实测校准值（warning 明确标注未评估）。
+RESAMPLE_QUALITY: dict = {}
+
+
+def last_resample_quality() -> dict:
+    """返回最近一次重采样的质量标记副本（``method`` / ``anti_alias`` /
+    ``uncertainty_cent``）；未发生重采样时返回空 dict。
+
+    返回的是副本：调用方改写返回值不会污染 :data:`RESAMPLE_QUALITY` 记录。
+    """
+    return dict(RESAMPLE_QUALITY)
 
 
 def _get_ffmpeg_path() -> str | None:
@@ -53,6 +78,9 @@ class AudioInfo:
     format: str  # 格式名称
     file_size: int  # 字节数
     md5: str = ""  # 文件 MD5
+    # T06：最近一次重采样质量标记（可选，缺省 None；末尾带默认值，
+    # 既有 8 参位置/关键字构造零改动）
+    resample_quality: dict | None = None
 
     @property
     def duration_str(self) -> str:
@@ -93,6 +121,12 @@ class AudioIO:
     def __init__(self):
         self._soundfile = None
         self._ffmpeg_path = None
+        self._resample_quality_after_load = None  # T06：load 重采样后的质量标记
+
+    def _info_resample_quality(self) -> dict | None:
+        """T06：AudioInfo 用的重采样质量标记（load 记录优先，回落全局记录）。"""
+        q = self._resample_quality_after_load or last_resample_quality()
+        return dict(q) if q else None
 
     def _get_ffmpeg(self) -> str | None:
         """获取内置 FFmpeg 路径（首次调用时缓存）。"""
@@ -241,6 +275,9 @@ class AudioIO:
         # 重采样
         if sample_rate is not None and sample_rate != sr:
             data = self._resample(data, sr, sample_rate)
+            # T06：load() 发生重采样后，把 last_resample_quality() 记到实例，
+            # 供随后 get_info() 写入 AudioInfo.resample_quality
+            self._resample_quality_after_load = last_resample_quality()
             sr = sample_rate
 
         return data.astype(np.float64), sr
@@ -280,6 +317,7 @@ class AudioIO:
                 format=fmt_name,
                 file_size=filepath.stat().st_size,
                 md5=md5_hash,
+                resample_quality=self._info_resample_quality(),
             )
 
         # soundfile 格式
@@ -306,6 +344,7 @@ class AudioIO:
             format=info.format,
             file_size=filepath.stat().st_size,
             md5=md5_hash,
+            resample_quality=self._info_resample_quality(),
         )
 
     # ------------------------------------------------------------------
@@ -337,14 +376,44 @@ class AudioIO:
         """重采样。
 
         优先使用 samplerate（高质量 sinc），失败时回退到 numpy 线性插值。
+        T06：两条分支都把质量标记写入模块级 :data:`RESAMPLE_QUALITY`；
+        线性回退显式发 ``RuntimeWarning`` 并标注 ``anti_alias=False`` +
+        ``uncertainty_cent``（半 bin 音分，公式见模块顶部记录注释），
+        **回退本身保留**（``test_regression.py::test_resample_numpy_fallback``
+        依赖 ``np.interp`` 路径，禁改成抛错）。
         """
         try:
             import samplerate
-            return samplerate.resample(data, target_sr / orig_sr, "sinc_best")
+            result = samplerate.resample(data, target_sr / orig_sr, "sinc_best")
         except Exception:
-            pass
+            pass  # 无 samplerate / sinc 失败 → 走下方线性回退
+        else:
+            RESAMPLE_QUALITY.clear()
+            RESAMPLE_QUALITY.update({
+                "method": "sinc_best",
+                "anti_alias": True,
+                "uncertainty_cent": 0.0,
+            })
+            return result
 
-        # 纯 numpy 线性插值回退
+        # 纯 numpy 线性插值回退（保留，不抛错）
+        warnings.warn(
+            "线性插值重采样无抗混叠，测量不确定度未评估",
+            RuntimeWarning, stacklevel=2,
+        )
+        # 半 bin → 音分：half_bin_hz = target_sr/(2*2048)；
+        # uncertainty_cent = 1200*log2((ref + half_bin_hz)/ref)，ref 取 A4 单源
+        from acouscope.dsp.units import get_reference_hz
+
+        half_bin_hz = float(target_sr) / (2.0 * 2048)
+        ref_hz = float(get_reference_hz())
+        uncertainty_cent = 1200.0 * math.log2((ref_hz + half_bin_hz) / ref_hz)
+        RESAMPLE_QUALITY.clear()
+        RESAMPLE_QUALITY.update({
+            "method": "linear_fallback",
+            "anti_alias": False,
+            "uncertainty_cent": float(uncertainty_cent),
+        })
         duration = len(data) / orig_sr
         n_samples = max(1, int(round(duration * target_sr)))
         old_positions = np.arange(len(data)) / orig_sr

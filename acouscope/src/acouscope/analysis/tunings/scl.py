@@ -27,12 +27,21 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
+from .tuning_system import OCTAVE_CENTS
+
 __all__ = [
+    "SCL_CENTS_DECIMALS",
     "SclScale",
     "SclValue",
+    "format_scl",
     "parse_scl",
     "parse_scl_file",
+    "save_scl",
 ]
+
+#: 写出音分值的十进制位数（W-14-06：**至少** 5 位；取 6 位使
+#: ``parse_scl(format_scl(t))`` 的往返误差 ≤ 5e-7（< 1e-6 判据）。
+SCL_CENTS_DECIMALS = 6
 
 KIND_CENTS = "cents"
 KIND_RATIO = "ratio"
@@ -156,3 +165,62 @@ def parse_scl_file(path: str | Path) -> SclScale:
     except UnicodeDecodeError:
         text = file_path.read_text(encoding="latin-1")
     return parse_scl(text)
+
+
+def _scl_slug(text: str) -> str:
+    """描述 → 注释首行的文件名片段（仅 ASCII 安全字符；空则 ``scale``）。"""
+    kept = "".join(
+        ch if (ch.isalnum() and ch.isascii()) or ch in "-_" else "_" for ch in str(text)
+    ).strip("_")
+    while "__" in kept:
+        kept = kept.replace("__", "_")
+    return kept or "scale"
+
+
+def format_scl(tuning) -> str:
+    """``TuningSystem`` → 合法 ``.scl`` 文本（W-14-06 写出通路）。
+
+    口径（逐条对齐官方格式与设计约定 A 应见）：
+    - 首条内容行 = 描述（取 ``tuning.name``）；
+    - 其后音数 N = ``tuning.degree_count``（不含隐含 1/1 的 0 度）；
+    - 音高值逐条按音分写出，保留 :data:`SCL_CENTS_DECIMALS` 位小数（≥5 位，
+      往返误差 <1e-6）；末值与八度（1200.0 音分）相等时写 ``2/1`` 比值形；
+    - ``tuning.source`` 逐行写成 ``!`` 注释（来源不进数值面，但随文件可查）。
+
+    非等八度音律（末值 ≠ 1200）照实写音分值，**不**伪造 ``2/1``。
+    """
+    degrees = [float(value) for value in getattr(tuning, "degrees", ()) or ()]
+    if not degrees:
+        raise ValueError("format_scl 需要含 degrees 的音律对象")
+    values = degrees[1:]
+    if not values:
+        raise ValueError("format_scl 需要至少一个音级（除隐含 1/1 外）")
+    lines = [
+        f"! {_scl_slug(getattr(tuning, 'name', ''))}.scl",
+        "! 由 AcouScope 写出（Huygens-Fokker .scl 格式）",
+    ]
+    source = str(getattr(tuning, "source", "") or "")
+    for chunk in source.splitlines() or [""]:
+        lines.append(f"! {chunk}".rstrip())
+    lines.append(str(getattr(tuning, "name", "") or "untitled"))
+    lines.append(f" {len(values)}")
+    lines.append("!")
+    for index, value in enumerate(values):
+        is_last = index == len(values) - 1
+        if is_last and abs(value - OCTAVE_CENTS) < 1e-9:
+            lines.append(" 2/1")
+        else:
+            lines.append(f" {value:.{SCL_CENTS_DECIMALS}f}")
+    return "\n".join(lines) + "\n"
+
+
+def save_scl(tuning, path: str | Path) -> Path:
+    """把音律写成 ``.scl`` 文件（UTF-8）；返回落盘路径。
+
+    写出后**不**自动回读校验：往返由调用方（或测试）用
+    :func:`parse_scl` / :func:`parse_scl_file` 自行比对。
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(format_scl(tuning), encoding="utf-8")
+    return target

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""主工具栏 Tips 条：定宽（约 24 个汉字），文本超出时跑马灯右→左滚动。
+"""主工具栏 Tips 条：定宽（约 40 个汉字），文本超出时跑马灯右→左滚动。
 
 动画：出现时从下方滑入，切换/消失时向上滑出。
 """
@@ -8,12 +8,14 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, QVariantAnimation
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QToolButton, QWidget
 
 _CHAR_W = 12          # 界面字号 12px（用户偏好 10~12px）
-_N_CHARS = 24         # 可见宽度按 24 个汉字设计
+_N_CHARS = 40         # 可见宽度按 40 个汉字设计（60 条 tip 三语 ≥80% 不跑马灯）
 _PAD = 10.0           # 左右内边距
 _SCROLL_SPEED = 48.0  # 跑马灯速度 px/s
+_CLOSE_RESERVE = 20   # 右侧 × 关闭钮占位（从最大宽另加，不挤压跑马灯可视宽度）
+_CLOSE_SIZE = 16      # × 钮边长
 
 
 class TipBar(QWidget):
@@ -22,10 +24,41 @@ class TipBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(28)
-        # 定宽上限（约 24 个汉字）；下限 0——窗口缩小时可被压缩至没有，
-        # 把空间让给同行最右侧的 LOGO（LOGO 永不隐藏）
-        self.setMaximumWidth(int(_CHAR_W * _N_CHARS + _PAD * 2))
+        # 定宽上限（约 40 个汉字 + 右侧 × 钮占位）；下限 0——窗口缩小时可被压缩至
+        # 没有，把空间让给同行最右侧的 LOGO（LOGO 永不隐藏）。★ 文本可视宽仍为
+        # _CHAR_W×_N_CHARS（口径同产品既有「60 条 ≥80% 不跑马灯」判据）。
+        self.setMaximumWidth(
+            int(_CHAR_W * _N_CHARS + _PAD * 2) + _CLOSE_RESERVE
+        )
         self.setMinimumWidth(0)
+
+        # G14：右侧 × 关闭钮——点击只隐藏本条（不落盘），下一轮 show_text 重新显示。
+        # 原提示条无关闭路径且带输入框式描边，易被误读成可输入控件。
+        self.btn_close = QToolButton(self)
+        self.btn_close.setObjectName("tipBarClose")
+        self.btn_close.setText("×")
+        self.btn_close.setAutoRaise(True)
+        self.btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_close.setFixedSize(_CLOSE_SIZE, _CLOSE_SIZE)
+        self.btn_close.clicked.connect(self.dismiss)
+        # 文案走 i18n：本模块不在 test_no_hardcoded_ui_strings 汇点扫描内，
+        # 但保持「用户可见文本禁硬编码」纪律
+        from acouscope.i18n import tr as _tr
+
+        self.btn_close.setToolTip(_tr("tip.close"))
+        self.btn_close.setAccessibleName(_tr("tip.close"))
+        # 取色/字号走令牌（无边框透明底：不额外抬高提示条观感层级）
+        from acouscope.ui import theme as _theme
+
+        _theme.style_when_theme(
+            self.btn_close,
+            lambda c: (
+                f"QToolButton#tipBarClose {{ background: transparent; border: none;"
+                f" color: {c['sub']};"
+                f" font-size: {_theme.TOKENS['typography']['body']}px; }}"
+            ),
+        )
+        self.btn_close.hide()
 
         self._font = QFont(self.font())
         self._font.setPointSizeF(10.5)
@@ -50,7 +83,7 @@ class TipBar(QWidget):
         self._tick_timer.timeout.connect(self._tick_scroll)
 
     # ------------------------------------------------------------------
-    # 尺寸：正常状态取满宽（24 汉字），布局压缩时可以缩到 0
+    # 尺寸：正常状态取满宽（40 汉字），布局压缩时可以缩到 0
     # ------------------------------------------------------------------
 
     def sizeHint(self) -> QSize:
@@ -67,6 +100,10 @@ class TipBar(QWidget):
         """显示一条提示（相同文本不重复动画）。"""
         if not text:
             return
+        # G14：上一次已按 × 关闭过 → 本条/下一轮重新显示（关闭只作用于当前这条）
+        if self.isHidden():
+            self.show()
+        self.btn_close.show()
         if text == self._text and prefix == self._prefix:
             return
         self._pending = (prefix, text)
@@ -74,6 +111,28 @@ class TipBar(QWidget):
             self._run_anim(0.0, -float(self.height()), 140)
         else:                        # 直接从下方滑入
             self._start_pending()
+
+    def dismiss(self) -> None:
+        """关闭本条提示（G14）：仅隐藏本条，不落盘、不改轮换节奏。"""
+        self._pending = None
+        self._anim.stop()
+        self._tick_timer.stop()
+        self._prefix = ""
+        self._text = ""
+        self._scroll = 0.0
+        self._hold = 0
+        self._y = 0.0
+        self.btn_close.hide()
+        self.update()
+        self.hide()
+
+    def resizeEvent(self, event):  # noqa: N802（Qt 命名）
+        super().resizeEvent(event)
+        # × 钮贴右内边距垂直居中（不参与跑马灯绘制，故用子控件而非自绘）
+        self.btn_close.move(
+            max(0, self.width() - _CLOSE_SIZE - int(_PAD) // 2),
+            max(0, (self.height() - _CLOSE_SIZE) // 2),
+        )
 
     # ------------------------------------------------------------------
     # 动画
@@ -116,7 +175,8 @@ class TipBar(QWidget):
             f"{self._prefix}  {self._text}" if self._prefix else self._text))
 
     def _inner_width(self) -> float:
-        return self.width() - _PAD * 2
+        # 右侧预留给 × 钮（文本不钻到钮底下）
+        return self.width() - _PAD * 2 - _CLOSE_RESERVE
 
     def _update_scroll_timer(self) -> None:
         if self._text and self._text_width() > self._inner_width():
@@ -156,10 +216,9 @@ class TipBar(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
 
+        # G14：无边框浅底（原「面板底 + 1px 描边」= 输入框观感）；层级只靠底色差
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(c["panel"]))
-        p.drawRoundedRect(r, 4, 4)
-        p.setPen(QPen(QColor(c["border"]), 1))
+        p.setBrush(QColor(c["btn"]))
         p.drawRoundedRect(r, 4, 4)
 
         if not self._text:
@@ -167,7 +226,8 @@ class TipBar(QWidget):
             return
 
         p.setFont(self._font)
-        p.setClipRect(r.adjusted(1, 1, -1, -1))
+        # 文本裁剪区右侧让出 × 钮占位（跑马灯不钻到关闭钮下）
+        p.setClipRect(r.adjusted(1, 1, -1 - _CLOSE_RESERVE, -1))
         p.translate(0.0, self._y)
 
         x = _PAD - self._scroll

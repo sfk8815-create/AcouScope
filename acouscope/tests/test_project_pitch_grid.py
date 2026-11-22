@@ -133,7 +133,8 @@ class TestProjectPitchGrid:
         """③ analysis_results["pitch_grid"] = {"bad": 1} → load 不抛异常。
 
         from_dict 对缺键 dict 容忍（成功还原空模型）→ 按契约还原模型；
-        另加真失败数据 {"notes": [{"bad": 1}]}（PitchNote 意外关键字 → TypeError）
+        另加真失败数据 {"notes": [{"bad": 1}]}（notes 条目缺必填字段；B1-01 起未知键
+        被白名单忽略，机理由「未知键」变为「缺必填字段」→ TypeError）
         验证失败分支保留原 dict、零崩溃。
         """
         from acouscope.analysis.pitch_grid import PitchGridModel
@@ -158,7 +159,7 @@ class TestProjectPitchGrid:
             project.files[0].analysis_results["pitch_grid"], PitchGridModel
         )
 
-        # 失败分支：PitchNote 意外关键字 → from_dict 抛异常 → 保留原 dict
+        # 失败分支：notes 条目缺必填字段（未知键已被白名单忽略）→ from_dict 抛 TypeError → 保留原 dict
         raw2 = json.loads(proj_path.read_text(encoding="utf-8"))
         for entry in raw2["files"]:
             entry.setdefault("analysis_results", {})["pitch_grid"] = {

@@ -12,8 +12,8 @@ AcouScope - 面向音乐与数字人文领域研究的跨平台声学分析软�
     utils       - 工具函数（配置）
 """
 
-__version__ = "0.99.20260925"
-__version_display__ = "0.99_20260925(beta)"
+__version__ = "0.99.20261011"
+__version_display__ = "0.99_20261011(beta)"
 __version_suffix = "Beta"
 __app_name__ = "AcouScope"
 __app_name_cn__ = "音析"

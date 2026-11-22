@@ -23,6 +23,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from acouscope.i18n import tr
+from acouscope.ui.theme import style_when_theme
+
 # 格式 → (扩展名, 支持的深度列表, 默认深度)
 # MP3/OGG 为有损压缩，无位深概念（深度列表为空 → 控件禁用）
 RECORD_FORMATS = {
@@ -60,15 +63,15 @@ class RecordSettingsDialog(QWidget):
 
     def __init__(self, parent=None, current_rate: int = 44100):
         super().__init__(parent)
-        self.setWindowTitle("录音设置")
+        self.setWindowTitle(tr("record_settings.title"))
         self.setMinimumWidth(460)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
         # ----- 输出位置 -----
-        loc_label = QLabel("输出位置")
-        loc_label.setStyleSheet("font-weight: bold; color: #111827;")
+        loc_label = QLabel(tr("record_settings.output_location"))
+        style_when_theme(loc_label, lambda c: f"font-weight: bold; color: {c['text']};")
         layout.addWidget(loc_label)
 
         row_path = QHBoxLayout()
@@ -80,7 +83,7 @@ class RecordSettingsDialog(QWidget):
         layout.addLayout(row_path)
 
         self.edit_filename = QLineEdit()
-        self.edit_filename.setPlaceholderText("文件名（不含扩展名）")
+        self.edit_filename.setPlaceholderText(tr("record_settings.filename_placeholder"))
         layout.addWidget(self.edit_filename)
 
         # ----- 参数 -----
@@ -105,15 +108,15 @@ class RecordSettingsDialog(QWidget):
 
         # ----- 结果预览 -----
         self.lbl_preview = QLabel("")
-        self.lbl_preview.setStyleSheet(
-            "color: #6b7280; font-size: 11px; background: #f3f4f6;"
-            " padding: 4px 8px; border-radius: 3px;"
-        )
+        style_when_theme(self.lbl_preview, lambda c: f"color: {c['text_sub']}; font-size: 11px;"
+                                                    f" background: {c['bg3']};"
+                                                    " padding: 4px 8px; border-radius: 3px;")
         self.lbl_preview.setWordWrap(True)
         layout.addWidget(self.lbl_preview)
 
         # 说明：MP3/OGG 压缩格式
         self.lbl_note = QLabel("")
+        # 语义警告色：浅底可读性优于 semantic.warning，暂留待裁
         self.lbl_note.setStyleSheet("color: #b45309; font-size: 11px;")
         self.lbl_note.setWordWrap(True)
         layout.addWidget(self.lbl_note)
@@ -186,10 +189,10 @@ class RecordSettingsDialog(QWidget):
             self.cmb_depth.setEnabled(True)
             self.lbl_note.setText("")
         else:
-            self.cmb_depth.addItem("压缩格式（自动质量）", None)
+            self.cmb_depth.addItem(tr("record_settings.compress_auto"), None)
             self.cmb_depth.setEnabled(False)
             self.lbl_note.setText(
-                f"{fmt} 为有损压缩格式，不设采样深度；以默认质量编码。"
+                tr("record_settings.compress_lossy").format(fmt=fmt)
             )
         self.cmb_depth.blockSignals(False)
         self._update_preview()
@@ -197,9 +200,9 @@ class RecordSettingsDialog(QWidget):
     def _update_preview(self) -> None:
         path = self.file_path()
         if path:
-            self.lbl_preview.setText(f"停止录音后将自动保存到：\n{path}")
+            self.lbl_preview.setText(tr("record_settings.autosave_path").format(path=path))
         else:
-            self.lbl_preview.setText("请填写目录与文件名。")
+            self.lbl_preview.setText(tr("record_settings.err_need_dir_and_name"))
 
     def _on_browse(self) -> None:
         d = QFileDialog.getExistingDirectory(self, "选择保存目录", self.edit_dir.text())
@@ -226,18 +229,18 @@ class RecordSettingsDialog(QWidget):
     def _on_accept(self) -> None:
         global _last_dir, _last_fmt, _last_depth, _last_rate
         if not self.edit_filename.text().strip():
-            self.lbl_note.setText("请填写文件名。")
+            self.lbl_note.setText(tr("record_settings.err_need_name"))
             return
         if not Path(self.edit_dir.text().strip()).is_dir():
-            self.lbl_note.setText("目录不存在，请重新选择。")
+            self.lbl_note.setText(tr("record_settings.err_dir_missing"))
             return
 
         path = self.file_path()
         if Path(path).exists():
             from PyQt6.QtWidgets import QMessageBox
             ret = QMessageBox.question(
-                self, "文件已存在",
-                f"{path}\n已存在，是否覆盖？",
+                self, tr("record_settings.overwrite_title"),
+                tr("record_settings.overwrite_question").format(path=path),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if ret != QMessageBox.StandardButton.Yes:

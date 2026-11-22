@@ -22,6 +22,9 @@ EXEMPT_FILES = {
     "ui/widgets/settings_dialog.py",    # A4 预设 415/432/440/442（默认语义，合法）
     "utils/config.py",                  # Settings 持久化默认值 / 越界回退（默认语义）
     "ui/main_window.py",                # getattr(..., 440.0) 默认回退注入点
+    # 「相对 A440 的偏差」是该方法的名义定义（方法名 current_cents_vs_a440），
+    # 440 在此是**对比基准常量**而非参考频率注入点 ⇒ 不属单源破坏。
+    "ui/widgets/pitch_generator_dialog.py",
 }
 
 # ★ 目录级白名单

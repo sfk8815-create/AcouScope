@@ -8,6 +8,33 @@ import numpy as np
 from acouscope.dsp import FFTEngine, STFTEngine
 
 
+def refine_peak_frequency(magnitude: np.ndarray, freqs: np.ndarray, idx: int) -> float:
+    """三点抛物线插值细化谱峰频率（T01 共享纯函数，线性幅度口径）。
+
+    把 ``SpectralAnalyzer.detect_pitch_peaks`` 原有的抛物线公式原样抽出，
+    供语谱图 ``freq_at`` 复用，消除「整 bin 量化读数」的虚假精度。公式与
+    旧实现逐位一致：取 ``a=magnitude[idx-1]``、``b=magnitude[idx]``、
+    ``c=magnitude[idx+1]``，``denom=a-2*b+c``，``delta=(a-c)/(2*denom)``，
+    ``true_idx=idx+delta``，``peak_freq=true_idx*(freqs[1]-freqs[0])``。
+
+    边界（``idx<=0`` / ``idx>=len(magnitude)-1`` / 频率轴过短）或
+    ``abs(denom)<=1e-20``（三点共线、无峰值曲率）时回退到
+    ``float(freqs[idx])``，即未插值的 bin 频率。
+    """
+    n = len(magnitude)
+    if idx <= 0 or idx >= n - 1 or idx >= len(freqs) or len(freqs) < 2:
+        return float(freqs[idx])
+    a = magnitude[idx - 1]
+    b = magnitude[idx]
+    c = magnitude[idx + 1]
+    denom = a - 2 * b + c
+    if abs(denom) <= 1e-20:
+        return float(freqs[idx])
+    delta = (a - c) / (2 * denom)
+    true_idx = idx + delta
+    return float(true_idx * (freqs[1] - freqs[0]))
+
+
 class SpectralAnalyzer:
     """频谱分析器。
 
@@ -281,7 +308,8 @@ class SpectralAnalyzer:
         for local_idx, mag_val in peaks_raw:
             abs_idx = start_idx + local_idx
 
-            # 抛物线插值提高精度
+            # 抛物线插值提高精度：频率改由共享纯函数给出（T01），
+            # 幅度仍按抛物顶点值计算（旧实现的 peak_mag 口径逐位不变）。
             if abs_idx > 0 and abs_idx < len(magnitude) - 1:
                 a = magnitude[abs_idx - 1]
                 b = magnitude[abs_idx]
@@ -289,15 +317,12 @@ class SpectralAnalyzer:
                 denom = a - 2 * b + c
                 if abs(denom) > 1e-20:
                     delta = (a - c) / (2 * denom)
-                    true_idx = abs_idx + delta
-                    peak_freq = true_idx * freq_res
                     peak_mag = b - 0.25 * (a - c) * delta
                 else:
-                    peak_freq = freqs[abs_idx]
                     peak_mag = mag_val
             else:
-                peak_freq = freqs[abs_idx]
                 peak_mag = mag_val
+            peak_freq = refine_peak_frequency(magnitude, freqs, abs_idx)
 
             # 计算最近的音符和音分偏差
             midi_float = 69 + 12 * np.log2(peak_freq / a4_freq)

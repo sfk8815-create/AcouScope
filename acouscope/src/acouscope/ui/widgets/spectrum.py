@@ -22,7 +22,7 @@ from typing import Callable, Optional
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QObject, Qt, QEvent
+from PyQt6.QtCore import QObject, QSize, Qt, QEvent
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QWidget,
@@ -37,8 +37,11 @@ from PyQt6.QtWidgets import (
     QSplitter,
     QAbstractItemView,
     QFrame,
+    QSizePolicy,
+    QToolBar,
 )
 
+from acouscope.i18n import tr
 from acouscope.dsp.units import (
     FREQ_UNITS,
     MAG_UNITS,
@@ -55,12 +58,148 @@ from acouscope.ui.widgets.toast import show_toast
 
 CLICK_DRAG_THRESHOLD = 5  # 像素，小于此距离视为单击而非拖动
 
+# F4：谱波标记表第 5 列是「相对最强峰归一化」的 dBr（mag_db 恒以最强峰为 0），
+# 非绝对 dBFS 电平。表头文案与 tooltip 说明共用同一处定义（单一数据源）。
+_MARKS_MAG_HEADER = "相对幅度 (dBr)"
+_MARKS_MAG_TOOLTIP = (
+    "相对幅度 (dBr)：20·log10(峰值幅度 / 最强峰幅度)，"
+    "以本表最强峰为 0 dBr 参考（最强峰恒 0.0）；非绝对 dBFS 电平。"
+)
+
 
 def _fit_combo_width(combo: QComboBox) -> None:
     """下拉框宽度自适应最长条目（含下拉箭头与边距），避免文字截断。"""
     from acouscope.ui.widgets.freq_axis import fit_combo_width
 
     fit_combo_width(combo)
+
+
+def _zero_row_vmargins(bar: QToolBar) -> None:
+    """工具行布局上下边距清零、左右保留原值（G4a-4-Δ2 钩子，Δ3 起只作兜底）。
+
+    Δ3 已把 QSS `padding` 归零，正常情况下边距本来就是 (0,0,0,0)，本函数早退、
+    零成本。留着它是为个别风格/平台在 polish 时仍写回上下边距的情形兜底：
+    只清上下、左右不动，行高由可见子件最小高导出。
+
+    ★ 行高不由本钩子导出：本钩子只改 `layout().contentsMargins()`（sizeHint 的
+      依据），动不了 `QToolBarLayout` 的定位偏移 —— 靠它去补 padding 留下的
+      偏移，结果就是「行高 36、内容 42」的子件越界裁切。故禁借此复活
+      setFixedHeight / setMaximumHeight。
+    """
+    lay = bar.layout()
+    if lay is None:  # QToolBar 构造即建布局；此处只防析构期空布局
+        return
+    m = lay.contentsMargins()
+    if m.top() == 0 and m.bottom() == 0:
+        return
+    lay.setContentsMargins(m.left(), 0, m.right(), 0)
+
+
+class _ViewToolRow(QToolBar):
+    """工具行容器（G4a-4-Δ2 事件钩子，Δ3 起只作兜底）。
+
+    Δ3 把 QSS `padding` 归零后，布局边距通常已是 (0,0,0,0)，正常路径上钩子空转。
+    保留它是防个别风格/平台在 polish / 换父件 / 换主题时仍写回上下边距 —— 那时
+    重新收口一次。行高始终由可见子件最小高自然导出，不写死任何像素。
+    """
+
+    _REZERO_EVENTS = frozenset((
+        QEvent.Type.Polish,
+        QEvent.Type.StyleChange,
+        QEvent.Type.Show,
+        QEvent.Type.ParentChange,
+    ))
+
+    def event(self, ev):  # noqa: N802（Qt 命名）
+        handled = super().event(ev)   # 先让基类/样式引擎处理，再收口
+        if ev.type() in self._REZERO_EVENTS:
+            _zero_row_vmargins(self)
+        return handled
+
+
+def make_view_tool_row(owner: QWidget, spacing: int = 8) -> QToolBar:
+    """分析视图的统一工具行容器（G4a-4）。
+
+    为什么不是 QHBoxLayout：横排布局把「所有控件的最小宽之和」原样上报给
+    `minimumSizeHint`，窄窗下只能把控件压到 0 宽（截断），并顺带把
+    `analysis_panel` 顶到 1665。换成 QToolBar 后，放不下的控件由 Qt 收进
+    尾部「»」扩展菜单（`qt_toolbar_ext_button`），工具行最小宽只留扩展按钮。
+
+    QSS 冲突处理：全局 `QToolBar` 规则带 bg1 底 + 下描边（多 1 px 且会撑高），
+    此处按控件覆写为透明无框；`spacing` 只能用 QSS 给（QToolBar 无 setSpacing）。
+
+    ★ 全树唯一实现：其余视图一律 `from ...spectrum import make_view_tool_row`
+      复用，禁各视图各写一套。
+    """
+    bar = _ViewToolRow(owner)
+    bar.setObjectName("viewToolRow")
+    bar.setMovable(False)          # 禁拖动（工具行不重排）
+    bar.setFloatable(False)        # 禁浮动（不脱窗）
+    bar.setContextMenuPolicy(Qt.ContextMenuPolicy.PreventContextMenu)
+    bar.setContentsMargins(0, 0, 0, 0)
+    bar.setIconSize(QSize(16, 16))
+    # G4a-4-Δ3：padding 一律归零。QSS 的 `padding` 由样式引擎按**四边同值**写回
+    # 布局边距 —— 写 `1 px 6 px`（本意垂直 1、水平 6）实测得到 (6,6,6,6)：行高被
+    # 撑到 48，而「清边距」只改了 sizeHint 的依据、QToolBarLayout 的 6 px 定位
+    # 偏移仍在，于是子件底边越出行底 6 px 被裁。写 `0 px 6 px` 同样不行（水平值 6
+    # 照样写回垂直）。故不留任何 padding，水平呼吸位改由行内 spacing 承担。
+    bar.setStyleSheet(
+        "QToolBar { background: transparent; border: none;"
+        " padding: 0; spacing: %dpx; }" % spacing
+    )
+    bar.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    # G4a-4-Δ2：行高不钉死。padding 归零后行高 = 「可见子件最小高」自然导出
+    # （实测 36/37），既不吃画布净高，也不压子件换行高。禁再写死像素值
+    # （setFixedHeight / setMaximumHeight 一律不许复活）。
+    return bar
+
+
+def pin_tool_row_widths(bar: QToolBar) -> None:
+    """工具行内「按内容定宽」的控件锁成 Fixed（G4a-4）。
+
+    QToolBar 在最后一件只放得下一半时会按「最小宽」把它压扁 —— 下拉框被压成
+    只剩一个箭头，观感等同截断（且 `have < minimumSizeHint` 判不出来）。
+    锁成 Fixed 后最小宽 = 内容宽，Qt 只能整件收进「»」溢出菜单。
+    必须在控件全部 addWidget 之后调用（四视图均走此处，行高也在末尾一并收口）。
+    """
+    from PyQt6.QtWidgets import QAbstractSpinBox
+
+    for w in bar.findChildren(
+        QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly
+    ):
+        if isinstance(w, (QComboBox, QAbstractSpinBox, QPushButton, QLabel)):
+            w.setSizePolicy(
+                QSizePolicy.Policy.Fixed, w.sizePolicy().verticalPolicy()
+            )
+    _zero_row_vmargins(bar)
+
+
+def tool_field(label: QLabel, control: QWidget) -> QWidget:
+    """把「说明标签 + 控件」捆成一件（G4a-4）。
+
+    QToolBar 的溢出粒度是「单个 widget action」：不捆的话，窄宽下会出现
+    「Window:」留在行上、它的下拉框却进了「»」菜单的孤儿标签。
+    捆成一件后整组一起溢出，读起来始终成对。
+    """
+    box = QWidget()
+    lay = QHBoxLayout(box)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(6)
+    lay.addWidget(label)
+    lay.addWidget(control)
+    box.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+    return box
+
+
+def compact_glyph_button(btn: QPushButton, width: int) -> None:
+    """把符号按钮压到「内容宽 = 给定宽」（G4a-4 第 3 条）。
+
+    全局 QSS 的内边距会把 ``+``/``−``/``⤢`` 这类单字符按钮的最小宽抬到 80，
+    旧代码再用 setMaximumWidth(30) 硬压 → 每帧都算「截断」。这里把内边距归零、
+    宽度取符号实际所需（固定宽 = 内容宽，不是压缩上限）。
+    """
+    btn.setStyleSheet("QPushButton { padding: 0; }")
+    btn.setFixedWidth(width)
 
 
 def _apply_canvas_theme(plot_widget, bg_role: str = "bg1") -> None:
@@ -260,18 +399,23 @@ class SpectrumWidget(QWidget):
     # ============================================================
 
     def _build_toolbar(self, parent_layout):
-        """构建顶部工具栏。"""
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(6, 6, 6, 6)
-        toolbar.setSpacing(8)
+        """构建顶部工具行。
 
-        self.lbl_title = QLabel("频谱")
+        G4a-4：容器由 QHBoxLayout 改 QToolBar —— 窄宽下 Qt 自动把放不下的
+        次要动作收进尾部「»」扩展菜单（overflow），工具行不再把整页最小宽
+        顶到 1665。加入顺序即优先级：越靠前越常驻（左端标题/和弦 + 右端
+        单位 → 显示参数 → 标记动作 → 缩放）。
+        """
+        toolbar = make_view_tool_row(self)
+        self.tool_row = toolbar
+
+        self.lbl_title = QLabel(tr("spectrum.title"))
         self.lbl_title.setStyleSheet(
             f"font-weight: bold; font-size: {theme.TOKENS['typography']['body']}px;")
         toolbar.addWidget(self.lbl_title)
 
         # 和弦/标记摘要显示（T-1038 M4：底块改走中性阶 bg2，禁主题互斥硬编码浅底）
-        self.lbl_chord = QLabel("单音: --")
+        self.lbl_chord = QLabel(tr("spectrum.single_tone_none"))
         self.lbl_chord.setStyleSheet(
             f"color: {theme.colors()['accent']}; font-weight: bold;"
             f" font-size: {theme.TOKENS['typography']['body']}px;"
@@ -284,10 +428,7 @@ class SpectrumWidget(QWidget):
         )
         toolbar.addWidget(self.lbl_chord)
 
-        toolbar.addStretch()
-
         # X 轴单位
-        toolbar.addWidget(QLabel("X轴:"))
         self.cmb_x_unit = QComboBox()
         for label, key, tip in FREQ_UNITS:
             self.cmb_x_unit.addItem(label, key)
@@ -295,10 +436,9 @@ class SpectrumWidget(QWidget):
         self.cmb_x_unit.setCurrentIndex(self._default_freq_unit_index())
         _fit_combo_width(self.cmb_x_unit)
         self.cmb_x_unit.currentIndexChanged.connect(self._on_x_unit_changed)
-        toolbar.addWidget(self.cmb_x_unit)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrum.axis_x")), self.cmb_x_unit))
 
         # Y 轴单位
-        toolbar.addWidget(QLabel("Y轴:"))
         self.cmb_y_unit = QComboBox()
         for label, key, tip in MAG_UNITS:
             self.cmb_y_unit.addItem(label, key)
@@ -306,34 +446,33 @@ class SpectrumWidget(QWidget):
         self.cmb_y_unit.setCurrentIndex(0)
         _fit_combo_width(self.cmb_y_unit)
         self.cmb_y_unit.currentIndexChanged.connect(self._on_y_unit_changed)
-        toolbar.addWidget(self.cmb_y_unit)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrum.axis_y")), self.cmb_y_unit))
 
-        # 分隔
-        toolbar.addSpacing(6)
-
-        # 窗函数
-        toolbar.addWidget(QLabel("窗:"))
+        # 窗函数（G4a-4：删 90 px 硬上限 → 最小内容宽，空间富余时不再被钉死）
         self.cmb_window = QComboBox()
         for label, _ in self.WINDOW_TYPES:
             self.cmb_window.addItem(label)
         self.cmb_window.setCurrentIndex(0)
-        self.cmb_window.setMaximumWidth(90)
+        self.cmb_window.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_window.setMinimumContentsLength(6)
         self.cmb_window.currentIndexChanged.connect(self._on_window_changed)
-        toolbar.addWidget(self.cmb_window)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrum.window")), self.cmb_window))
 
         # FFT 大小
-        toolbar.addWidget(QLabel("FFT:"))
         self.cmb_fft_size = QComboBox()
         for label, _ in self.FFT_SIZES:
             self.cmb_fft_size.addItem(label)
         self.cmb_fft_size.setCurrentIndex(4)  # 默认 2048
-        self.cmb_fft_size.setMaximumWidth(75)
+        self.cmb_fft_size.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_fft_size.setMinimumContentsLength(5)
         self.cmb_fft_size.currentIndexChanged.connect(self._on_fft_size_changed)
-        toolbar.addWidget(self.cmb_fft_size)
+        toolbar.addWidget(tool_field(QLabel("FFT:"), self.cmb_fft_size))
 
         # 峰值检测按钮
         self.btn_find_peaks = QPushButton("找峰值")
-        self.btn_find_peaks.setToolTip("自动检测频谱峰值并列出频率和幅度")
+        self.btn_find_peaks.setToolTip(tr("spectrum.tip_peak_detect"))
         self.btn_find_peaks.setStyleSheet(
             f"font-size: {theme.TOKENS['typography']['body_sm']}px;"
             f" padding: {theme.TOKENS['spacing']['xxs']}px"
@@ -344,7 +483,7 @@ class SpectrumWidget(QWidget):
         # 峰值标记面板开关（非模态内嵌，CB-002 F-3）
         self.btn_peaks_panel = QPushButton("标记面板")
         self.btn_peaks_panel.setCheckable(True)
-        self.btn_peaks_panel.setToolTip("展开/收起峰值标记面板")
+        self.btn_peaks_panel.setToolTip(tr("spectrum.tip_toggle_marks"))
         self.btn_peaks_panel.setStyleSheet(
             f"font-size: {theme.TOKENS['typography']['body_sm']}px;"
             f" padding: {theme.TOKENS['spacing']['xxs']}px"
@@ -353,21 +492,21 @@ class SpectrumWidget(QWidget):
         toolbar.addWidget(self.btn_peaks_panel)
 
         # 频率范围
-        toolbar.addWidget(QLabel("范围:"))
         self.cmb_range = QComboBox()
         for label, _ in self.FREQ_RANGES_HZ:
             self.cmb_range.addItem(label)
         self.cmb_range.setCurrentIndex(1)  # 默认 1 kHz
-        self.cmb_range.setMaximumWidth(90)
+        self.cmb_range.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_range.setMinimumContentsLength(6)
         self.cmb_range.currentIndexChanged.connect(self._update_display)
-        toolbar.addWidget(self.cmb_range)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrum.range")), self.cmb_range))
 
         # 峰值保持
         self.btn_hold = QPushButton("保持")
         self.btn_hold.setCheckable(True)
         self.btn_hold.setChecked(False)
-        self.btn_hold.setMaximumWidth(55)
-        self.btn_hold.setToolTip("峰值保持 (Peak Hold)")
+        self.btn_hold.setToolTip(tr("spectrum.tip_peak_hold"))
         self.btn_hold.toggled.connect(self._toggle_peak_hold)
         toolbar.addWidget(self.btn_hold)
 
@@ -382,39 +521,36 @@ class SpectrumWidget(QWidget):
 
         # 标记操作按钮（置于工具栏，论文截图时随顶部控件排除在图外）
         self.btn_auto_detect = QPushButton("自动检测分音")
-        self.btn_auto_detect.setToolTip("自动标记最强的前 6 个分音（幅度 ≥ 最大峰的 0.1%）")
+        self.btn_auto_detect.setToolTip(tr("spectrum.tip_auto_mark"))
         self.btn_auto_detect.clicked.connect(self._auto_detect_peaks)
         toolbar.addWidget(self.btn_auto_detect)
 
         self.btn_clear_marks = QPushButton("清除标记")
-        self.btn_clear_marks.setToolTip("清除全部谐波标记")
+        self.btn_clear_marks.setToolTip(tr("spectrum.tip_clear_marks"))
         self.btn_clear_marks.clicked.connect(self._clear_all_marks)
         toolbar.addWidget(self.btn_clear_marks)
 
         self.btn_copy_marks = QPushButton("复制数据")
-        self.btn_copy_marks.setToolTip("复制标记数值表（制表符分隔，可粘贴到 Excel）")
+        self.btn_copy_marks.setToolTip(tr("spectrum.tip_copy_table"))
         self.btn_copy_marks.clicked.connect(self._copy_marks_to_clipboard)
         toolbar.addWidget(self.btn_copy_marks)
 
-        # 分隔
-        toolbar.addSpacing(4)
-
-        # 缩放按钮组
+        # 缩放按钮组（符号按钮：固定宽 = 符号内容宽，见 compact_glyph_button）
         self.btn_zoom_in = QPushButton("+")
-        self.btn_zoom_in.setMaximumWidth(30)
-        self.btn_zoom_in.setToolTip("放大 (Ctrl+=)")
+        compact_glyph_button(self.btn_zoom_in, 28)
+        self.btn_zoom_in.setToolTip(tr("spectrum.tip_zoom_in"))
         self.btn_zoom_in.clicked.connect(lambda: self._zoom_center(1.3))
         toolbar.addWidget(self.btn_zoom_in)
 
         self.btn_zoom_out = QPushButton("−")
-        self.btn_zoom_out.setMaximumWidth(30)
-        self.btn_zoom_out.setToolTip("缩小 (Ctrl+-)")
+        compact_glyph_button(self.btn_zoom_out, 28)
+        self.btn_zoom_out.setToolTip(tr("spectrum.tip_zoom_out"))
         self.btn_zoom_out.clicked.connect(lambda: self._zoom_center(1 / 1.3))
         toolbar.addWidget(self.btn_zoom_out)
 
         self.btn_zoom_fit = QPushButton("⤢")
-        self.btn_zoom_fit.setMaximumWidth(34)
-        self.btn_zoom_fit.setToolTip("适应窗口 / 重置缩放 (Ctrl+0 或双击)")
+        compact_glyph_button(self.btn_zoom_fit, 30)
+        self.btn_zoom_fit.setToolTip(tr("spectrum.tip_fit"))
         self.btn_zoom_fit.clicked.connect(self._zoom_fit)
         toolbar.addWidget(self.btn_zoom_fit)
 
@@ -422,19 +558,12 @@ class SpectrumWidget(QWidget):
         self.btn_y_lock = QPushButton("Y自动")
         self.btn_y_lock.setCheckable(True)
         self.btn_y_lock.setChecked(False)
-        self.btn_y_lock.setMaximumWidth(58)
-        self.btn_y_lock.setToolTip(
-            "Y 轴自动跟随可见数据（默认）\n"
-            "Shift+滚轮手动缩放 Y 后自动锁定\n"
-            "点击此按钮恢复自动"
-        )
+        self.btn_y_lock.setToolTip(tr("spectrum.y_follow_tooltip"))
         self.btn_y_lock.toggled.connect(self._on_y_lock_toggled)
         toolbar.addWidget(self.btn_y_lock)
 
-        toolbar_widget = QWidget()
-        toolbar_widget.setLayout(toolbar)
-        toolbar_widget.setMaximumHeight(38)
-        parent_layout.addWidget(toolbar_widget)
+        pin_tool_row_widths(toolbar)
+        parent_layout.addWidget(toolbar)
 
     def _build_info_bar(self, parent_layout):
         """构建信息栏。"""
@@ -442,19 +571,19 @@ class SpectrumWidget(QWidget):
         info_bar.setContentsMargins(6, 2, 6, 4)
         info_bar.setSpacing(12)
 
-        self.lbl_freq = QLabel("频率: -- Hz")
+        self.lbl_freq = QLabel(tr("spectrum.freq_none"))
         self.lbl_freq.setStyleSheet(
             f"color: {theme.colors()['text_sub']};"
             f" font-size: {theme.TOKENS['typography']['body_sm']}px;")
         info_bar.addWidget(self.lbl_freq)
 
-        self.lbl_mag = QLabel("幅度: --")
+        self.lbl_mag = QLabel(tr("spectrum.amp_none"))
         self.lbl_mag.setStyleSheet(
             f"color: {theme.colors()['text_sub']};"
             f" font-size: {theme.TOKENS['typography']['body_sm']}px;")
         info_bar.addWidget(self.lbl_mag)
 
-        self.lbl_note = QLabel("音符: --")
+        self.lbl_note = QLabel(tr("spectrum.note_none"))
         self.lbl_note.setStyleSheet(
             f"color: {theme.colors()['text_sub']};"
             f" font-size: {theme.TOKENS['typography']['body_sm']}px;")
@@ -526,7 +655,7 @@ class SpectrumWidget(QWidget):
         self.h_line = pg.InfiniteLine(
             pos=0,
             angle=0,
-            movable=True,
+            movable=False,
             pen=pg.mkPen(color=theme.data_ink("cursor"), width=2.7,
                          style=Qt.PenStyle.DashLine),
         )
@@ -631,7 +760,7 @@ class SpectrumWidget(QWidget):
         header = QHBoxLayout()
         header.setSpacing(6)
 
-        self.lbl_marks_title = QLabel("谐波标记 (0)")
+        self.lbl_marks_title = QLabel(tr("spectrum.harmonic_marks").format(n=0))
         self.lbl_marks_title.setStyleSheet(
             f"font-weight: bold; font-size: {theme.TOKENS['typography']['body_sm']}px;")
         header.addWidget(self.lbl_marks_title)
@@ -643,8 +772,10 @@ class SpectrumWidget(QWidget):
         # 数值表
         self.marks_table = QTableWidget(0, 7)
         self.marks_table.setHorizontalHeaderLabels(
-            ["#", "频率 (Hz)", "音名", "音分偏差", "幅度 (dB)", "Δ音分", "n×基频"]
+            ["#", "频率 (Hz)", "音名", "音分偏差", _MARKS_MAG_HEADER, "Δ音分", "n×基频"]
         )
+        # F4：第 5 列表头明确相对口径，并挂口径说明 tooltip
+        self.marks_table.horizontalHeaderItem(4).setToolTip(_MARKS_MAG_TOOLTIP)
         header_view = self.marks_table.horizontalHeader()
         header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         for col in range(1, 7):
@@ -660,14 +791,12 @@ class SpectrumWidget(QWidget):
         self.marks_table.installEventFilter(self)
         layout.addWidget(self.marks_table)
 
-        # 提示行（表格下方）
-        hint = QLabel(
-            "单击峰：添加/取消标记 · 右键：菜单 · 拖动：平移 · 滚轮：缩放频率轴 · Shift+滚轮：缩放幅度轴 · 双击：重置 · Delete：删除选中标记"
-        )
-        hint.setStyleSheet(
-            f"color: {theme.colors()['sub']};"
-            f" font-size: {theme.TOKENS['typography']['caption_sm']}px;")
-        layout.addWidget(hint)
+        # 交互说明（G4a-4）：原为表格下方整行 QLabel —— 单行不换行、需 613 px，
+        # 直接把 FFT 页最小宽顶到 1665（本页最大单项）。改挂 tooltip +
+        # 读屏可访问描述：说明文字一字不减，但不占行宽。
+        _peak_hint = tr("spectrum.peak_mark_hint")
+        self.marks_table.setToolTip(_peak_hint)
+        self.marks_table.setAccessibleDescription(_peak_hint)
 
         parent_layout.addWidget(panel)
 
@@ -734,7 +863,9 @@ class SpectrumWidget(QWidget):
         if len(freqs) > 1:
             res = freqs[1] - freqs[0]
             n_fft = 2 * (len(freqs) - 1)
-            self.lbl_resolution.setText(f"分辨率: {res:.2f} Hz | FFT: {int(n_fft)} 点")
+            self.lbl_resolution.setText(
+                tr("spectrum.resolution_info").format(res=f"{res:.2f}", n=int(n_fft))
+            )
 
         # 重置峰值保持
         if self.btn_hold.isChecked():
@@ -1019,7 +1150,9 @@ class SpectrumWidget(QWidget):
     def _on_y_lock_toggled(self, checked: bool):
         """Y 锁定按钮切换。"""
         self._y_locked = checked
-        self.btn_y_lock.setText("Y锁定" if checked else "Y自动")
+        self.btn_y_lock.setText(
+            tr("spectrum.y_locked") if checked else tr("spectrum.y_auto")
+        )
         if not checked:
             # 解锁：立即按当前可见范围自适应
             x_min, x_max = self.plot_widget.plotItem.vb.viewRange()[0]
@@ -1032,7 +1165,9 @@ class SpectrumWidget(QWidget):
             self.btn_y_lock.setChecked(locked)
             self.btn_y_lock.blockSignals(False)
         self._y_locked = locked
-        self.btn_y_lock.setText("Y锁定" if locked else "Y自动")
+        self.btn_y_lock.setText(
+            tr("spectrum.y_locked") if locked else tr("spectrum.y_auto")
+        )
 
     def _reset_cursor(self):
         """重置游标到合理位置。"""
@@ -1049,8 +1184,14 @@ class SpectrumWidget(QWidget):
             if np.any(finite):
                 xf = x[finite]
                 self.v_line.setPos(float(xf[len(xf) // 10]))
-                yf = y[finite]
-                self.h_line.setPos(float(np.max(yf)) * 0.5)
+                # 该点曲线值（而非 max*0.5），同步 h_line（D8）
+                x_val = self.v_line.value()
+                freq_hz = self._display_x_to_hz(x_val)
+                mag_lin = float(np.interp(freq_hz, self._freqs_hz, self._magnitude_linear))
+                y_val = self._linear_to_display_y(mag_lin, freq_hz)
+                self.h_line.blockSignals(True)
+                self.h_line.setPos(y_val)
+                self.h_line.blockSignals(False)
 
     # ============================================================
     # 坐标换算（Hz <-> 当前显示单位）
@@ -1500,9 +1641,9 @@ class SpectrumWidget(QWidget):
             # 音名标签（含音分）
             label = f'{peak["note"]}'
             if abs(peak.get("cents", 0)) >= 1:
-                label += f'{peak["cents"]:+.0f}¢'
+                label += f' {peak["cents"]:+.0f}¢'
             text = pg.TextItem(text=label, color=theme.data_ink("marker"),
-                               anchor=(0.5, 1.15))
+                               anchor=(0.5, 1.5))
             text.setFont(font)
             text.setPos(px, py)
             self.plot_widget.addItem(text)
@@ -1564,15 +1705,20 @@ class SpectrumWidget(QWidget):
                 item = QTableWidgetItem(str(val))
                 if c == 0:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if c == 4:
+                    # F4：幅度单元格与表头共用同一口径说明（相对最强峰归一化 dBr）
+                    item.setToolTip(_MARKS_MAG_TOOLTIP)
                 self.marks_table.setItem(r, c, item)
-        self.lbl_marks_title.setText(f"谐波标记 ({len(self._manual_peaks)})")
+        self.lbl_marks_title.setText(
+            tr("spectrum.harmonic_marks").format(n=len(self._manual_peaks))
+        )
         self._fit_marks_table_height()
 
     def _update_chord_label(self):
         """更新和弦/单音标签（基于标记）。"""
         peaks = self._manual_peaks
         if not peaks:
-            self.lbl_chord.setText("单音: --")
+            self.lbl_chord.setText(tr("spectrum.single_tone_none"))
             return
 
         try:
@@ -1580,18 +1726,26 @@ class SpectrumWidget(QWidget):
             analyzer = SpectralAnalyzer(self._sample_rate)
             chord = analyzer.detect_chord(peaks)
             if chord["quality"] == "单音":
-                self.lbl_chord.setText(f'单音: {chord["name"]}')
+                self.lbl_chord.setText(
+                    tr("spectrum.single_tone").format(name=chord["name"])
+                )
             elif chord["name"] != "--" and chord["confidence"] > 0.35:
                 conf_pct = int(chord["confidence"] * 100)
-                self.lbl_chord.setText(f'和弦: {chord["name"]} ({conf_pct}%)')
+                self.lbl_chord.setText(
+                    tr("spectrum.chord").format(name=chord["name"], conf=conf_pct)
+                )
             else:
                 n_notes = len(set(p["note"][:-1] for p in peaks))
                 if n_notes == 1:
-                    self.lbl_chord.setText(f'单音: {peaks[0]["note"]}')
+                    self.lbl_chord.setText(
+                        tr("spectrum.single_tone").format(name=peaks[0]["note"])
+                    )
                 else:
-                    self.lbl_chord.setText(f'{n_notes} 个音')
+                    self.lbl_chord.setText(tr("spectrum.notes_count").format(n=n_notes))
         except Exception:
-            self.lbl_chord.setText(f"标记: {len(peaks)} 个音")
+            self.lbl_chord.setText(
+                tr("spectrum.marks_notes").format(n=len(peaks))
+            )
 
     # ============================================================
     # 峰值保持
@@ -1796,37 +1950,54 @@ class SpectrumWidget(QWidget):
         self._refresh_peaks_panel()
 
     def _on_cursor_moved(self):
-        """游标移动，更新信息栏。"""
+        """游标移动，更新信息栏。幅度取曲线在游标频率处的值（D8）。"""
         if len(self._freqs_hz) == 0:
             return
 
         x_val = self.v_line.value()
-        y_val = self.h_line.value()
-
         freq_hz = self._display_x_to_hz(x_val)
+
+        # 幅度取曲线在游标频率处的线性值，再换算为当前显示单位
+        mag_lin = float(np.interp(freq_hz, self._freqs_hz, self._magnitude_linear))
+        y_val = self._linear_to_display_y(mag_lin, freq_hz)
+
+        # 水平准星由程序同步到曲线值（读数指示线），blockSignals 防递归
+        self.h_line.blockSignals(True)
+        self.h_line.setPos(y_val)
+        self.h_line.blockSignals(False)
 
         # 频率显示（用当前单位）
         if self._freq_unit in ("hz", "khz"):
-            self.lbl_freq.setText(f"频率: {x_val:.2f} {self._x_unit_label()}")
+            self.lbl_freq.setText(
+                tr("spectrum.freq_unit").format(
+                    value=f"{x_val:.2f}", unit=self._x_unit_label()
+                )
+            )
         elif self._freq_unit == "midi":
             self.lbl_freq.setText(f"MIDI: {x_val:.2f}")
         elif self._freq_unit == "piano":
-            self.lbl_freq.setText(f"频率: {freq_hz:.2f} Hz")
+            self.lbl_freq.setText(
+                tr("spectrum.freq_hz").format(value=f"{freq_hz:.2f}")
+            )
         elif self._freq_unit == "cents":
-            self.lbl_freq.setText(f"音分: {x_val:.0f} cents")
+            self.lbl_freq.setText(
+                tr("spectrum.cents").format(value=f"{x_val:.0f}")
+            )
         elif self._freq_unit == "mel":
             self.lbl_freq.setText(f"Mel: {x_val:.1f} mel")
         else:
-            self.lbl_freq.setText(f"频率: {x_val:.2f}")
+            self.lbl_freq.setText(tr("spectrum.freq_value").format(value=f"{x_val:.2f}"))
 
         # 幅度显示
         y_label = self._y_unit_label()
         if self._mag_unit in ("db", "dbfs", "dba"):
-            self.lbl_mag.setText(f"幅度: {y_val:.1f} {y_label}")
+            self.lbl_mag.setText(
+                tr("spectrum.amp_unit").format(value=f"{y_val:.1f}", unit=y_label)
+            )
         elif self._mag_unit == "norm":
-            self.lbl_mag.setText(f"幅度: {y_val:.1f}%")
+            self.lbl_mag.setText(tr("spectrum.amp_pct").format(value=f"{y_val:.1f}"))
         else:
-            self.lbl_mag.setText(f"幅度: {y_val:.4f}")
+            self.lbl_mag.setText(tr("spectrum.amp_value").format(value=f"{y_val:.4f}"))
 
         # 音符显示（基于 Hz）
         note_name = hz_to_note_name(freq_hz)
@@ -1836,9 +2007,13 @@ class SpectrumWidget(QWidget):
             midi_round = round(float(hz_to_midi(freq_hz)))
             ref_freq = float(midi_to_hz(midi_round))
             cents = 1200 * np.log2(freq_hz / ref_freq) if freq_hz > 0 else 0
-            self.lbl_note.setText(f"音符: {note_name} ({cents:+.0f} 音分)")
+            self.lbl_note.setText(
+                tr("spectrum.note_cents").format(
+                    name=note_name, cents=f"{cents:+.0f}"
+                )
+            )
         else:
-            self.lbl_note.setText("音符: --")
+            self.lbl_note.setText(tr("spectrum.note_none"))
 
     # ============================================================
     # 钢琴键盘

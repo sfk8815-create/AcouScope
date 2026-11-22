@@ -14,9 +14,11 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer, QObject, QThread, pyqtSignal
+import json
+from PyQt6.QtCore import Qt, QSize, QTimer, QObject, QThread, pyqtSignal, QPoint, QRect
 from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
 from PyQt6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QGridLayout,
     QVBoxLayout,
@@ -24,10 +26,11 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QComboBox,
     QCheckBox,
-    QDoubleSpinBox,
+    QFrame,
     QLineEdit,
     QLabel,
     QAbstractScrollArea,
+    QScrollArea,
     QListWidget,
     QStackedWidget,
     QWidget,
@@ -35,14 +38,18 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QListWidgetItem,
     QHeaderView,
+    QLayout,
     QPushButton,
     QProgressBar,
     QRadioButton,
+    QSlider,
 )
 
 from acouscope.ai.interpreter import PROVIDERS
 from acouscope.i18n import tr, available_languages
 from acouscope.ui import theme
+from acouscope.ui.widgets.param_spin import ParamSpinBox
+from acouscope.ui.shortcuts import display_key, unmap_key
 from acouscope.ui.widgets.toast import show_toast
 
 # 与 exporters.FigureExporter.SUPPORTED_FORMATS 对齐
@@ -57,6 +64,9 @@ DPI_OPTIONS = [150, 300, 600, 1200]
 
 # T-1047：A4 快捷基准 chip 预设（Hz；数值即载荷 → 无需 i18n 文案）
 _A4_PRESETS = (415.0, 432.0, 440.0, 442.0)
+# G5：A4 交互滑块的整数刻度倍率（QSlider 只有整数，1 步 = 0.1 Hz，与数值框
+# decimals=1 对齐，避免 0.5 步进时的取整漂移）
+_A4_SLIDER_SCALE = 10
 
 # T-320：云端档厂商（Cherry Studio「模型服务商」范式：预置厂商 + OpenAI 兼容兜底）
 _CLOUD_VENDOR_IDS = ("deepseek", "qwen", "openai", "zhipu", "custom")
@@ -110,7 +120,7 @@ def _param_qss(c: dict) -> str:
         "}"
         "QLabel#paramReadoutValue {"
         f"  color: {c['text']};"
-        f"  font-family: {ty['mono']};"
+        f"  font-family: {theme.ui_mono_family_qss()};"
         f"  font-size: {ty['caption']}px;"
         f"  background: {c['bg2']};"
         f"  border: {el['border']}px solid {c['border']};"
@@ -216,6 +226,69 @@ class ChipButton(QPushButton):
         )
 
 
+class _FlowLayout(QLayout):
+    """换行布局：最小宽 = 单子最小宽，整行 chip 不再顶宽窄栏页最小宽（M4）。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items: list = []
+        self._spacing = theme.TOKENS["spacing"]["xs"]
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        return self._items[index] if 0 <= index < len(self._items) else None
+
+    def takeAt(self, index):
+        return self._items.pop(index) if 0 <= index < len(self._items) else None
+
+    def expandingDirections(self):
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._place(QRect(0, 0, width, 0), True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._place(rect, False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        left, top, right, bottom = self.getContentsMargins()
+        return size + QSize(left + right, top + bottom)
+
+    def _place(self, rect, test_only):
+        left, top, right, bottom = self.getContentsMargins()
+        x = rect.x() + left
+        y = rect.y() + top
+        line_h = 0
+        for item in self._items:
+            hint = item.sizeHint()
+            next_x = x + hint.width() + self._spacing
+            if next_x - self._spacing > rect.right() - right and line_h:
+                x = rect.x() + left
+                y += line_h + self._spacing
+                next_x = x + hint.width() + self._spacing
+                line_h = 0
+            if not test_only:
+                item.setGeometry(QRect(x, y, hint.width(), hint.height()))
+            x = next_x
+            line_h = max(line_h, hint.height())
+        return y + line_h - rect.y() + bottom
+
+
 class ChipGroup(QWidget):
     """互斥 chip 组（ARCH §五-6：同一应用内只允许一套激活语义）。
 
@@ -228,9 +301,8 @@ class ChipGroup(QWidget):
         """items: 序列，元素 = (文案, 载荷)。"""
         super().__init__(parent)
         self.setObjectName("paramChipGroup")
-        row = QHBoxLayout(self)
+        row = _FlowLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(theme.TOKENS["spacing"]["xs"])
         self._payloads: dict[ChipButton, object] = {}
         self.chips: list[ChipButton] = []
         self._group = QButtonGroup(self)
@@ -242,7 +314,14 @@ class ChipGroup(QWidget):
             self.chips.append(chip)
             chip.clicked.connect(lambda _c=False, ch=chip: self._on_click(ch))
             row.addWidget(chip)
-        row.addStretch(1)
+
+    def set_exclusive(self, on: bool = True) -> None:
+        """点选排他开关（G5）：交给 QButtonGroup 的排他机制，语义 = 单选。
+
+        默认 `exclusive=False` + 点击后手工取消其余（等效互斥，且保留
+        `set_current(None)` 的「全部熄灭」语义）；本轮显式为 A4 快捷基准开启真互斥。
+        """
+        self._group.setExclusive(bool(on))
 
     def payload_of(self, chip: ChipButton):
         """某 chip 的载荷。"""
@@ -308,7 +387,7 @@ class RangeHint(QWidget):
         self.update()
         # 刻度数值等宽（走令牌字链，随主题刷新；禁族名字面量）
         return ("QWidget#paramRangeHint {"
-                f"  font-family: {theme.TOKENS['typography']['mono']};"
+                f"  font-family: {theme.ui_mono_family_qss()};"
                 "}")
 
     def paintEvent(self, event):  # noqa: N802 (Qt 命名)
@@ -462,6 +541,7 @@ class SettingsDialog(QWidget):
         default_format: str = "svg",
         default_dpi: int = 300,
         reference_hz: float = 440.0,
+        backend_selector=None,
     ):
         super().__init__(parent)
         self._applied = False
@@ -483,12 +563,48 @@ class SettingsDialog(QWidget):
         self._engine_cancel = False
         # T-1022：模型下载后台任务（推荐列表的 [下载]/[删除]）
         self._model_worker = None
+        # D10a：音高算法后端选择器（主窗构造期暂存；None = 无，测试直构路径不加行）
+        self._backend_selector = backend_selector
+
+        # MCP 设置：从 Settings.load() 读取，旧配置缺键时回落默认
+        self._mcp_enabled = False
+        self._mcp_roots = ""
+        self._mcp_out = ""
+        try:
+            from acouscope.utils.config import Settings
+
+            s = Settings.load()
+            self._mcp_enabled = getattr(s, "mcp_enabled", False)
+            self._mcp_roots = getattr(s, "mcp_allowed_roots", "")
+            self._mcp_out = getattr(s, "mcp_out_dir", "")
+        except Exception:
+            pass
 
         self._build_ui()
 
         # T-1001：图标风格「切换即预览」→ 应用持久化 / 取消回滚（同主题口径）
         self.applied.connect(self._persist_icon_style)
         self.cancelled.connect(self._revert_icon_style)
+        # MCP 设置：应用时持久化（best-effort，同图标风格口径）
+        self.applied.connect(self._persist_mcp_settings)
+
+    @staticmethod
+    def _wrap_page(page: QWidget) -> QScrollArea:
+        """H1b：单页装进可缩放滚动区，隔断页最小宽向面板级的传播。
+
+        页内容仍按内容自适应（widgetResizable）：视口够宽时页随视口拉伸，
+        视口窄于页的最小宽时由该页自身出横向滚动条（可滚动 ≠ 被裁）。
+        """
+        area = QScrollArea()
+        area.setObjectName("settingsPageScroll")
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        area.setMinimumWidth(0)
+        page.setMinimumWidth(0)
+        area.setWidget(page)
+        return area
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -505,14 +621,17 @@ class SettingsDialog(QWidget):
 
         self.nav_list = QListWidget()
         self.nav_list.setObjectName("settingsNavList")
+        # A1：显式图标尺寸（≤24）——默认 -1 时 20×20 图标与文字互压、行距塌为 0
+        self.nav_list.setIconSize(QSize(20, 20))
         self.nav_list.setSizeAdjustPolicy(
             QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents
         )
+        # A1：内容超高/超宽时允许滚动，不得裁切（AlwaysOff 会把末项直接切掉）
         self.nav_list.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
         self.nav_list.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
         self.nav_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.nav_list.setUniformItemSizes(True)
@@ -525,6 +644,13 @@ class SettingsDialog(QWidget):
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("settingsPages")
+        # H1b：内容栈不再把「最宽页」的最小宽传播到面板级。
+        # QStackedLayout 的最小宽 = 各页最小宽的并集（实测音频设备页最高），
+        # 窄侧栏下整个面板被顶宽 → 页内容越界被裁（1000×728 实测面板最小宽
+        # 远大于侧栏可用宽）。修法：栈自身最小宽归零 + 每页套一层
+        # QScrollArea（见 _wrap_page），页过宽时由该页自身出横向滚动条，
+        # 属「可滚动」而非「被裁」。
+        self.stack.setMinimumWidth(0)
         for title, builder, icon_name in (
             (tr("settings.tab.general"), self._build_general_tab, "settings"),
             (tr("settings.tab.audio_device"), self._build_audio_device_tab, "audio_device"),
@@ -537,16 +663,40 @@ class SettingsDialog(QWidget):
             if icon_name:
                 item.setIcon(theme.get_icon(icon_name))
             self.nav_list.addItem(item)
-            self.stack.addWidget(builder())
+            self.stack.addWidget(self._wrap_page(builder()))
 
-        # 导航列需按当前语言的内容宽设下限：AdjustToContents 只给偏好不给下限，
-        # 横向布局会把它压到内容宽之下，长标签（如 Audio Device）因此被省略号截断。
+        # A1：显式行高（≥28）：默认 delegate 只给 16 像素，20×20 图标会溢出到相邻项
+        # （真机「图标与文字互相重叠、行距为 0」）。宽度沿用文本列宽，不额外撑大
+        # 导航列；颜色仍走 theme 令牌（此处不写任何色值 / QSS 长度字面量）。
+        nav_text_w = self.nav_list.sizeHintForColumn(0)
+        for row in range(self.nav_list.count()):
+            self.nav_list.item(row).setSizeHint(QSize(nav_text_w, 32))
+
+        # 导航列下限 = 文本列宽 + 图标宽 + 左右边框内边距（原公式漏算图标宽，
+        # 图标挤占文本使长标签被省略号截断）；AdjustToContents 只给偏好不给下限。
         self.nav_list.setMinimumWidth(
-            self.nav_list.sizeHintForColumn(0) + 2 * self.nav_list.frameWidth()
+            self.nav_list.sizeHintForColumn(0)
+            + self.nav_list.iconSize().width()
+            + 2 * self.nav_list.frameWidth()
         )
+
+        # H9：窄态折叠导航下拉。6 项文案逐字取自 nav_list 的 item(i).text()
+        # （禁另写硬编码文案，故参数区无中文字面量）。默认隐藏；由
+        # resizeEvent 按面板宽度在「左导航双栏」与「顶部下拉」间切换。
+        self.nav_combo = QComboBox()
+        self.nav_combo.setObjectName("settingsNavCombo")
+        for i in range(self.nav_list.count()):
+            self.nav_combo.addItem(self.nav_list.item(i).text())
+        self.nav_combo.setVisible(False)
+        # 填充完毕再接线：避免构造期首项引发的 currentIndexChanged 回调。
+        self.nav_combo.currentIndexChanged[int].connect(
+            self._on_nav_combo_changed)
 
         body.addWidget(self.nav_list)
         body.addWidget(self.stack, 1)
+        # 置于 layout 中页头与 body 之间（内容栈上方）：窄态下拉顶替左栏，
+        # 隐藏 nav_list 后 body 内只剩 stack，宽度交还内容区。
+        layout.addWidget(self.nav_combo)
         layout.addLayout(body)
 
         btn_row = QHBoxLayout()
@@ -558,6 +708,71 @@ class SettingsDialog(QWidget):
         self.btn_close.clicked.connect(self.close)
         btn_row.addWidget(self.btn_close)
         layout.addLayout(btn_row)
+
+    def resizeEvent(self, event):  # noqa: N802 (Qt 命名)
+        """H9：面板宽度变化时重算导航形态（离屏 show / resize 均投递本事件）。"""
+        super().resizeEvent(event)
+        self._apply_nav_mode()
+        self._apply_general_narrow()
+
+    def _apply_nav_mode(self) -> None:
+        """H9②：窄态 (<360) 隐藏 nav_list / 显示 nav_combo，并把 stack 交还
+        面板全部宽度（连主布局左右边距一并让出，否则两列表格尾部仍被右缘裁掉）；
+        宽态 (>=360) 恢复双栏、隐藏 combo 并还原边距。切换瞬间把三者索引对齐，
+        与 switch_to_tab 及下拉 / 列表点选路径共用同一份选中态（不分裂）。
+        """
+        combo = getattr(self, "nav_combo", None)  # 构造期首帧可能尚未就绪
+        if combo is None:
+            return
+        narrow = self.width() < 360
+        # 交还全部宽度：只在宽/窄态切换时改边距，避免逐次 resize 抖动。
+        # 边距改在 SettingsDialog 主布局，不触碰 stack 结构 / 任何页内控件。
+        if getattr(self, "_nav_narrow", None) != narrow:
+            self._nav_narrow = narrow
+            root = self.layout()
+            m = getattr(self, "_nav_root_margins", None)
+            if m is None:
+                c = root.contentsMargins()
+                m = (c.left(), c.top(), c.right(), c.bottom())
+                self._nav_root_margins = m
+            root.setContentsMargins(
+                0 if narrow else m[0], m[1], 0 if narrow else m[2], m[3]
+            )
+        self.nav_list.setVisible(not narrow)
+        combo.setVisible(narrow)
+        idx = self.stack.currentIndex()
+        if idx >= 0:
+            if self.nav_list.currentRow() != idx:
+                self.nav_list.setCurrentRow(idx)
+            if combo.currentIndex() != idx:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+
+    def _apply_general_narrow(self) -> None:
+        """M4：窄栏释放后端行最小宽下限并缩略其标签，页最小宽不再顶宽视口。"""
+        if getattr(self, "_backend_sel_min_w", None) is None:
+            return
+        narrow = self.width() < 360  # 与 H9 导航窄态同阈值
+        if getattr(self, "_general_narrow", None) == narrow:
+            return
+        self._general_narrow = narrow
+        self._backend_selector.setMinimumWidth(
+            0 if narrow else self._backend_sel_min_w)
+        for lbl in self._backend_sel_labels:
+            lbl.setVisible(not narrow)
+        caption = " ".join(lbl.text() for lbl in self._backend_sel_labels)
+        for combo, tip in zip(self._backend_sel_combos, self._backend_sel_tips):
+            combo.setToolTip(caption if narrow else tip)
+
+    def _on_nav_combo_changed(self, index: int) -> None:
+        """H9②：顶部下拉选中 → nav_list / stack 同步（三者不分裂）。"""
+        if index < 0:
+            return
+        if self.nav_list.currentRow() != index:
+            self.nav_list.setCurrentRow(index)  # 触发 _on_nav_row_changed → stack
+        if self.stack.currentIndex() != index:
+            self.stack.setCurrentIndex(index)
 
     def _on_apply_clicked(self):
         self._applied = True
@@ -589,60 +804,114 @@ class SettingsDialog(QWidget):
         form = QFormLayout(tab)
         form.setSpacing(10)
 
-        # 启动时自动加载上次文件
-        self.chk_auto_load_last = QCheckBox("启动时自动加载上次文件")
-        self.chk_auto_load_last.setChecked(True)
-        form.addRow("", self.chk_auto_load_last)
-
-        # 自动播放
-        self.chk_auto_play = QCheckBox("打开文件后自动播放")
-        self.chk_auto_play.setChecked(False)
-        form.addRow("", self.chk_auto_play)
+        # F9（真机 GUI 审计）：撤下「启动时自动加载上次文件」「打开文件后
+        # 自动播放」两个死开关——全仓无信号连接 / 无取值方法 / 无持久化，
+        # 项目本就没有 last_file 机制，勾选后重启仍停在空态，属欺骗性 UI。
+        # 选择「消除欺骗性 UI」而非接线（接线 = 新增功能，不属缺陷修复）。
 
         # 默认分析视图
-        form.addRow(QLabel("默认分析视图："))
+        form.addRow(QLabel(tr("settings.default_view")))
         self.cmb_default_view = QComboBox()
-        self.cmb_default_view.addItem("波形", "waveform")
-        self.cmb_default_view.addItem("FFT 频谱", "fft")
-        self.cmb_default_view.addItem("语谱图", "spectrogram")
-        self.cmb_default_view.addItem("音高", "pitch")
-        self.cmb_default_view.addItem("共振峰", "formants")
-        self.cmb_default_view.addItem("音色", "timbre")
-        self.cmb_default_view.addItem("3D 频谱图", "spectrogram3d")
+        self.cmb_default_view.addItem(tr("view.waveform"), "waveform")
+        self.cmb_default_view.addItem(tr("view.fft"), "fft")
+        self.cmb_default_view.addItem(tr("view.spectrogram"), "spectrogram")
+        self.cmb_default_view.addItem(tr("view.pitch"), "pitch")
+        self.cmb_default_view.addItem(tr("view.formants"), "formants")
+        self.cmb_default_view.addItem(tr("view.timbre"), "timbre")
+        self.cmb_default_view.addItem(tr("view.spectrogram3d"), "spectrogram3d")
         form.addRow("", self.cmb_default_view)
 
         # A4 参考频率（T-921）：音分/音名换算基准，clamp 400–480，可一键恢复 440
         # T-1047：改走三段式（名称/控件/单位）+ 范围线索（稀疏刻度 400/440/480）
         #        + 读数内嵌框（等宽 · 数值亮度高于说明）+ 快捷基准 chip（激活 = 底色）
+        # G5 版面修整（离屏实测原状：数值框下方一行孤立「Hz」、一根无单位端点
+        # 的静态范围条、以及独立成块的「当前基准 440.0 Hz」重复读数）：
+        #   ① 单位并入数值框后缀 → 三段式单位行留空并隐藏，不再有孤立「Hz」行；
+        #   ② 数值框 + 交互滑块排成一行（滑块两端标 400 / 480），值与数值框双向联动；
+        #   ③ 415/432/440/442 四钮改真互斥（点选后数值框/滑块同步）。
         row_reference = QWidget()
-        row_reference_layout = QHBoxLayout(row_reference)
+        # G2（真机复核）：A4 行改多行垂直布局——单行 5 控件同排在 162 px
+        # 侧栏内把「恢复 440」压成空方框、把端点「480」切成「4」。分行后
+        # 每个控件独占可读宽度，不再互抢同一行的水平空间。
+        # 数值范围 400–480 / _A4_SLIDER_SCALE / _A4_PRESETS / 信号接线 /
+        # _restore_reference_hz() / ParamGroup.fields[0] 结构一字不动。
+        row_reference_layout = QVBoxLayout(row_reference)
         row_reference_layout.setContentsMargins(0, 0, 0, 0)
-        row_reference_layout.setSpacing(8)
-        self.spin_reference_hz = QDoubleSpinBox()
+        row_reference_layout.setSpacing(theme.TOKENS["spacing"]["sm"])
+        self.spin_reference_hz = ParamSpinBox()
         self.spin_reference_hz.setObjectName("settingsReferenceHz")
         self.spin_reference_hz.setDecimals(1)
         self.spin_reference_hz.setSingleStep(0.5)
         self.spin_reference_hz.setRange(400.0, 480.0)
         self.spin_reference_hz.setValue(float(self._reference_hz))
+        # ① 单位贴附数值（后缀），不再单独占一行
+        self.spin_reference_hz.setSuffix(f" {tr('param.unit.hz')}")
         self.spin_reference_hz.setToolTip(tr("settings.reference_hz_hint"))
+        # ② 滑块的存储刻度 = 0.1 Hz（与 decimals 对齐，避免取整漂移）
+        self.slider_reference_hz = QSlider(Qt.Orientation.Horizontal)
+        self.slider_reference_hz.setObjectName("settingsReferenceSlider")
+        self.slider_reference_hz.setRange(
+            int(round(400.0 * _A4_SLIDER_SCALE)), int(round(480.0 * _A4_SLIDER_SCALE))
+        )
+        self.slider_reference_hz.setSingleStep(int(_A4_SLIDER_SCALE))
+        self.slider_reference_hz.setPageStep(int(round(5 * _A4_SLIDER_SCALE)))
+        self.slider_reference_hz.setValue(
+            int(round(float(self._reference_hz) * _A4_SLIDER_SCALE))
+        )
+        self.slider_reference_hz.setToolTip(tr("settings.reference_hz_hint"))
+        self.slider_reference_hz.setAccessibleName(tr("settings.reference_hz"))
+        # 滑块两端端点标注（数值；单位由数值框后缀给出，无需重复）
+        self.lbl_reference_min = QLabel("400", row_reference)
+        self.lbl_reference_min.setObjectName("paramUnit")
+        self.lbl_reference_max = QLabel("480", row_reference)
+        self.lbl_reference_max.setObjectName("paramUnit")
+        # M4：窄栏裁切/缩略时端点值仍可读（tooltip 全文）
+        self.lbl_reference_max.setToolTip(self.lbl_reference_max.text())
         self.btn_reference_restore = QPushButton(tr("settings.reference_hz_restore"))
         self.btn_reference_restore.setObjectName("settingsReferenceRestore")
         self.btn_reference_restore.setToolTip(tr("settings.reference_hz_hint"))
         self.btn_reference_restore.clicked.connect(self._restore_reference_hz)
+        # F7（真机 GUI 审计）：约 1000 像素的窄窗下 A4 行被压到「恢复 440」按钮
+        # 只剩约 20 像素的空方框、端点标签「480」被切成「4」。给行内固定控件
+        # 按自身文本像素需求设最小宽（QScrollArea 可滚动 ≠ 内容被硬裁），
+        # 保证按钮实际宽度与两端点标签完整可见。数值范围 400–480 /
+        # _A4_SLIDER_SCALE / _A4_PRESETS / _restore_reference_hz 一字不动。
+        self.btn_reference_restore.setMinimumWidth(
+            self.btn_reference_restore.fontMetrics().horizontalAdvance(
+                self.btn_reference_restore.text())
+        )
+        for _lbl in (self.lbl_reference_min, self.lbl_reference_max):
+            _lbl.setMinimumWidth(
+                _lbl.fontMetrics().horizontalAdvance(_lbl.text())
+            )
+        # G2：多行垂直装配——① 数值框独占一行（后缀 Hz 完整）；② 滑块 +
+        # 两端点标签一行（滑块 stretch 吸收富余，端点各按文本需求保底）；
+        # ③ 「恢复 440」按钮独占一行（被整行拉伸，实宽 ≥ 文本需求）。
+        # 单行 5 控件互抢 162 px 是「按钮变空方框 / 480 切成 4」的根因。
         row_reference_layout.addWidget(self.spin_reference_hz)
+        row_slider = QHBoxLayout()
+        row_slider.setContentsMargins(0, 0, 0, 0)
+        row_slider.setSpacing(theme.TOKENS["spacing"]["sm"])
+        row_slider.addWidget(self.lbl_reference_min)
+        row_slider.addWidget(self.slider_reference_hz, 1)
+        row_slider.addWidget(self.lbl_reference_max)
+        row_reference_layout.addLayout(row_slider)
         row_reference_layout.addWidget(self.btn_reference_restore)
-        row_reference_layout.addStretch(1)
 
         self.param_group_general = ParamGroup([
-            (tr("settings.reference_hz"), row_reference, tr("param.unit.hz"),
+            (tr("settings.reference_hz"), row_reference, "",
              ((400.0, "400"), (440.0, "440"), (480.0, "480"))),
         ])
         form.addRow(self.param_group_general)
+        # ① 单位已并入数值框后缀：隐藏三段式的空单位行（防残留空白行）
+        self.param_group_general.fields[0]["unit"].setVisible(False)
 
-        # 读数内嵌框：对齐到它所描述的参数列（禁把数值堆在角落）
+        # 重复读数块「当前基准 x Hz」：与数值框 + 快捷基准 chip 三处重复同一值，
+        # 按 G5 从版面撤下（构件本身保留：取值/主题随动被既有守卫钉住，
+        # 仅不再参与排版，故不占用任何可见空间）。
         self.readout_reference = ReadoutBox(tr("param.readout.a4"),
-                                            self._reference_readout_text())
-        form.addRow(self.readout_reference)
+                                            self._reference_readout_text(), tab)
+        self.readout_reference.setVisible(False)
 
         # 快捷基准 chip：激活态靠底色（禁描边 / 纯色文字）
         preset = QWidget()
@@ -656,10 +925,40 @@ class SettingsDialog(QWidget):
         preset_col.addWidget(self.chips_a4)
         form.addRow(preset)
 
+        # D10a：音高算法（自带 label+combo，跨列行）
+        if self._backend_selector is not None:
+            # F7 / G2（真机 GUI 审计）：窄窗下该下拉「pYIN (流式)」被 Qt
+            # elide 成「pYIN (流…」。仅按纯文本宽设最小宽不够——QComboBox
+            # 还要给下拉箭头 + 左右内边距留位，否则文本区窄于当前项文本宽。
+            # 留白走排版/控制令牌（同 transport_bar._combo_arrow_reserve
+            # 口径），禁硬编码 px；条目/绑定/信号/取值一律不动。
+            _affordance = int(theme.TOKENS["spacing"]["sm"] * 2
+                              + theme.TOKENS["control"]["gap"])
+            for _combo in self._backend_selector.findChildren(QComboBox):
+                _need = (_combo.fontMetrics().horizontalAdvance(
+                    _combo.currentText()) + _affordance)
+                if _combo.minimumWidth() < _need:
+                    _combo.setMinimumWidth(_need)
+            form.addRow(self._backend_selector)
+            self._backend_sel_min_w = self._backend_selector.minimumWidth()
+            self._backend_sel_labels = tuple(
+                self._backend_selector.findChildren(QLabel))
+            self._backend_sel_combos = tuple(
+                self._backend_selector.findChildren(QComboBox))
+            self._backend_sel_tips = tuple(
+                c.toolTip() for c in self._backend_sel_combos)
+
         # 接线：控件 → chip 激活态（回路） / chip → 控件
         self.spin_reference_hz.valueChanged.connect(self._sync_a4_presets)
+        self.slider_reference_hz.valueChanged.connect(self._on_a4_slider)
         self.chips_a4.chipActivated.connect(self._on_a4_preset)
+        # ③ 四钮互斥：点选任一即取消其余（QButtonGroup 排他，语义 = 单选）
+        self.chips_a4.set_exclusive(True)
         self._sync_a4_presets(self.spin_reference_hz.value())
+
+        # REWORK-4：MCP 集成嵌入「通用」页（分组标题 + 控件块）
+        form.addRow(QLabel(tr("settings.tab.mcp")))
+        form.addRow("", self._build_mcp_tab())
 
         return tab
 
@@ -668,13 +967,25 @@ class SettingsDialog(QWidget):
         return f"{self.spin_reference_hz.value():.1f}{NBSP_THIN}{tr('param.unit.hz')}"
 
     def _sync_a4_presets(self, value: float) -> None:
-        """控件 → chip / 读数：仅与预设完全一致时点亮（激活态唯一）。"""
+        """控件 → chip / 滑块 / 读数：仅与预设完全一致时点亮（激活态唯一）。"""
         self.chips_a4.set_current(float(value))
+        # ② 数值框 → 滑块（blockSignals 防回环；只在真不同步时写）
+        slider_value = int(round(float(value) * _A4_SLIDER_SCALE))
+        if self.slider_reference_hz.value() != slider_value:
+            self.slider_reference_hz.blockSignals(True)
+            self.slider_reference_hz.setValue(slider_value)
+            self.slider_reference_hz.blockSignals(False)
         self.readout_reference.set_value(
             f"{float(value):.1f}{NBSP_THIN}{tr('param.unit.hz')}")
 
+    def _on_a4_slider(self, slider_value: int) -> None:
+        """② 滑块 → 数值框（0.1 Hz 刻度还原；值相等时 setValue 不再发信号）。"""
+        value = float(slider_value) / _A4_SLIDER_SCALE
+        if abs(self.spin_reference_hz.value() - value) > 1e-9:
+            self.spin_reference_hz.setValue(value)
+
     def _on_a4_preset(self, payload) -> None:
-        """chip → 控件（快捷基准）；激活态由 valueChanged 回路同步。"""
+        """chip → 控件（快捷基准）；激活态/滑块由 valueChanged 回路同步。"""
         if payload is not None:
             self.spin_reference_hz.setValue(float(payload))
 
@@ -778,9 +1089,9 @@ class SettingsDialog(QWidget):
             for d in devices:
                 self.cmb_play_device.addItem(d.description(), d)
             if not devices:
-                self.cmb_play_device.addItem("（无输出设备）", None)
+                self.cmb_play_device.addItem(tr("record.device_none_output"), None)
         except Exception:
-            self.cmb_play_device.addItem("（不可用）", None)
+            self.cmb_play_device.addItem(tr("record.device_unavailable"), None)
 
     def _populate_recording_devices(self):
         """填充录音设备列表。"""
@@ -791,9 +1102,9 @@ class SettingsDialog(QWidget):
             for d in devices:
                 self.cmb_record_device.addItem(d.description(), d)
             if not devices:
-                self.cmb_record_device.addItem("（无输入设备）", None)
+                self.cmb_record_device.addItem(tr("record.device_none"), None)
         except Exception:
-            self.cmb_record_device.addItem("（不可用）", None)
+            self.cmb_record_device.addItem(tr("record.device_unavailable"), None)
 
     def _refresh_audio_devices(self):
         """刷新音频设备列表。"""
@@ -874,16 +1185,17 @@ class SettingsDialog(QWidget):
         lay_eng.addWidget(self.prog_engine)
         root.addWidget(self.grp_engine_state)
 
-        # UP-2：应用更新检查独立开关（AD-12 默认开 + 首次运行征询；紧邻上方
-        # 「本地模型版本」区之后；变更即时落盘 app_state.json 的 update_check_enabled）
+        # C·2026-11-06：应用更新检查独立开关（默认关闭，取消首次运行征询；
+        # 用户想要就去设置里打开；紧邻上方「本地模型版本」区之后；变更即时落盘
+        # app_state.json 的 update_check_enabled）
         from acouscope import state as _app_state
 
         self.chk_update_check = QCheckBox(tr("settings.update_check_enabled"))
         self.chk_update_check.setObjectName("chkUpdateCheck")
-        # 未决策（键缺失）按 AD-12 默认开显示；此处 setChecked 在 connect 之前，
+        # 缺键（默认关闭）⇒ 不勾选；此处 setChecked 在 connect 之前，
         # 不触发落盘（只有用户显式切换才写键）。
         self.chk_update_check.setChecked(
-            _app_state.is_update_check_enabled() is not False)
+            _app_state.is_update_check_enabled() is True)
         self.chk_update_check.toggled.connect(self._on_update_check_toggled)
         root.addWidget(self.chk_update_check)
 
@@ -1605,6 +1917,136 @@ class SettingsDialog(QWidget):
             self.cmb_icon_style.setCurrentIndex(idx)  # → 切换槽内回滚全窗图标
 
     # ------------------------------------------------------------------
+    # MCP（模型上下文协议）设置页与持久化
+    # ------------------------------------------------------------------
+
+    def _build_mcp_tab(self) -> QWidget:
+        """MCP 集成设置页：启用开关、白名单根目录、输出目录、就绪检查、复制 Host 配置。"""
+        from PyQt6.QtWidgets import QSizePolicy
+
+        tab = QWidget()
+        # REWORK-5: 水平不撑宽，防通用页 minimumSizeHint 被撑到 >310
+        tab.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        tab.setMinimumWidth(0)
+        layout = QVBoxLayout(tab)
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self.chk_mcp_enabled = QCheckBox(tr("settings.mcp.enable"))
+        self.chk_mcp_enabled.setObjectName("mcpEnabled")
+        self.chk_mcp_enabled.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.chk_mcp_enabled.setChecked(self._mcp_enabled)
+        form.addRow("", self.chk_mcp_enabled)
+
+        roots_label = QLabel(tr("settings.mcp.roots_hint"))
+        roots_label.setWordWrap(True)
+        roots_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.edit_mcp_roots = QLineEdit()
+        self.edit_mcp_roots.setObjectName("mcpAllowedRoots")
+        self.edit_mcp_roots.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.edit_mcp_roots.setMinimumWidth(0)
+        self.edit_mcp_roots.setText(self._mcp_roots)
+        form.addRow(tr("settings.mcp.title"), self.edit_mcp_roots)
+        form.addRow("", roots_label)
+
+        out_label = QLabel(tr("settings.mcp.out_hint"))
+        out_label.setWordWrap(True)
+        out_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.edit_mcp_out = QLineEdit()
+        self.edit_mcp_out.setObjectName("mcpOutDir")
+        self.edit_mcp_out.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.edit_mcp_out.setMinimumWidth(0)
+        self.edit_mcp_out.setText(self._mcp_out)
+        form.addRow(tr("settings.mcp.out_hint"), self.edit_mcp_out)
+        form.addRow("", out_label)
+
+        btn_row = QHBoxLayout()
+        self.btn_mcp_check = QPushButton(tr("settings.mcp.check"))
+        self.btn_mcp_check.setObjectName("mcpCheck")
+        self.btn_mcp_check.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.btn_mcp_check.clicked.connect(self._on_mcp_check)
+        btn_row.addWidget(self.btn_mcp_check)
+
+        self.btn_mcp_copy = QPushButton(tr("settings.mcp.copy"))
+        self.btn_mcp_copy.setObjectName("mcpCopy")
+        self.btn_mcp_copy.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.btn_mcp_copy.clicked.connect(self._on_mcp_copy)
+        btn_row.addWidget(self.btn_mcp_copy)
+        btn_row.addStretch()
+
+        form.addRow("", btn_row)
+
+        self.lbl_mcp_status = QLabel("")
+        self.lbl_mcp_status.setObjectName("mcpStatus")
+        self.lbl_mcp_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        form.addRow("", self.lbl_mcp_status)
+
+        layout.addLayout(form)
+        return tab
+
+    def _on_mcp_check(self):
+        """就绪检查：纯计算（无进程/网络），报告 mcp 可导入性、启用状态与目录存在性。"""
+        import importlib.util
+        import os
+        from pathlib import Path
+
+        reasons = []
+        if not importlib.util.find_spec("mcp"):
+            reasons.append("mcp package not installed")
+        if not self.chk_mcp_enabled.isChecked():
+            reasons.append("mcp not enabled")
+
+        roots = self.edit_mcp_roots.text().strip()
+        if roots:
+            for root in roots.split(os.pathsep):
+                root = root.strip()
+                if root and not Path(root).is_dir():
+                    reasons.append(f"root dir missing: {root}")
+
+        out = self.edit_mcp_out.text().strip()
+        if out and not Path(out).is_dir():
+            reasons.append(f"out dir missing: {out}")
+
+        if not out:
+            reasons.append("output directory not set")
+
+        if reasons:
+            self.lbl_mcp_status.setText(
+                f"{tr('settings.mcp.not_ready')} — " + "; ".join(reasons)
+            )
+        else:
+            self.lbl_mcp_status.setText(tr("settings.mcp.ready"))
+
+    def _on_mcp_copy(self):
+        """复制 Host 配置片段到剪贴板（不启动任何进程）。"""
+        from acouscope.mcp.service import build_host_config
+
+        config = build_host_config()
+        text = json.dumps(config, ensure_ascii=False, indent=2)
+        QApplication.clipboard().setText(text)
+
+    def _persist_mcp_settings(self):
+        """「应用」：将 MCP 设置写入 settings.json（best-effort）。"""
+        try:
+            from acouscope.utils.config import Settings
+
+            settings = Settings.load()
+            settings.mcp_enabled = self.chk_mcp_enabled.isChecked()
+            settings.mcp_allowed_roots = self.edit_mcp_roots.text().strip()
+            settings.mcp_out_dir = self.edit_mcp_out.text().strip()
+            settings.save()
+        except Exception:
+            pass
+
+    def mcp_settings(self):
+        """返回当前 MCP 控件值（供测试读取）。"""
+        return {
+            "mcp_enabled": self.chk_mcp_enabled.isChecked(),
+            "mcp_allowed_roots": self.edit_mcp_roots.text().strip(),
+            "mcp_out_dir": self.edit_mcp_out.text().strip(),
+        }
+
+    # ------------------------------------------------------------------
     # 选项卡：导出
     # ------------------------------------------------------------------
 
@@ -1647,15 +2089,15 @@ class SettingsDialog(QWidget):
 
         # 分类选择
         cat_row = QHBoxLayout()
-        cat_row.addWidget(QLabel("分类："))
+        cat_row.addWidget(QLabel(tr("settings.category_filter")))
         self.cmb_shortcut_category = QComboBox()
-        self.cmb_shortcut_category.addItem("全部", "all")
-        self.cmb_shortcut_category.addItem("通用", "global")
-        self.cmb_shortcut_category.addItem("频谱图", "spectrogram")
-        self.cmb_shortcut_category.addItem("波形", "waveform")
-        self.cmb_shortcut_category.addItem("音色", "timbre")
-        self.cmb_shortcut_category.addItem("音高", "pitch")
-        self.cmb_shortcut_category.addItem("AI 释图", "ai_interpret")
+        self.cmb_shortcut_category.addItem(tr("settings.category_all"), "all")
+        self.cmb_shortcut_category.addItem(tr("settings.category_global"), "global")
+        self.cmb_shortcut_category.addItem(tr("settings.category_spectrogram"), "spectrogram")
+        self.cmb_shortcut_category.addItem(tr("view.waveform"), "waveform")
+        self.cmb_shortcut_category.addItem(tr("view.timbre"), "timbre")
+        self.cmb_shortcut_category.addItem(tr("view.pitch"), "pitch")
+        self.cmb_shortcut_category.addItem(tr("view.ai_interpret"), "ai_interpret")
         self.cmb_shortcut_category.currentIndexChanged.connect(self._filter_shortcuts)
         cat_row.addWidget(self.cmb_shortcut_category)
         cat_row.addStretch()
@@ -1667,17 +2109,25 @@ class SettingsDialog(QWidget):
 
         layout.addLayout(cat_row)
 
-        # 快捷键列表
-        self.shortcut_table = QTableWidget(0, 3)
-        self.shortcut_table.setHorizontalHeaderLabels(["功能", "分类", "快捷键"])
+        # 快捷键列表（G4：两列「功能 | 快捷键」——分类已由上方筛选器表达，
+        # 第三列在 ~430pt 侧栏下会被整列裁掉（「快捷键」只剩 L / Shift / Ctrl-…）。
+        # 列宽策略：0 列吃掉余量、1 列按内容收紧；禁横向滚动条（截断靠 tooltip 兜）。
+        self.shortcut_table = QTableWidget(0, 2)
+        self.shortcut_table.setHorizontalHeaderLabels(["功能", "快捷键"])
         self.shortcut_table.horizontalHeader().setSectionResizeMode(
             0, QHeaderView.ResizeMode.Stretch
         )
         self.shortcut_table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.ResizeToContents
         )
-        self.shortcut_table.horizontalHeader().setSectionResizeMode(
-            2, QHeaderView.ResizeMode.ResizeToContents
+        for _col in range(2):
+            _head_item = self.shortcut_table.horizontalHeaderItem(_col)
+            if _head_item is not None:
+                _head_item.setTextAlignment(
+                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+                )
+        self.shortcut_table.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
         self.shortcut_table.verticalHeader().setVisible(False)
         self.shortcut_table.setSelectionBehavior(
@@ -1691,9 +2141,7 @@ class SettingsDialog(QWidget):
         layout.addWidget(self.shortcut_table, stretch=1)
 
         # 提示
-        hint = QLabel(
-            "双击「快捷键」列可修改按键。按 Esc 取消，按 Enter 确认。"
-        )
+        hint = QLabel(tr("settings_dialog.shortcut_hint"))
         # T-1033 P6：色改 colors()['text_sub']、字号走令牌，且必须经
         # style_when_theme（禁绕过主题的裸样式表调用，ARCH §八）
         from acouscope.ui.theme import TOKENS, style_when_theme
@@ -1729,51 +2177,51 @@ class SettingsDialog(QWidget):
             row = self.shortcut_table.rowCount()
             self.shortcut_table.insertRow(row)
 
-            # 功能名
+            # 功能名（G4：分类不再单独成列，改挂 UserRole+1 供筛选器读取）
             item_label = QTableWidgetItem(entry.label)
             item_label.setData(Qt.ItemDataRole.UserRole, entry.action_id)
+            item_label.setData(Qt.ItemDataRole.UserRole + 1, entry.category)
             item_label.setFlags(item_label.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.shortcut_table.setItem(row, 0, item_label)
 
-            # 分类
-            cat_text = "通用"
-            item_cat = QTableWidgetItem(cat_text)
-            item_cat.setData(Qt.ItemDataRole.UserRole, entry.category)
-            item_cat.setFlags(item_cat.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            self.shortcut_table.setItem(row, 1, item_cat)
-
-            # 快捷键
-            item_key = QTableWidgetItem(entry.current_key)
+            # 快捷键（显示层走平台文案：macOS 用 ⌘⌃⌥⇧，见 shortcuts.display_key）
+            item_key = QTableWidgetItem(display_key(entry.current_key))
             item_key.setData(Qt.ItemDataRole.UserRole, entry.action_id)
-            self.shortcut_table.setItem(row, 2, item_key)
+            self.shortcut_table.setItem(row, 1, item_key)
+
+            self._set_shortcut_tooltips(row, entry.label, entry.current_key)
 
         self.shortcut_table.blockSignals(False)
         self._filter_shortcuts()
 
+    def _set_shortcut_tooltips(self, row: int, label: str, raw_key: str) -> None:
+        """G4：两列 tooltip 均写全「功能 — 快捷键」，列宽截断时仍可读。"""
+        text = f"{label} — {display_key(raw_key)}"
+        for col in range(2):
+            item = self.shortcut_table.item(row, col)
+            if item is not None:
+                item.setToolTip(text)
+
     def _filter_shortcuts(self):
-        """按分类过滤快捷键列表。"""
+        """按分类过滤快捷键列表（分类取自功能列 UserRole+1）。"""
         cat = self.cmb_shortcut_category.currentData()
         for row in range(self.shortcut_table.rowCount()):
-            cat_item = self.shortcut_table.item(row, 1)
-            entry_cat = cat_item.data(Qt.ItemDataRole.UserRole)
-            entry_feature = cat_item.text()
-
-            if cat == "all":
-                show = True
-            elif cat == "global":
-                show = entry_cat == "global"
-            else:
-                show = entry_feature == cat
-
+            label_item = self.shortcut_table.item(row, 0)
+            entry_cat = (
+                label_item.data(Qt.ItemDataRole.UserRole + 1)
+                if label_item is not None else None
+            )
+            show = cat == "all" or entry_cat == cat
             self.shortcut_table.setRowHidden(row, not show)
 
     def _on_shortcut_edited(self, item: QTableWidgetItem):
         """快捷键编辑完成。"""
-        if item.column() != 2:
+        if item.column() != 1:
             return
 
         action_id = item.data(Qt.ItemDataRole.UserRole)
-        new_key = item.text().strip()
+        # 显示层可能已是平台符号（⌘⌃⌥⇧）→ 先还原成绑定口径再校验/落盘
+        new_key = unmap_key(item.text().strip())
 
         if not new_key:
             item.setText(item.text())  # 保持原值
@@ -1793,7 +2241,7 @@ class SettingsDialog(QWidget):
                 entries = mgr.all_entries()
                 for e in entries:
                     if e.action_id == action_id:
-                        item.setText(e.current_key)
+                        item.setText(display_key(e.current_key))
                         break
             except Exception:
                 pass
@@ -1804,6 +2252,16 @@ class SettingsDialog(QWidget):
             from acouscope.ui.shortcuts import ShortcutManager
             mgr = ShortcutManager.instance()
             if mgr.set_key(action_id, new_key):
+                # 落盘成功后单元格回显显示层文案 + 重写两列 tooltip（G4）
+                self.shortcut_table.blockSignals(True)
+                item.setText(display_key(new_key))
+                self.shortcut_table.blockSignals(False)
+                label_item = self.shortcut_table.item(item.row(), 0)
+                self._set_shortcut_tooltips(
+                    item.row(),
+                    label_item.text() if label_item is not None else "",
+                    new_key,
+                )
                 show_toast(self, f"快捷键已更新为：{new_key}", level="success")
             else:
                 show_toast(self, "无法修改该快捷键。", level="warning")
@@ -1816,7 +2274,7 @@ class SettingsDialog(QWidget):
         if current_row < 0:
             return
 
-        item = self.shortcut_table.item(current_row, 2)
+        item = self.shortcut_table.item(current_row, 1)
         if not item:
             return
 
@@ -1829,8 +2287,14 @@ class SettingsDialog(QWidget):
                 for e in entries:
                     if e.action_id == action_id:
                         self.shortcut_table.blockSignals(True)
-                        item.setText(e.current_key)
+                        item.setText(display_key(e.current_key))
                         self.shortcut_table.blockSignals(False)
+                        label_item = self.shortcut_table.item(current_row, 0)
+                        self._set_shortcut_tooltips(
+                            current_row,
+                            label_item.text() if label_item is not None else "",
+                            e.current_key,
+                        )
                         break
                 show_toast(self, "快捷键已恢复为默认值。", level="success")
         except Exception as e:
@@ -1908,11 +2372,23 @@ class SettingsDialog(QWidget):
         if idx != self.nav_list.currentRow():
             self.nav_list.setCurrentRow(idx)  # 触发 _on_nav_row_changed 同步
         self.stack.setCurrentIndex(idx)
+        # H9：顶部下拉同索引（含 nav_list 未变化路径），三者不分裂
+        combo = getattr(self, "nav_combo", None)
+        if combo is not None and combo.currentIndex() != idx:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
 
     def _on_nav_row_changed(self, row: int) -> None:
-        """左导航选中行 → 右内容页栈切换（T-1013）。"""
+        """左导航选中行 → 右内容页栈切换（T-1013）；H9 同步顶部下拉。"""
         if 0 <= row < self.stack.count():
             self.stack.setCurrentIndex(row)
+        combo = getattr(self, "nav_combo", None)  # 构造期本槽先于 combo 就绪
+        if combo is not None and 0 <= row < combo.count() \
+                and combo.currentIndex() != row:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(row)
+            combo.blockSignals(False)
 
     def theme(self) -> str:
         return self.cmb_theme.currentData() or "default"

@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 import numpy as np
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -28,6 +28,8 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +39,11 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from acouscope.i18n import tr
 from acouscope.ui import theme
+from acouscope.ui.widgets.spectrum import (
+    make_view_tool_row,
+    pin_tool_row_widths,
+    tool_field,
+)
 from acouscope.ui.widgets.toast import show_toast
 from acouscope.utils.log import get_logger
 from acouscope.visualization.mpl_style import apply_style
@@ -226,112 +233,127 @@ class Spectrogram3DWidget(QWidget):
         plot_row.setContentsMargins(0, 0, 0, 0)
         plot_row.setSpacing(0)
         plot_row.addWidget(self.canvas, stretch=1)
+        # G4a-4：右栏由 setFixedWidth(150) 改为「最小宽 220 + 外层 QScrollArea」——
+        # 面板内容（9 个数字框 + 3 个按钮 + 标签）在 150px 内被压到截断；
+        # 220 起才放得下，纵向放不下时由滚动区接管，不逼高画布。
         self.side_panel = self._build_side_panel()
-        plot_row.addWidget(self.side_panel)
+        self.side_scroll = QScrollArea()
+        self.side_scroll.setObjectName("s3dSideScroll")
+        self.side_scroll.setWidgetResizable(True)
+        self.side_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.side_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.side_scroll.setWidget(self.side_panel)
+        self.side_scroll.setMinimumWidth(220)
+        self.side_scroll.setMaximumWidth(264)
+        plot_row.addWidget(self.side_scroll)
         layout.addLayout(plot_row, stretch=1)
 
     def _build_toolbar(self, parent_layout):
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(6, 6, 6, 6)
-        toolbar.setSpacing(8)
+        """构建顶部工具行（G4a-4：QToolBar 容器，窄宽自动溢出到「»」菜单）。"""
+        toolbar = make_view_tool_row(self)
+        self.tool_row = toolbar
 
-        self.lbl_title = QLabel("3D 频谱图")
+        self.lbl_title = QLabel(tr("view.spectrogram3d"))
         self.lbl_title.setStyleSheet("font-weight: bold; font-size: 13px;")
         toolbar.addWidget(self.lbl_title)
 
-        toolbar.addStretch()
-
-        # 时间段选择
-        toolbar.addWidget(QLabel("乐段:"))
+        # 时间段选择（G4a-4：删 90px 硬上限，宽度交回内容 —— 数字框的
+        # minimumSizeHint 在无 QSS 下 80、全局 QSS 下 107，任何更小的下限
+        # 都会让 QToolBar 把它压到下限并残留截断；不收窄即不收窄）
         self.spn_t0 = QDoubleSpinBox()
         self.spn_t0.setRange(0.0, 3600.0)
         self.spn_t0.setDecimals(2)
         self.spn_t0.setSingleStep(0.5)
         self.spn_t0.setSuffix(" s")
-        self.spn_t0.setMaximumWidth(90)
         self.spn_t0.editingFinished.connect(self._on_time_changed)
-        toolbar.addWidget(self.spn_t0)
 
-        toolbar.addWidget(QLabel("→"))
         self.spn_t1 = QDoubleSpinBox()
         self.spn_t1.setRange(0.0, 3600.0)
         self.spn_t1.setDecimals(2)
         self.spn_t1.setSingleStep(0.5)
         self.spn_t1.setSuffix(" s")
-        self.spn_t1.setMaximumWidth(90)
         self.spn_t1.editingFinished.connect(self._on_time_changed)
-        toolbar.addWidget(self.spn_t1)
+        _seg = QWidget()
+        _seg_lay = QHBoxLayout(_seg)
+        _seg_lay.setContentsMargins(0, 0, 0, 0)
+        _seg_lay.setSpacing(6)
+        _seg_lay.addWidget(QLabel(tr("spectrogram3d.segment")))
+        _seg_lay.addWidget(self.spn_t0)
+        _seg_lay.addWidget(QLabel("→"))
+        _seg_lay.addWidget(self.spn_t1)
+        _seg.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        toolbar.addWidget(_seg)
 
         # 以波形指针为中心快速选段
         self.btn_pointer = QPushButton("指针±2s")
-        self.btn_pointer.setToolTip("以波形分析指针为中心，取前后各 2 秒的乐段")
-        self.btn_pointer.setMaximumWidth(80)
+        self.btn_pointer.setToolTip(tr("spectrogram3d.tip_segment"))
         self.btn_pointer.clicked.connect(self._on_pointer_centered)
         toolbar.addWidget(self.btn_pointer)
 
-        toolbar.addSpacing(8)
-
         # 显示模式
-        toolbar.addWidget(QLabel("模式:"))
         self.cmb_mode = QComboBox()
         for label, key in self.MODES:
             self.cmb_mode.addItem(label, key)
-        self.cmb_mode.setMaximumWidth(105)
+        self.cmb_mode.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_mode.setMinimumContentsLength(8)
         self.cmb_mode.currentIndexChanged.connect(lambda _: self.render())
-        toolbar.addWidget(self.cmb_mode)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram3d.mode")), self.cmb_mode))
 
         # 幅度标度
-        toolbar.addWidget(QLabel("标度:"))
         self.cmb_scale = QComboBox()
         for label, key in self.SCALES:
             self.cmb_scale.addItem(label, key)
-        self.cmb_scale.setMaximumWidth(70)
+        self.cmb_scale.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_scale.setMinimumContentsLength(5)
         self.cmb_scale.currentIndexChanged.connect(lambda _: self.render())
-        toolbar.addWidget(self.cmb_scale)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram3d.scale")), self.cmb_scale))
 
         # 频率上限
-        toolbar.addWidget(QLabel("频率:"))
         self.cmb_fmax = QComboBox()
         for label, _ in self.FREQ_LIMITS:
             self.cmb_fmax.addItem(label)
         self.cmb_fmax.setCurrentIndex(2)  # 2 kHz
-        self.cmb_fmax.setMaximumWidth(80)
+        self.cmb_fmax.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_fmax.setMinimumContentsLength(6)
         self.cmb_fmax.currentIndexChanged.connect(lambda _: self.render())
-        toolbar.addWidget(self.cmb_fmax)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram3d.freq")), self.cmb_fmax))
 
         # 色板（曲面模式）
-        toolbar.addWidget(QLabel("色板:"))
         self.cmb_cmap = QComboBox()
         for label, key in self.COLORMAPS:
             self.cmb_cmap.addItem(label, key)
-        self.cmb_cmap.setMaximumWidth(110)
+        self.cmb_cmap.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_cmap.setMinimumContentsLength(8)
         self.cmb_cmap.currentIndexChanged.connect(lambda _: self.render())
-        toolbar.addWidget(self.cmb_cmap)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram3d.colormap")), self.cmb_cmap))
 
         # 动态范围（dB 标度）
-        toolbar.addWidget(QLabel("DR:"))
         self.spn_dr = QDoubleSpinBox()
         self.spn_dr.setRange(20, 120)
         self.spn_dr.setValue(60)
         self.spn_dr.setSuffix(" dB")
         self.spn_dr.setSingleStep(10)
-        self.spn_dr.setMaximumWidth(80)
         self.spn_dr.valueChanged.connect(lambda _: self.render())
-        toolbar.addWidget(self.spn_dr)
+        toolbar.addWidget(tool_field(QLabel("DR:"), self.spn_dr))
 
         # 图表字体（字号固定规范不变，西文/中文字体分开设置）
         self.btn_font = QPushButton("字体…")
-        self.btn_font.setToolTip(
-            "设置 3D 图表的西文/中文字体（与导出图表共用，导出图片同样生效）"
-        )
-        self.btn_font.setMaximumWidth(70)
+        self.btn_font.setToolTip(tr("spectrogram3d.font_tooltip"))
         self.btn_font.clicked.connect(self._on_font_button)
         toolbar.addWidget(self.btn_font)
+        # 文本宽兜底：pin_tool_row_widths 会把按钮锁成 Fixed，窄宽下不得被
+        # 压成不可读碎片（最小宽 = 文本宽 + 16；取 text() 本身，零中文硬编码）。
+        self.btn_font.setMinimumWidth(
+            self.btn_font.fontMetrics().horizontalAdvance(self.btn_font.text()) + 16
+        )
 
-        toolbar_widget = QWidget()
-        toolbar_widget.setLayout(toolbar)
-        toolbar_widget.setMaximumHeight(40)
-        parent_layout.addWidget(toolbar_widget)
+        pin_tool_row_widths(toolbar)
+        parent_layout.addWidget(toolbar)
 
     def _build_side_panel(self) -> QWidget:
         """右侧参数面板：视角 / 图形边距 / 保存（替代原左下角导航工具列）。
@@ -341,7 +363,9 @@ class Spectrogram3DWidget(QWidget):
         from acouscope.ui.theme import style_when_theme
 
         panel = QWidget()
-        panel.setFixedWidth(150)
+        # G4a-4：150px 固定宽 → 最小 220（内容宽下限），上限留给滚动区约束
+        panel.setMinimumWidth(210)
+        panel.setMaximumWidth(264)
         v = QVBoxLayout(panel)
         v.setContentsMargins(8, 8, 8, 8)
         v.setSpacing(5)
@@ -365,6 +389,7 @@ class Spectrogram3DWidget(QWidget):
             box.setDecimals(decimals)
             box.setSingleStep(step)
             box.setValue(value)
+            box.setMinimumWidth(72)   # G4a-4：数字框内容宽下限
             if suffix:
                 box.setSuffix(suffix)
             return box
@@ -764,6 +789,7 @@ class Spectrogram3DWidget(QWidget):
                                  hidden=(mode == "waterfall_hidden"))
 
         ax.set_xlabel("频率 (Hz)", labelpad=8)
+        # 时间轴不带 (s) 后缀（test_spectrogram3d 约定：自定义格式已含毫秒/分秒单位）
         ax.set_ylabel("时间", labelpad=8)
         # 时间轴统一刻度（Audacity 风格 nice_ticks 位置 + <1s 毫秒 / ≥60s 60 进制标签）
         from acouscope.ui.widgets.time_axis import (
@@ -771,8 +797,9 @@ class Spectrogram3DWidget(QWidget):
             NiceTicksLocator,
         )
 
-        ax.yaxis.set_major_locator(NiceTicksLocator(min_label_px=90))
-        ax.yaxis.set_minor_locator(NiceTicksLocator(min_label_px=90, minor=True))
+        # L6：3D 时间轴投影像素短，min_label_px 放宽到 20 保证 >=2 刻度
+        ax.yaxis.set_major_locator(NiceTicksLocator(min_label_px=20))
+        ax.yaxis.set_minor_locator(NiceTicksLocator(min_label_px=40, minor=True))
         ax.yaxis.set_major_formatter(MatplotlibTimeFormatter())
         ax.set_zlabel(zlabel, labelpad=8)
 

@@ -169,7 +169,28 @@ class ReportPreviewPanel(QWidget):
         self.btn_close = QPushButton(tr("report.preview_close_btn"))
         bar.addWidget(self.btn_close)
         bar.addStretch(1)
-        root.addLayout(bar)
+
+        # 单一溢出出口：每个按钮按「文本宽 + 16」钉最小宽（窄窗下不再被
+        # elide 成「报告 (HTM」「E 成 AI 释」），整行外包横向滚动区接管溢出。
+        for _btn in (self.btn_refresh, self.btn_export, self.btn_export_html,
+                     self.btn_ai, self.btn_close):
+            _btn.setMinimumWidth(
+                _btn.fontMetrics().horizontalAdvance(_btn.text()) + 16
+            )
+        bar_host = QWidget()
+        bar_host.setLayout(bar)
+        self.tools_scroll = QScrollArea()
+        self.tools_scroll.setObjectName("reportPreviewTools")
+        self.tools_scroll.setWidget(bar_host)
+        self.tools_scroll.setWidgetResizable(True)
+        self.tools_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.tools_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.tools_scroll.setMaximumHeight(bar_host.sizeHint().height())
+        root.addWidget(self.tools_scroll)
 
         # AI 解读只读展示位（顶栏下方·**非 pages_host 子件**——守 β2 例③⑥页计数）
         # T-1106 MC-2：包进有界滚动区——长文只在内滚动，不再直挂 root 顶高页区

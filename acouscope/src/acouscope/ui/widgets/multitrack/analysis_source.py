@@ -35,6 +35,8 @@ DEFAULT_MAX_CONCURRENCY = 1
 CACHE_DOMAIN = "multitrack"
 # 逐轨结果缓存默认上限（条目数，超限按插入序淘汰最旧）
 DEFAULT_CACHE_LIMIT = 24
+# 多量纲波形测量（一次对多个音频文件跑同一 kind）
+MEASURE_KIND = "measure"
 
 
 def _freeze(value):
@@ -280,8 +282,58 @@ def _spectrogram_runner(source: AnalysisSource, params):
     return engine.magnitude(source.data, source.sample_rate, db_scale=True)
 
 
+def _measure_runner(source: AnalysisSource, params):
+    """多量纲波形测量：一次对多个音频文件跑同一 kind。
+
+    返回固定 11 键 dict：轨道标识 + 结构信息 + 4 个 dB 指标 + silence_ratio。
+    纯 numpy，不引入任何新算法模块；None/空数据不抛异常（dB 字段为 None）。
+    """
+    data = np.asarray(source.data) if source.data is not None else None
+    sample_rate = source.sample_rate
+
+    result = {
+        "track_id": source.track_id,
+        "name": source.name,
+        "duration_s": None,
+        "sample_rate": sample_rate,
+        "channels": 1,
+        "frames": 0,
+        "rms_db": None,
+        "peak_db": None,
+        "crest_db": None,
+        "silence_ratio": None,
+        "offset_ms": source.align_offset_ms,
+    }
+
+    if data is None or len(data) == 0:
+        return result
+
+    frames = len(data)
+    if data.ndim > 1:
+        channels = data.shape[1]
+    else:
+        channels = 1
+
+    result["frames"] = frames
+    result["channels"] = channels
+    result["duration_s"] = frames / float(sample_rate)
+
+    amplitude = np.abs(data.astype(float))
+    peak = float(np.max(amplitude))
+    rms = float(np.sqrt(np.mean(amplitude**2)))
+    silence_mask = amplitude < 1e-4
+
+    result["peak_db"] = 20.0 * np.log10(peak + 1e-12)
+    result["rms_db"] = 20.0 * np.log10(rms + 1e-12)
+    result["crest_db"] = result["peak_db"] - result["rms_db"]
+    result["silence_ratio"] = float(np.mean(silence_mask))
+
+    return result
+
+
 register_runner("pitch", _pitch_runner)
 register_runner("spectrogram", _spectrogram_runner)
+register_runner(MEASURE_KIND, _measure_runner)
 
 
 def run_analysis_on_tracks(

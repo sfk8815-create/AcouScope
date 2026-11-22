@@ -39,6 +39,7 @@ from acouscope.ui.theme import (
     data_ink as theme_data_ink,
     on_theme_change,
     style_when_theme,
+    ui_font as theme_ui_font,
 )
 from acouscope.analysis.realtime_features import (
     BAND_COLORS,
@@ -109,6 +110,30 @@ def _ink_rgba(role: str, alpha: int) -> tuple:
     return (col.red(), col.green(), col.blue(), alpha)
 
 
+# H4：图例半透明底（alpha），避免图例文字/色块压住同色曲线
+_LEGEND_BG_ALPHA = 200
+
+
+def _legend_bg() -> QColor:
+    """图例背景：主题 bg1 + 半透明（随主题换色；禁硬编码 hex/alpha 混合值）。"""
+    col = QColor(_theme_colors()["bg1"])
+    col.setAlpha(_LEGEND_BG_ALPHA)
+    return col
+
+
+def _style_legend(legend) -> None:
+    """图例描边/底色/文字色随主题（pyqtgraph 不走 QSS）。"""
+    if legend is None:
+        return
+    c = _theme_colors()
+    try:
+        legend.setBrush(_legend_bg())
+        legend.setPen(pg.mkPen(color=c["border"], width=1))
+        legend.setLabelTextColor(c["text_sub"])
+    except Exception:  # noqa: BLE001 — 图例样式永不抛
+        pass
+
+
 def _live_bg() -> str:
     """LIVE 状态信息条背景：语义 error 色低 alpha 派生（按骨架明暗取透明度）。"""
     col = QColor(TOKENS["semantic"]["error"])
@@ -137,7 +162,15 @@ class _DecadeFreqAxis(pg.AxisItem):
 
 
 class SceneViz(QWidget):
-    """场景可视化（viz-scene）：低→中心发光圆盘，中→全屏染色，高→噪点。"""
+    """场景可视化（viz-scene）：低→中心发光圆盘，中→全屏染色，高→噪点。
+
+    H4：补图表标题 + X/Y 轴标（与同页三块 pyqtgraph 画布同一套标题/轴标语义）。
+    标题与轴标画在控件内部自留带里：不增加页面最小宽（横排预算已吃紧），
+    也不压住中心圆盘与噪点（数据绘制区 = 扣掉三条文字带后的矩形）。
+    """
+
+    # 标题/轴标带与数据区之间的内缩（令牌间距，禁裸像素字面量）
+    _TEXT_INSET = TOKENS["spacing"]["xxs"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -163,10 +196,57 @@ class SceneViz(QWidget):
         self._high = float(np.clip(high, 0.0, 1.0))
         self.update()
 
+    def _text_font(self) -> QFont:
+        """标题/轴标字体（族走主题字链、字号走令牌；禁族名/字号字面量）。"""
+        font = theme_ui_font()
+        font.setPixelSize(TOKENS["typography"]["caption_sm"])
+        return font
+
+    def _content_rect(self) -> QRectF:
+        """数据绘制区：扣掉标题带、X 轴标带、Y 轴标带（三条文字带）。"""
+        line = float(QFontMetrics(self._text_font()).height())
+        inset = float(self._TEXT_INSET)
+        left = line + inset
+        top = line + inset
+        bottom = line + inset
+        return QRectF(
+            left, top,
+            max(1.0, self.width() - left - inset),
+            max(1.0, self.height() - top - bottom),
+        )
+
+    def _paint_text_bands(self, p: QPainter, rect: QRectF) -> None:
+        """画标题（上中）+ X 轴标（下中）+ Y 轴标（左中，旋转 90°）。"""
+        c = _theme_colors()
+        line = float(QFontMetrics(self._text_font()).height())
+        p.setPen(QColor(c["text"]))
+        p.drawText(
+            QRectF(0.0, 0.0, float(self.width()), line),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            tr("rt.plot_scene"),
+        )
+        p.setPen(QColor(c["sub"]))
+        p.drawText(
+            QRectF(0.0, float(self.height()) - line, float(self.width()), line),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            tr("rt.axis_scene_x"),
+        )
+        p.save()
+        p.translate(line / 2.0, float(self.height()) / 2.0)
+        p.rotate(-90.0)
+        p.drawText(
+            QRectF(-float(self.height()) / 2.0, -line / 2.0,
+                   float(self.height()), line),
+            Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
+            tr("rt.axis_scene_y"),
+        )
+        p.restore()
+
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w, h = self.width(), self.height()
+        rect = self._content_rect()
+        w, h = rect.width(), rect.height()
 
         # 中频：全屏色相染色
         if self._mid > 0.02:
@@ -174,7 +254,7 @@ class SceneViz(QWidget):
 
         # 低频：中心径向发光圆盘（半径与亮度随 low 增长）
         r = (0.16 + 0.34 * self._low) * min(w, h) / 2
-        cx, cy = w / 2, h / 2
+        cx, cy = rect.center().x(), rect.center().y()
         grad = QRadialGradient(cx, cy, max(r, 1.0))
         g = int(90 + 120 * self._low)
         grad.setColorAt(0.0, QColor(90, g, 238, int(235 * max(self._low, 0.12))))
@@ -194,6 +274,10 @@ class SceneViz(QWidget):
             p.setPen(QPen(QColor(232, 168, 87, 200), 1.4))
             for x, y in zip(xs, ys):
                 p.drawPoint(int(x), int(y))
+
+        # H4：标题 + X/Y 轴标（画在自留带内，不压数据区）
+        p.setFont(self._text_font())
+        self._paint_text_bands(p, rect)
         p.end()
 
 
@@ -239,8 +323,11 @@ class RealtimePanel(QWidget):
         # 标题 + 模式 + 起音计数 + BPM 全在一个标签里：
         # 窄面板下只在标签自身尾部截断，元素间永不互相遮挡
         self.lbl_info = QLabel(
-            f"<b style='font-size:{_fs('body_sm')};color:{_th('text')}'>实时特征</b>"
-            f"<span style='font-size:{_fs('caption')};color:{_th('sub')}'> · 静态 · 起音 L0 M0 H0</span>"
+            f"<b style='font-size:{_fs('body_sm')};color:{_th('text')}'>"
+            f"{tr('rt.title')}</b>"
+            f"<span style='font-size:{_fs('caption')};color:{_th('sub')}'>"
+            f" · {tr('rt.static')} · "
+            f"{tr('rt.onset_lmh').format(low=0, mid=0, high=0)}</span>"
         )
         self.lbl_info.setTextFormat(Qt.TextFormat.RichText)
         # 信息条背景随主题（LIVE 时切换暗红/浅红）；富文本颜色在
@@ -297,7 +384,9 @@ class RealtimePanel(QWidget):
 
         _apply_taxis(self.plot_bands)
         _apply_canvas_theme(self.plot_bands)
-        self.plot_bands.addLegend(offset=(36, 6), labelTextSize="8pt")
+        # H4：图例加半透明底（原默认透明底，图例文字/色块与曲线互压）
+        self.bands_legend = self.plot_bands.addLegend(offset=(36, 6), labelTextSize="8pt")
+        _style_legend(self.bands_legend)
         self.plot_bands.setYRange(0, 1.05, padding=0)
         self.plot_bands.setMouseEnabled(x=True, y=False)
 
@@ -424,6 +513,7 @@ class RealtimePanel(QWidget):
             _apply_canvas_theme(plot)
             plot.setTitle(title, **_title_style())
             plot.update()
+        _style_legend(getattr(self, "bands_legend", None))
         self._apply_ink()
 
     # ------------------------------------------------------------------

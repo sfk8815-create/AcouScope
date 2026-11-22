@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 from acouscope.utils.log import get_logger
+from acouscope.utils.qt_translation import install_qt_translation
 
 _log = get_logger("main")
 
@@ -100,7 +101,12 @@ def main():
     warm_timer.daemon = True
     warm_timer.start()
 
+    # G2：界面语言在 MainWindow 构造内经 set_language(...) 才就绪（默认
+    # Settings.language="zh_CN"）。翻译安装必须排在其后：早于构造时
+    # get_language() 仍是模块默认 en_US ⇒ 返回 None ⇒ 中文界面下
+    # QMessageBox 标准按钮残留 &Yes/&No。
     window = MainWindow(controller)
+    install_qt_translation(app)
     window.show()
 
     sys.exit(app.exec())

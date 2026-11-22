@@ -35,22 +35,41 @@ def format_seconds(t: float) -> str:
     return f"{minutes:02d}:{int(whole):02d}"
 
 
-def apply_time_axis(widget, min_label_px: float = 90.0) -> None:
+def apply_time_axis(widget, min_label_px: float = 22.0) -> None:
     """给 pg.PlotWidget 的底轴换装 Audacity 风格时间刻度。
 
     刻度位置/密度由 nice_ticks（Audacity Ruler TimeFormat/RealFormat 引擎）
     生成，标签走 format_seconds 统一格式；视图缩放/平移/控件尺寸变化时，
     pyqtgraph 经 sigXRangeChanged/sigResized 回调 linkedViewChanged 自动
-    重算，无需外部手动刷新。min_label_px 调刻度密度（默认 90，见 nice_ticks）。
+    重算，无需外部手动刷新。刻度密度由 axis_fit.best_tickset 按字体度量
+    自适应（G4a-3），min_label_px 仅作 best_tickset 不可用时的回退口径
+    （默认 22 = Audacity 原默认；90 只作 axis_fit 末档兜底）。
+
+    换轴前迁移旧底轴的 labelText/labelUnits/labelUnitPrefix（G4a-3：调用方
+    先 setLabel 再换轴，旧实现未迁移 → 轴标题丢失为 ''；见取证档 §二）。
+    旧轴无标签（labelText 与 labelUnits 皆空）则跳过回填。
     """
     plot_item = widget.getPlotItem()
     old = plot_item.axes.get("bottom")
+    label_text = label_units = label_prefix = None
     if old is not None:
-        plot_item.layout.removeItem(old["item"])
-        old["item"].deleteLater()
+        old_item = old["item"]
+        label_text = getattr(old_item, "labelText", "") or ""
+        label_units = getattr(old_item, "labelUnits", "") or ""
+        label_prefix = getattr(old_item, "labelUnitPrefix", "") or ""
+        plot_item.layout.removeItem(old_item)
+        old_item.deleteLater()
         plot_item.axes.pop("bottom", None)
     axis = AudacityTimeAxis(orientation="bottom", min_label_px=min_label_px)
     plot_item.setAxisItems({"bottom": axis})
+    # G1：本类用 setTicks 提供 format_seconds 秒值字符串，pyqtgraph 不缩放
+    # 刻度文字；AxisItem 默认 autoSIPrefix=True 会在 0–0.5 s 量级把 units
+    # 前缀自动加 m → 标题变「时间 (ms)」而刻度仍为秒值（差 1000 倍）。
+    # 换轴后禁用自动 SI 前缀，使标题恒为「时间 (s)」。
+    axis.enableAutoSIPrefix(False)
+    if label_text or label_units:
+        # 迁移旧轴标签（G4a-3 A3）；labelStyle 由各视图 _apply_canvas_theme 重设
+        axis.setLabel(label_text, units=label_units, unitPrefix=label_prefix)
     axis.refresh_ticks()
 
 
@@ -206,17 +225,21 @@ class AudacityTimeAxis(pg.AxisItem):
     无需外部再手动连接信号。
     """
 
-    def __init__(self, *args, min_label_px: float = 90.0, **kwargs):
+    def __init__(self, *args, min_label_px: float = 22.0, **kwargs):
         super().__init__(*args, **kwargs)
         self._min_label_px = float(min_label_px)
-        self._last_tickset = None  # 最近一次 nice_ticks 结果（供诊断/测试检视）
+        self._last_tickset = None  # 最近一次刻度结果（供诊断/测试检视）
 
     def linkedViewChanged(self, view, newRange=None):
         super().linkedViewChanged(view, newRange)
         self.refresh_ticks()
 
     def refresh_ticks(self) -> None:
-        """按当前 ViewBox 可见范围与轴像素宽度重算刻度并 setTicks。"""
+        """按当前 ViewBox 可见范围与轴像素宽度重算刻度并 setTicks。
+
+        密度由 axis_fit.best_tickset 按本轴 QFontMetrics 实测标签宽自适应
+        （G4a-3）；fm 不可用时回退 nice_ticks(self._min_label_px)。
+        """
         view = self.linkedView()
         if view is None:
             return
@@ -228,7 +251,16 @@ class AudacityTimeAxis(pg.AxisItem):
             pixel_width = float(view.geometry().width())
         if pixel_width <= 1.0:
             pixel_width = 900.0  # 保守默认；布局完成后 sigResized 会立即重算
-        ts = nice_ticks(float(x0), float(x1), pixel_width, self._min_label_px)
+        from acouscope.ui.widgets.axis_fit import best_tickset  # 惰性：避免环导入
+
+        try:
+            from PyQt6.QtGui import QFontMetrics
+
+            fm = QFontMetrics(self.font())
+            ts = best_tickset(float(x0), float(x1), pixel_width, fm, format_seconds)
+        except Exception:
+            # 字体度量不可用（无 QGuiApplication 等）→ 旧口径回退
+            ts = nice_ticks(float(x0), float(x1), pixel_width, self._min_label_px)
         self._last_tickset = ts
         self.setTicks(_tickset_to_pgticks(ts))
 

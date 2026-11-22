@@ -236,7 +236,7 @@ def heavy_stub(window, monkeypatch):
     monkeypatch.setattr(pitch_mod, "detect_pyin", _detect_pyin)
     monkeypatch.setattr(
         "acouscope.analysis.pitch_grid.build_pitch_grid",
-        lambda times, f0, conf, mode: ("GRID", times),
+        lambda times, f0, conf, mode, **kwargs: ("GRID", times),
     )
     monkeypatch.setattr(analysis_pkg, "FormantAnalyzer", _RecordingFormant)
     monkeypatch.setattr(analysis_pkg, "TimbreAnalyzer", _RecordingTimbre)

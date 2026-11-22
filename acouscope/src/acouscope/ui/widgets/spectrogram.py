@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -24,13 +24,20 @@ from PyQt6.QtWidgets import (
     QLabel,
     QComboBox,
     QPushButton,
-    QDoubleSpinBox,
     QGroupBox,
     QFormLayout,
     QCheckBox,
 )
 
+from acouscope.i18n import tr
 from acouscope.ui import theme
+from acouscope.ui.widgets.param_spin import ParamSpinBox
+from acouscope.ui.widgets.spectrum import (
+    compact_glyph_button,
+    make_view_tool_row,
+    pin_tool_row_widths,
+    tool_field,
+)
 
 
 def _apply_canvas_theme(plot_widget, bg_role: str = "bg1") -> None:
@@ -49,6 +56,23 @@ def _apply_canvas_theme(plot_widget, bg_role: str = "bg1") -> None:
             axis.labelText, units=axis.labelUnits,
             **{**axis.labelStyle, "color": c["text"]},
         )
+
+
+class NarrowColorBar(pg.PlotWidget):
+    """定宽色条（G4a-4 / M2）。
+
+    `width` 为**总宽** = 左轴宽 + 渐变宽（渐变 >= 10 px，不被轴压没）。
+    pg.PlotWidget 的 `minimumSizeHint` 按「完整坐标轴 + 视口」算（约 88 px），
+    旧写法 `setMaximumWidth(30)` 于是常年落在「have < minimumSizeHint」判定里，
+    被误计为截断控件。此处按实际内容（总宽）回报最小宽，语义与视觉一致。
+    """
+
+    def __init__(self, width: int = 30, parent=None):
+        super().__init__(parent)
+        self._narrow_width = width
+
+    def minimumSizeHint(self):  # noqa: N802 (Qt 命名)
+        return QSize(self._narrow_width, 60)
 
 
 class SpectrogramWidget(QWidget):
@@ -147,101 +171,106 @@ class SpectrogramWidget(QWidget):
         self._build_plot(layout)
 
     def _build_toolbar(self, parent_layout):
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(6, 6, 6, 6)
-        toolbar.setSpacing(8)
+        """构建顶部工具行（G4a-4：QToolBar 容器，窄宽自动溢出到「»」菜单）。"""
+        toolbar = make_view_tool_row(self)
+        self.tool_row = toolbar
 
-        self.lbl_title = QLabel("语谱图")
+        self.lbl_title = QLabel(tr("view.spectrogram"))
         self.lbl_title.setStyleSheet(
             f"font-weight: bold; font-size: {theme.TOKENS['typography']['body']}px;")
         toolbar.addWidget(self.lbl_title)
 
-        toolbar.addStretch()
-
-        # FFT 大小
-        toolbar.addWidget(QLabel("FFT:"))
+        # FFT 大小（G4a-4：删 75 px 硬上限 → 最小内容宽）
         self.cmb_fft = QComboBox()
         for n in self.FFT_SIZES:
             self.cmb_fft.addItem(f"{n}", n)
         self.cmb_fft.setCurrentIndex(2)  # 2048
-        self.cmb_fft.setMaximumWidth(75)
-        toolbar.addWidget(self.cmb_fft)
+        self.cmb_fft.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_fft.setMinimumContentsLength(5)
+        toolbar.addWidget(tool_field(QLabel("FFT:"), self.cmb_fft))
 
         # 频率范围
-        toolbar.addWidget(QLabel("范围:"))
         self.cmb_range = QComboBox()
         for label, _ in self.FREQ_RANGES:
             self.cmb_range.addItem(label)
         self.cmb_range.setCurrentIndex(2)  # 2 kHz
-        self.cmb_range.setMaximumWidth(90)
+        self.cmb_range.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_range.setMinimumContentsLength(6)
         self.cmb_range.currentIndexChanged.connect(self._on_range_changed)
-        toolbar.addWidget(self.cmb_range)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram.range")), self.cmb_range))
 
         # Y 轴单位切换（与 FFT 频谱窗口一致）
         from acouscope.ui.widgets.freq_axis import build_freq_unit_combo
 
-        toolbar.addWidget(QLabel("Y轴:"))
         self.cmb_y_unit = build_freq_unit_combo()
         self.cmb_y_unit.currentIndexChanged.connect(self._on_y_unit_changed)
-        toolbar.addWidget(self.cmb_y_unit)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram.axis_y")), self.cmb_y_unit))
 
         # 色板
-        toolbar.addWidget(QLabel("色板:"))
         self.cmb_cmap = QComboBox()
         for label, key in self.COLORMAPS:
             self.cmb_cmap.addItem(label, key)
         self.cmb_cmap.setCurrentIndex(0)
-        self.cmb_cmap.setMaximumWidth(90)
+        self.cmb_cmap.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # L5：最小宽按最长项文本定死，窄宽溢出整件收进「»」而非裁切末字
+        _cmap_fm = self.cmb_cmap.fontMetrics()
+        _cmap_longest = max(
+            (label for label, _ in self.COLORMAPS),
+            key=lambda s: _cmap_fm.horizontalAdvance(s),
+        )
+        self.cmb_cmap.setMinimumWidth(
+            _cmap_fm.horizontalAdvance(_cmap_longest) + 24)
         self.cmb_cmap.currentIndexChanged.connect(self._on_cmap_changed)
-        toolbar.addWidget(self.cmb_cmap)
+        toolbar.addWidget(tool_field(QLabel(tr("spectrogram.colormap")), self.cmb_cmap))
 
-        # 动态范围
-        toolbar.addWidget(QLabel("DR:"))
-        self.spn_dr = QDoubleSpinBox()
+        # 动态范围（T-1115：拖拽改值会触发整幅重算 ⇒ 走释放提交，拖拽中不重绘）
+        self.spn_dr = ParamSpinBox()
+        self.spn_dr.set_live_preview(False)
         self.spn_dr.setRange(10, 120)
         self.spn_dr.setValue(60)
         self.spn_dr.setSuffix(" dB")
         self.spn_dr.setSingleStep(5)
-        self.spn_dr.setMaximumWidth(75)
+        self.spn_dr.setMinimumWidth(72)
         self.spn_dr.valueChanged.connect(self._on_dr_changed)
-        toolbar.addWidget(self.spn_dr)
+        toolbar.addWidget(tool_field(QLabel("DR:"), self.spn_dr))
 
         # 测量工具
         self.btn_measure = QPushButton("📏")
-        self.btn_measure.setToolTip("测量工具（拖动测量时间差/频率差）")
+        self.btn_measure.setToolTip(tr("spectrogram.tip_measure"))
         self.btn_measure.setCheckable(True)
-        self.btn_measure.setMaximumWidth(32)
+        compact_glyph_button(self.btn_measure, 32)
         self.btn_measure.toggled.connect(self._toggle_measure_tool)
         toolbar.addWidget(self.btn_measure)
 
         # 峰值追踪
         self.btn_peak = QPushButton("🔺")
-        self.btn_peak.setToolTip("峰值频率追踪（显示每帧最强频率曲线）")
+        self.btn_peak.setToolTip(tr("spectrogram.tip_peak_track"))
         self.btn_peak.setCheckable(True)
-        self.btn_peak.setMaximumWidth(32)
+        compact_glyph_button(self.btn_peak, 32)
         self.btn_peak.toggled.connect(self._toggle_peak_contour)
         toolbar.addWidget(self.btn_peak)
 
         # 音高曲线叠加开关（PITCH_OVERLAY_V1）
         self.btn_pitch = QPushButton("🎵")
-        self.btn_pitch.setToolTip("音高曲线叠加（pYIN 轨迹）")
+        self.btn_pitch.setToolTip(tr("spectrogram.tip_pitch_overlay"))
         self.btn_pitch.setCheckable(True)
-        self.btn_pitch.setMaximumWidth(32)
+        compact_glyph_button(self.btn_pitch, 32)
         self.btn_pitch.toggled.connect(self._toggle_pitch_contour)
         toolbar.addWidget(self.btn_pitch)
 
         # 设置按钮
         self.btn_settings = QPushButton("⚙")
-        self.btn_settings.setMaximumWidth(32)
-        self.btn_settings.setToolTip("高级设置")
+        compact_glyph_button(self.btn_settings, 32)
+        self.btn_settings.setToolTip(tr("spectrogram.tip_advanced"))
         self.btn_settings.setCheckable(True)
         self.btn_settings.toggled.connect(self._toggle_settings)
         toolbar.addWidget(self.btn_settings)
 
-        toolbar_widget = QWidget()
-        toolbar_widget.setLayout(toolbar)
-        toolbar_widget.setMaximumHeight(38)
-        parent_layout.addWidget(toolbar_widget)
+        pin_tool_row_widths(toolbar)
+        parent_layout.addWidget(toolbar)
 
     def _build_settings_panel(self, parent_layout):
         self.settings_panel = QWidget()
@@ -301,7 +330,7 @@ class SpectrogramWidget(QWidget):
         bar = QHBoxLayout()
         bar.setContentsMargins(6, 2, 6, 2)
 
-        self.lbl_info = QLabel("时间: -- s | 频率: -- Hz | 强度: -- dB")
+        self.lbl_info = QLabel(tr("spectrogram.readout_none"))
         self.lbl_info.setStyleSheet(
             f"color: {theme.colors()['text_sub']};"
             f" font-size: {theme.TOKENS['typography']['caption']}px;")
@@ -338,9 +367,9 @@ class SpectrogramWidget(QWidget):
         self.img_item = pg.ImageItem()
         self.plot_widget.addItem(self.img_item)
 
-        # 颜色条
-        self.colorbar_widget = pg.PlotWidget()
-        self.colorbar_widget.setMaximumWidth(30)
+        # 颜色条（M2：总宽 = 左轴 25 + 渐变 14，渐变不再被轴压没）
+        self.colorbar_widget = NarrowColorBar(39)
+        self.colorbar_widget.setMaximumWidth(39)
         self.colorbar_widget.hideAxis("bottom")
         self.colorbar_widget.getAxis("left").setWidth(25)
         self.colorbar_widget.getAxis("left").setStyle(tickTextOffset=5)
@@ -595,7 +624,9 @@ class SpectrogramWidget(QWidget):
 
                         freq_str = format_freq_readout(f, self._freq_unit)
                         self.lbl_info.setText(
-                            f"时间: {t:.3f} s | 频率: {freq_str} | 强度: {db_val:.1f} dB"
+                            tr("spectrogram.cursor_readout").format(
+                                time=f"{t:.3f}", freq=freq_str, db=f"{db_val:.1f}"
+                            )
                         )
                 # T-326 Pδ：悬停读数（节流 ≤20Hz；只读坐标映射，保留既有 lbl_info 更新）
                 self._hover_update_at(float(mouse_point.x()), float(mouse_point.y()))
@@ -1268,7 +1299,12 @@ class SpectrogramWidget(QWidget):
         return " | ".join(parts)
 
     def freq_at(self, t: float) -> float | None:
-        """t 时刻该列谱峰频率（argmax）；列能量≤阈值(无声)或空数据 → None（Pδ 口径）。"""
+        """t 时刻该列谱峰频率（抛物线插值细化）；列能量≤阈值(无声)或空数据 → None（Pδ 口径）。
+
+        保留旧版 dB 阈值与静音/空数据分支；仅把峰值读数从「argmax 整 bin」
+        升级为：dB 列先转线性幅度 ``np.power(10.0, col/20.0)``，再交给共享
+        纯函数 ``refine_peak_frequency`` 做三点抛物线插值，消除 bin 量化。
+        """
         if not self._times.size or self._freqs.size == 0 or self._magnitude_db.size == 0:
             return None
         t_idx = int(np.clip(
@@ -1279,7 +1315,39 @@ class SpectrogramWidget(QWidget):
         if peak_db <= self._peak_threshold_db:
             return None  # 该列无声（能量低于峰值追踪阈值）
         f_idx = int(np.argmax(col))
-        return float(self._freqs[f_idx])
+        from acouscope.analysis.spectral import refine_peak_frequency
+
+        lin = np.power(10.0, col / 20.0)
+        return refine_peak_frequency(lin, self._freqs, f_idx)
+
+    def freq_uncertainty_cent(self, t: float) -> float | None:
+        """t 时刻谱峰频率读数的 1σ 不确定度（音分）——半 bin 均匀分布折算。
+
+        ``half_bin_cent = 1200*log2((f + sr/(2*n_fft))/f)``：半 bin 宽度
+        ``sr/(2*n_fft)`` 即相邻频率轴间距的一半（``freq_res=sr/n_fft``），
+        其量化误差按均匀分布折算标准差 ``half_bin_cent/sqrt(3)``。
+        抛物线插值把 bin 读数误差压低约 **8 倍**（本批 44.1 kHz / 1 s
+        实测：bin 中位 22.34 cent / 最大 37.34 cent，插值后 n_fft=2048
+        最大 4.49 cent、8192 最大 1.09 cent），故该列有有效插值读数时再
+        除以 8；静音/空数据（``freq_at`` 返回 None）时无法插值，频率以
+        440 Hz 兜底并保留未插值口径。恒返回 float（禁臆造 None）。
+        """
+        import math
+
+        f = self.freq_at(t)
+        interp_ok = f is not None and f > 0
+        if not interp_ok:
+            f = 440.0
+        freq_res = (float(self._freqs[1] - self._freqs[0])
+                    if self._freqs.size >= 2 else 0.0)
+        if freq_res > 0:
+            n_fft = float(self._sample_rate) / freq_res
+            half_bin_hz = float(self._sample_rate) / (2.0 * n_fft)
+        else:
+            half_bin_hz = 0.0
+        half_bin_cent = 1200.0 * math.log2((f + half_bin_hz) / f)
+        denom = math.sqrt(3.0) * (8.0 if interp_ok else 1.0)
+        return float(half_bin_cent / denom)
 
     def set_readout_overlay(self, text: str | None) -> None:
         """右上角只读 overlay 显示/隐藏（Pδ hover 与测量结果共用；None 隐藏）。"""

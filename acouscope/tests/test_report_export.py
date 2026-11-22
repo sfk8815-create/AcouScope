@@ -140,6 +140,25 @@ def test_metadata_rows_skip_control_key():
     assert "_standard" not in labels
 
 
+def test_metadata_rows_m8a_autofour_localized():
+    """M-8a 四键走 i18n 标签（裸键不外泄）；传值原样出现，未传落 MISSING。"""
+    given = {
+        "FileName": "field_take.wav", "FileSize": "15360",
+        "AggregationLevel": "件", "RetentionPeriod": "永久",
+    }
+    labels = [label for label, _v in build_metadata_rows(given)]
+    for bare in ("FileName", "FileSize", "AggregationLevel", "RetentionPeriod"):
+        assert bare not in labels  # 本地化标签，非英文裸键
+    mapping = dict(build_metadata_rows(given))
+    assert mapping[tr("inspector.meta.file_name")] == "field_take.wav"
+    assert mapping[tr("inspector.meta.file_size")] == "15360"
+    assert mapping[tr("inspector.meta.aggregation_level")] == "件"
+    assert mapping[tr("inspector.meta.retention_period")] == "永久"
+    absent = dict(build_metadata_rows({}))
+    assert absent[tr("inspector.meta.file_name")] == MISSING
+    assert absent[tr("inspector.meta.retention_period")] == MISSING
+
+
 def test_is_degraded_semantics():
     assert is_degraded({}) is True
     assert is_degraded(None) is True

@@ -64,18 +64,24 @@ def _cents(f0: np.ndarray) -> np.ndarray:
 
 
 def pitch_stats(
-    times: np.ndarray, f0: np.ndarray, t0: float, t1: float
+    times: np.ndarray, f0: np.ndarray, t0: float, t1: float,
+    confidence: np.ndarray | None = None,
 ) -> Optional[dict]:
     """对选区 [t0,t1] 内 f0 帧做统计（帧中心归属，含边界）。
 
-    返回 dict（voiced==0 时各数值字段为 None）：
+    返回 dict（旧 9 键逐位不变）：
       frames/voiced/voiced_ratio/f0_mean/f0_median/f0_min/f0_max/f0_range/
       cent_mean
-    times 为空或区间无任何帧 → None（调用方据此区分「无结果」与「有结果但
-    无浊音」）。
+    以及 T02 不确定度契约新增 5 键：
+      cent_std/cent_p95/cent_sem/n_eff/confidence_mean
+    ``confidence`` 为可选（旧调用零改动）；无 confidence 时
+    ``confidence_mean`` 为 None。times 为空或区间无任何帧 → None
+    （调用方据此区分「无结果」与「有结果但无浊音」）。
     """
     times = np.asarray(times, dtype=np.float64)
     f0 = np.asarray(f0, dtype=np.float64)
+    if confidence is not None:
+        confidence = np.asarray(confidence, dtype=np.float64)
     if times.size == 0 or f0.size == 0 or times.shape != f0.shape:
         return None
     mask = (times >= float(t0)) & (times <= float(t1))
@@ -91,9 +97,36 @@ def pitch_stats(
             "frames": total, "voiced": 0, "voiced_ratio": 0.0,
             "f0_mean": None, "f0_median": None, "f0_min": None,
             "f0_max": None, "f0_range": None, "cent_mean": None,
+            "cent_std": 0.0, "cent_p95": 0.0, "cent_sem": None,
+            "n_eff": 0.0, "confidence_mean": None,
         }
     v = seg[voiced_mask]
     cent = _cents(v)
+    n = int(cent.size)
+
+    # T02 不确定度契约（公式固定）：音分样本标准差 / 偏差 p95 /
+    # lag-1 自相关裁剪 [0,0.99] / 有效样本数 / 均值标准误。
+    cent_std = float(np.std(cent, ddof=1)) if n > 1 else 0.0
+    cent_p95 = float(np.percentile(np.abs(cent - cent.mean()), 95))
+    if n > 2:
+        c0, c1 = cent[:-1], cent[1:]
+        s0, s1 = float(c0.std()), float(c1.std())
+        r = (float(np.mean((c0 - c0.mean()) * (c1 - c1.mean()))) / (s0 * s1)
+             if s0 > 0 and s1 > 0 else 0.0)
+    else:
+        r = 0.0
+    if not np.isfinite(r):
+        r = 0.0
+    r = min(0.99, max(0.0, r))
+    n_eff = max(1.0, n * (1.0 - r) / (1.0 + r))
+    cent_sem = float(cent_std / np.sqrt(n_eff))
+
+    confidence_mean = None
+    if confidence is not None and confidence.shape == f0.shape:
+        c_seg = confidence[mask][seg > 0]
+        if c_seg.size:
+            confidence_mean = float(np.mean(c_seg))
+
     return {
         "frames": total,
         "voiced": voiced,
@@ -104,4 +137,9 @@ def pitch_stats(
         "f0_max": float(np.max(v)),
         "f0_range": float(np.max(v) - np.min(v)),
         "cent_mean": float(np.mean(cent)),
+        "cent_std": cent_std,
+        "cent_p95": cent_p95,
+        "cent_sem": cent_sem,
+        "n_eff": float(n_eff),
+        "confidence_mean": confidence_mean,
     }

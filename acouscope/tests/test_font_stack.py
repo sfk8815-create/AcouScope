@@ -139,7 +139,11 @@ def test_helper_references_confined_to_entry_and_definition():
         text = path.read_text(encoding="utf-8")
         if "ui_font_families" in text or "ui_mono_families" in text:
             ref_files.add(str(path.relative_to(_SRC)))
-    assert ref_files <= {"ui/theme.py", "__main__.py"}, f"族链 helper 越界引用：{ref_files}"
+    # 消费点限定三处：定义处（theme）、应用入口（__main__）、
+    # Qt 绘制侧文字标注（waveform 的 caption 字体，61aff08 引入）。
+    # 白名单只增此一处；其余散落消费仍判红。
+    allowed = {"ui/theme.py", "__main__.py", "ui/widgets/waveform.py"}
+    assert ref_files <= allowed, f"族链 helper 越界引用：{ref_files}"
     assert "__main__.py" in ref_files
 
 

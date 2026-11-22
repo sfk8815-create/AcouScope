@@ -11,7 +11,7 @@ import pyqtgraph as pg
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QDoubleSpinBox, QSpinBox, QPushButton, QComboBox,
+    QLabel, QSpinBox, QPushButton, QComboBox,
     QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
 )
 
@@ -19,7 +19,9 @@ from acouscope.analysis.room_acoustics import (
     calculate_room_modes,
     synthesize_mode_response,
 )
+from acouscope.i18n import tr
 from acouscope.ui import theme
+from acouscope.ui.widgets.param_spin import ParamSpinBox
 
 # 模态类型 → 内容色板索引（T-1038 M2：分类色复用 T-1036 内容色板，禁另造第二套分类色）
 _MODE_ROLE_INDEX = {"axial": 0, "tangential": 1, "oblique": 2}
@@ -111,24 +113,24 @@ class RoomModesWidget(QWidget):
         size_form = QGridLayout(size_box)
         size_form.setSpacing(6)
 
-        size_form.addWidget(QLabel("长度 Lx："), 0, 0)
-        self.spin_lx = QDoubleSpinBox()
+        size_form.addWidget(QLabel(tr("room_modes.length_lx")), 0, 0)
+        self.spin_lx = ParamSpinBox()
         self.spin_lx.setRange(1.0, 100.0)
         self.spin_lx.setValue(6.0)
         self.spin_lx.setSuffix(" m")
         self.spin_lx.setSingleStep(0.1)
         size_form.addWidget(self.spin_lx, 0, 1)
 
-        size_form.addWidget(QLabel("宽度 Ly："), 1, 0)
-        self.spin_ly = QDoubleSpinBox()
+        size_form.addWidget(QLabel(tr("room_modes.width_ly")), 1, 0)
+        self.spin_ly = ParamSpinBox()
         self.spin_ly.setRange(1.0, 100.0)
         self.spin_ly.setValue(4.5)
         self.spin_ly.setSuffix(" m")
         self.spin_ly.setSingleStep(0.1)
         size_form.addWidget(self.spin_ly, 1, 1)
 
-        size_form.addWidget(QLabel("高度 Lz："), 2, 0)
-        self.spin_lz = QDoubleSpinBox()
+        size_form.addWidget(QLabel(tr("room_modes.height_lz")), 2, 0)
+        self.spin_lz = ParamSpinBox()
         self.spin_lz.setRange(1.0, 50.0)
         self.spin_lz.setValue(2.8)
         self.spin_lz.setSuffix(" m")
@@ -142,30 +144,30 @@ class RoomModesWidget(QWidget):
         calc_form = QGridLayout(calc_box)
         calc_form.setSpacing(6)
 
-        calc_form.addWidget(QLabel("最大阶数："), 0, 0)
+        calc_form.addWidget(QLabel(tr("room_modes.max_order")), 0, 0)
         self.spin_max_order = QSpinBox()
         self.spin_max_order.setRange(1, 30)
         self.spin_max_order.setValue(15)
         calc_form.addWidget(self.spin_max_order, 0, 1)
 
-        calc_form.addWidget(QLabel("最高频率："), 1, 0)
-        self.spin_max_freq = QDoubleSpinBox()
+        calc_form.addWidget(QLabel(tr("room_modes.max_freq")), 1, 0)
+        self.spin_max_freq = ParamSpinBox()
         self.spin_max_freq.setRange(20, 2000)
         self.spin_max_freq.setValue(300)
         self.spin_max_freq.setSuffix(" Hz")
         self.spin_max_freq.setSingleStep(10)
         calc_form.addWidget(self.spin_max_freq, 1, 1)
 
-        calc_form.addWidget(QLabel("声速："), 2, 0)
-        self.spin_speed = QDoubleSpinBox()
+        calc_form.addWidget(QLabel(tr("room_modes.speed_of_sound")), 2, 0)
+        self.spin_speed = ParamSpinBox()
         self.spin_speed.setRange(300, 400)
         self.spin_speed.setValue(343)
         self.spin_speed.setSuffix(" m/s")
         self.spin_speed.setSingleStep(1)
         calc_form.addWidget(self.spin_speed, 2, 1)
 
-        calc_form.addWidget(QLabel("模态 Q 值："), 3, 0)
-        self.spin_q = QDoubleSpinBox()
+        calc_form.addWidget(QLabel(tr("room_modes.modal_q")), 3, 0)
+        self.spin_q = ParamSpinBox()
         self.spin_q.setRange(1, 100)
         self.spin_q.setValue(20)
         self.spin_q.setSingleStep(1)
@@ -191,13 +193,13 @@ class RoomModesWidget(QWidget):
         preset_box = QGroupBox("预设房间")
         preset_layout = QVBoxLayout(preset_box)
         self.cmb_preset = QComboBox()
-        self.cmb_preset.addItem("自定义", None)
-        self.cmb_preset.addItem("小型听音室 (4×3×2.5m)", (4.0, 3.0, 2.5))
-        self.cmb_preset.addItem("中型录音室 (6×4.5×3m)", (6.0, 4.5, 3.0))
-        self.cmb_preset.addItem("大型演播室 (10×8×4m)", (10.0, 8.0, 4.0))
-        self.cmb_preset.addItem("起居室 (5×4×2.7m)", (5.0, 4.0, 2.7))
-        self.cmb_preset.addItem("卧室 (3.5×3×2.6m)", (3.5, 3.0, 2.6))
-        self.cmb_preset.addItem("音乐厅 (30×20×12m)", (30.0, 20.0, 12.0))
+        self.cmb_preset.addItem(tr("room_modes.preset_custom"), None)
+        self.cmb_preset.addItem(tr("room_modes.preset_small_room"), (4.0, 3.0, 2.5))
+        self.cmb_preset.addItem(tr("room_modes.preset_medium_studio"), (6.0, 4.5, 3.0))
+        self.cmb_preset.addItem(tr("room_modes.preset_large_studio"), (10.0, 8.0, 4.0))
+        self.cmb_preset.addItem(tr("room_modes.preset_living_room"), (5.0, 4.0, 2.7))
+        self.cmb_preset.addItem(tr("room_modes.preset_bedroom"), (3.5, 3.0, 2.6))
+        self.cmb_preset.addItem(tr("room_modes.preset_concert_hall"), (30.0, 20.0, 12.0))
         self.cmb_preset.currentIndexChanged.connect(self._on_preset_changed)
         preset_layout.addWidget(self.cmb_preset)
         param_layout.addWidget(preset_box)

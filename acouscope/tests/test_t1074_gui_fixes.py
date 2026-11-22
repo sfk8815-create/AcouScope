@@ -236,7 +236,7 @@ def test_g3_project_deserialize_keeps_dict_on_corrupt():
     """pitch_grid 损坏 → 保留原 dict、不抛（T72-09 语义不变），并留日志痕。"""
     from acouscope.app import project as project_mod
 
-    # notes 内含 PitchNote 不接受的键 → from_dict 内 PitchNote(**nt) 抛 TypeError
+    # notes 条目缺必填字段（白名单过滤后 start_s/end_s/f0_hz 缺失）→ from_dict 抛 TypeError；B1-01 起未知键改为白名单忽略，失败机理由「未知键」变为「缺必填字段」，本条数据与断言不变
     bad_pg = {"notes": [{"__bogus_key__": 1}], "snap_mode": "off"}
     corrupt = {"pitch_grid": bad_pg}
     out = project_mod._deserialize_analysis_results(corrupt, source="/x/y.acouproj")

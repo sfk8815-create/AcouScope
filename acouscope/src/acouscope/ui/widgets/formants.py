@@ -8,14 +8,25 @@ import time
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtCore import QEvent, Qt, pyqtSignal
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 
+from acouscope.i18n import tr
 from acouscope.ui import theme
 from acouscope.ui.widgets.freq_axis import PianoKeyboardStrip
+from acouscope.ui.widgets.spectrum import (
+    make_view_tool_row,
+    pin_tool_row_widths,
+    tool_field,
+)
 
 
 # F1~F4 序列数（配色不在此处定义：T-1038 M2 复用 T-1036 内容色板入口）
 FORMANT_COUNT = 4
+
+# H3：画布内图例（左上内缩 / 半透明底），挂在 ViewBox 内不占控件最小宽
+_LEGEND_OFFSET = 8
+_LEGEND_BG_ALPHA = 200
 
 
 def formant_colors() -> list[str]:
@@ -67,24 +78,22 @@ class FormantWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 工具栏
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(4, 4, 4, 4)
+        # 工具行（G4a-4：QToolBar 容器，窄宽下读数/单位收进「»」扩展菜单；
+        # 横排布局会把 F1–F4 读数文字直接算进页面最小宽，实测 664 > 620 预算）
+        toolbar = make_view_tool_row(self)
+        self.tool_row = toolbar
 
-        self.lbl_title = QLabel("共振峰轨迹 (LPC)")
+        self.lbl_title = QLabel(tr("formants.title"))
         toolbar.addWidget(self.lbl_title)
-
-        toolbar.addStretch()
 
         # Y 轴单位切换（与 FFT 频谱窗口一致）
         from acouscope.ui.widgets.freq_axis import build_freq_unit_combo
 
-        toolbar.addWidget(QLabel("Y轴:"))
         self.cmb_y_unit = build_freq_unit_combo()
         self.cmb_y_unit.currentIndexChanged.connect(self._on_y_unit_changed)
-        toolbar.addWidget(self.cmb_y_unit)
+        toolbar.addWidget(tool_field(QLabel(tr("formants.axis_y")), self.cmb_y_unit))
 
-        self.lbl_time = QLabel("时间: -- s")
+        self.lbl_time = QLabel(tr("formants.time_none"))
         self.lbl_time.setStyleSheet(_meta_qss())
         toolbar.addWidget(self.lbl_time)
 
@@ -93,10 +102,8 @@ class FormantWidget(QWidget):
             _meta_qss(f" margin-left: {theme.TOKENS['control']['pad_x']}px;"))
         toolbar.addWidget(self.lbl_values)
 
-        toolbar_widget = QWidget()
-        toolbar_widget.setLayout(toolbar)
-        toolbar_widget.setMaximumHeight(32)
-        layout.addWidget(toolbar_widget)
+        pin_tool_row_widths(toolbar)
+        layout.addWidget(toolbar)
 
         # 图 + 竖排钢琴键盘条（钢琴卷帘模式显示）
         self.plot_widget = pg.PlotWidget()
@@ -105,7 +112,11 @@ class FormantWidget(QWidget):
         from acouscope.ui.widgets.time_axis import apply_time_axis
 
         apply_time_axis(self.plot_widget)
-        self.plot_widget.setLabel("left", "频率", units="Hz")
+        # F3：构造期与 _redraw 共用同一数据源（freq_axis.set_freq_axis_label），
+        # 消除硬写 Hz 的第二处标签；下拉切换后轴标题/刻度单位与所选一致。
+        from acouscope.ui.widgets.freq_axis import set_freq_axis_label
+
+        set_freq_axis_label(self.plot_widget, self._freq_unit)
         self.plot_widget.setMenuEnabled(False)
         _apply_canvas_theme(self.plot_widget)
 
@@ -131,6 +142,14 @@ class FormantWidget(QWidget):
             )
             self.plot_widget.addItem(scatter)
             self._scatters.append(scatter)
+
+        # H3：画布内图例（颜色 → F1/F2/F3/F4）。挂在 ViewBox 内（GraphicsItem），
+        # 不参与控件 sizeHint → 不增加本页 minimumWidth（横排预算 620 已吃紧）。
+        # 注意：只 setParentItem（同 PlotItem.addLegend 的口径），不 addItem——
+        # ViewBox.addItem 会把父级改成内部 ChildGroup，而 LegendItem 的锚定要求
+        # 父级带 geometryChanged（ChildGroup 没有 → 直接 AttributeError）。
+        self.legend = self._build_legend()
+        self.legend.hide()  # 空态/全缺值不显示（_redraw 按有效序列决定）
 
         # 游标
         self.v_line = pg.InfiniteLine(
@@ -171,11 +190,51 @@ class FormantWidget(QWidget):
         self._measure_items: list = []  # A/B InfiniteLine
         self._measure_item_labels: list = []  # A/B TextItem
 
+    def _build_legend(self):
+        """H3：画布内图例（半透明底，随主题换色；不撑控件最小宽）。"""
+        c = theme.colors()
+        brush = QColor(c["bg1"])
+        brush.setAlpha(_LEGEND_BG_ALPHA)
+        legend = pg.LegendItem(
+            offset=(_LEGEND_OFFSET, _LEGEND_OFFSET),
+            brush=brush,
+            pen=pg.mkPen(color=c["border"], width=1),
+            labelTextColor=c["text_sub"],
+            labelTextSize=f"{theme.TOKENS['typography']['caption_sm']}px",
+        )
+        legend.setParentItem(self.plot_widget.plotItem.vb)
+        legend.setZValue(60)
+        return legend
+
+    def _sync_legend(self, valid_ks: list) -> None:
+        """按「有数据的序列」重建图例项：缺值序列不显示图例项（H3）。"""
+        legend = getattr(self, "legend", None)
+        if legend is None:
+            return
+        try:
+            legend.clear()
+            for k in valid_ks:
+                legend.addItem(self._scatters[k], f"F{k + 1}")
+            legend.setVisible(bool(valid_ks))
+        except Exception:  # noqa: BLE001 — 图例刷新永不抛
+            pass
+
     def _apply_ink(self) -> None:
         """数据墨色（T-1038 M1/M6）：F1~F4 多序列 + 游标/测量标记随主题取色。"""
         colors = formant_colors()
         for i, scatter in enumerate(getattr(self, "_scatters", [])):
             scatter.setBrush(pg.mkBrush(colors[i % len(colors)]))
+        legend = getattr(self, "legend", None)
+        if legend is not None:
+            c = theme.colors()
+            brush = QColor(c["bg1"])
+            brush.setAlpha(_LEGEND_BG_ALPHA)
+            try:
+                legend.setBrush(brush)
+                legend.setPen(pg.mkPen(color=c["border"], width=1))
+                legend.setLabelTextColor(c["text_sub"])
+            except Exception:  # noqa: BLE001
+                pass
         self.v_line.setPen(pg.mkPen(color=theme.data_ink("cursor"), width=3.3))
         for i, item in enumerate(getattr(self, "_measure_items", [])):
             role = "cursor" if i == 0 else "trace"
@@ -318,12 +377,14 @@ class FormantWidget(QWidget):
         n_formants = min(self._freqs.shape[1], len(self._scatters)) if self._freqs.ndim == 2 else 0
         f_min, f_max = np.inf, 0.0
 
+        valid_ks: list[int] = []
         for k in range(n_formants):
             freq_k = self._freqs[:, k]
             valid = freq_k > 0
             if np.any(valid):
                 y = freq_to_display(freq_k[valid], self._freq_unit)
                 self._scatters[k].setData(times[valid], y)
+                valid_ks.append(k)
                 f_min = min(f_min, freq_k[valid].min())
                 f_max = max(f_max, freq_k[valid].max())
             else:
@@ -341,6 +402,9 @@ class FormantWidget(QWidget):
             finally:
                 self._xrange_blocked = False
             self.v_line.setPos(times[len(times) // 2])
+
+        # H3：图例只列有数据的序列（缺值序列不出条目）
+        self._sync_legend(valid_ks)
 
         # Y 轴刻度：MIDI/钢琴卷帘用音名，其余自动
         axis_left = self.plot_widget.getAxis("left")
@@ -362,7 +426,7 @@ class FormantWidget(QWidget):
             return
 
         t = self.v_line.value()
-        self.lbl_time.setText(f"时间: {t:.3f} s")
+        self.lbl_time.setText(tr("formants.time").format(time=f"{t:.3f}"))
 
         idx = int(np.argmin(np.abs(self._times - t)))
         parts = []
@@ -408,12 +472,41 @@ class FormantWidget(QWidget):
         return f"t={float(t_disp):.3f}s | -- | --"
 
     def freq_at(self, t: float) -> float | None:
-        """t 时刻最近帧的 F1（该帧 F1>0 时）；无声/空数据 → None（Pδ 测量口径）。"""
+        """t 时刻 F1（时间轴线性插值，非频谱插值）。
+
+        F1 轨迹本身是逐帧估计值、**无 FFT bin 量化**，故只补「时间轴线性
+        插值」：t 落在两个相邻且 F1 均有效的帧之间时，按时间比例线性插值
+        F1。端点（恰好落在帧上/首末帧）、缺值（某帧 F1≤0）、越界一律回退
+        到旧版「最近帧」读数，行为逐位不变。禁臆造频谱插值。
+        """
         if not self._times.size or self._freqs.size == 0:
             return None
-        idx = int(np.argmin(np.abs(self._times - float(t))))
+        tv = float(t)
+        idx = int(np.argmin(np.abs(self._times - tv)))
         f1 = float(self._freqs[idx, 0])
-        return f1 if f1 > 0 else None
+        base = f1 if f1 > 0 else None
+        if self._freqs.ndim >= 2:
+            series = self._freqs[:, 0]
+            n = min(int(self._times.size), int(series.size))
+            if n >= 2:
+                j = int(np.searchsorted(self._times[:n], tv, side="right")) - 1
+                if 0 <= j < n - 1:
+                    ta = float(self._times[j])
+                    tb = float(self._times[j + 1])
+                    fa = float(series[j])
+                    fb = float(series[j + 1])
+                    if tb > ta and fa > 0 and fb > 0 and ta <= tv <= tb:
+                        w = (tv - ta) / (tb - ta)
+                        return float(fa + (fb - fa) * w)
+        return base
+
+    def freq_uncertainty_cent(self, t: float) -> float | None:
+        """共振峰 F1 的不确定度未建模：恒返回 None（禁臆造 u）。
+
+        返回 None 时，main_window 的选区测量沿用旧键 ``measure_result.full``，
+        显示文本不加 ``±``。
+        """
+        return None
 
     def set_readout_overlay(self, text: str | None) -> None:
         """右上角只读 overlay 显示/隐藏（Pδ hover 与测量结果共用；None 隐藏）。"""

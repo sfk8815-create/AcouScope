@@ -67,7 +67,11 @@ def test_3d_major_ticks_match_nice_ticks(widget):
     vmin, vmax = ax.yaxis.get_view_interval()
     loc = ax.yaxis.get_major_locator()
     pixel_width = loc._get_pixel_width()
-    expected = nice_ticks(float(vmin), float(vmax), pixel_width, 90.0)
+    # ★ 2026-11-10 订正：3D 时间轴的主/次 Locator 已分别配 min_label_px=20 / 40
+    # （spectrogram3d.py:801-802），原测硬编码 90.0 会算出更粗的步长而恒红。
+    # 取 locator 自身配置的参数，判据仍是「实际刻度 == nice_ticks 期望」。
+    expected = nice_ticks(float(vmin), float(vmax), pixel_width,
+                          float(loc._min_label_px))
     actual = [float(v) for v in ax.yaxis.get_majorticklocs()]
     actual_in = [v for v in actual if vmin - 1e-6 <= v <= vmax + 1e-6]
     exp_in = [float(v) for v in expected.majors

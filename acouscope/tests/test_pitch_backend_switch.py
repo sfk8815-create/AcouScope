@@ -258,6 +258,11 @@ class TestUnavailableBranch:
         from PyQt6.QtWidgets import QMessageBox
 
         _set_unavailable(monkeypatch, "SwiftF0")
+        # T-1113：离屏环境禁模态兜底 ⇒ 本用例显式走「有头分支」（只加这一行桩，
+        # 断言一字未改）。
+        monkeypatch.setattr(
+            "acouscope.ui.main_window._is_headless_qt", lambda: False
+        )
         toasts = _capture_toasts(monkeypatch)
         recalc = _spy_recompute(monkeypatch)
 
@@ -290,6 +295,11 @@ class TestUnavailableBranch:
         from PyQt6.QtWidgets import QMessageBox
 
         _set_unavailable(monkeypatch, "RMVPE")
+        # T-1113：离屏环境禁模态兜底 ⇒ 本用例显式走「有头分支」（只加这一行桩，
+        # 断言一字未改）。
+        monkeypatch.setattr(
+            "acouscope.ui.main_window._is_headless_qt", lambda: False
+        )
         _capture_toasts(monkeypatch)
         recalc = _spy_recompute(monkeypatch)
 
@@ -387,3 +397,24 @@ class TestStatic:
                                    or "_apply_backend_switch" in ln):
                 assert (".ex" + "ec(") not in ln
                 assert "question(" not in ln
+
+
+def test_backend_selector_moved_to_settings_panel(window):
+    """D10a：选择器构造期即建（_backend_combo 契约），但不在分析工具栏；设置页入口后挂入 SettingsDialog。"""
+
+    def _ancestors(w):
+        out = []
+        while w is not None:
+            out.append(w)
+            w = w.parentWidget()
+        return out
+
+    sel = window._backend_selector                      # 构造期即建
+    analysis_tb = window.btn_ai_interpret.parent()      # 既有取父级口径（不动 btn_ai_interpret）
+    assert analysis_tb not in _ancestors(sel), "选择器不应留在分析工具栏"
+    assert window._settings_panel is None or window._settings_panel not in _ancestors(sel)
+
+    window._activate_settings_tab()                     # 设置页真实入口（懒构建，实测 0.28s）
+    assert window._settings_panel in _ancestors(sel), "选择器应挂入设置页"
+    assert window._backend_combo is not None            # 下游契约不变
+    assert window._backend_combo.currentData() == "pYIN"

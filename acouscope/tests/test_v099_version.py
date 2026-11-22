@@ -11,7 +11,7 @@ class TestVersion:
 
     def test_build_version(self):
         """构建系统版本号（PEP 440 合法）。"""
-        assert acouscope.__version__ == "0.99.20260925"
+        assert acouscope.__version__ == "0.99.20261011"
 
     def test_display_version(self):
         """UI 显示版本号。"""
@@ -28,7 +28,7 @@ class TestVersion:
     def test_pyproject_toml_version(self):
         """pyproject.toml 版本号。"""
         src = open("pyproject.toml", encoding="utf-8").read()
-        assert 'version = "0.99.20260925"' in src
+        assert 'version = "0.99.20261011"' in src
         assert "0.98" not in src
 
     def test_build_version_matches_pyproject(self):

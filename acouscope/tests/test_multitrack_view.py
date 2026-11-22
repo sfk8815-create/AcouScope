@@ -381,3 +381,31 @@ def test_analyze_requested_connect_is_single():
 
     source = pathlib.Path(mv.__file__).read_text()
     assert source.count("analyzeRequested.connect") == MULTITRACK_ANALYZE_REQUEST_CONNECTS
+
+
+# ---------------------------------------------------------------------------
+# P2: 轨道区高度自适应（3 轨可见无需滚动）
+# ---------------------------------------------------------------------------
+
+
+def test_panel_track_area_height_adapts_to_track_count(qapp):
+    """3 轨时轨道区最小高度 >= 3*ROW_HEIGHT；1 轨反对照 < 3*ROW_HEIGHT。"""
+    session_3 = _session(n=3)
+    panel_3 = MultitrackPanel(session_3)
+    panel_3.set_session(session_3)
+    assert len(panel_3.header_column.headers()) == 3
+
+    # 核心判据：承载 view 的 QScrollArea 最小高度按轨数自适应
+    scroll_min_3 = panel_3.scroll.minimumHeight()
+    assert scroll_min_3 >= 3 * ROW_HEIGHT, (
+        f"3轨轨道区最小高度 {scroll_min_3} < 预期 {3 * ROW_HEIGHT}"
+    )
+
+    # 反对照：1 轨不应有 3 轨那么高
+    session_1 = _session(n=1)
+    panel_1 = MultitrackPanel(session_1)
+    panel_1.set_session(session_1)
+    scroll_min_1 = panel_1.scroll.minimumHeight()
+    assert scroll_min_1 < 3 * ROW_HEIGHT, (
+        f"1轨轨道区最小高度 {scroll_min_1} 不应达到 {3 * ROW_HEIGHT}"
+    )

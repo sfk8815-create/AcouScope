@@ -23,7 +23,8 @@
 - 解码：log 域 max-product Viterbi（全序列，转移/观测矩阵均向量化构造）+
   回溯取段：稳定/起音连续运行构段，音间/静音收束；时长 < min_dur_s 丢弃；
   f0_hz = 段内原始 f0 中位数、conf = 段内原始 conf 中位数、midi 由中位数
-  f0 取整（仅参考）。
+  f0 取整（仅参考）；段型（attack/stable/inter）随 NoteSegment.state 输出
+  （取段内首帧的帧内状态，B1-01）。
 """
 
 from __future__ import annotations
@@ -56,19 +57,156 @@ NOTE_HMM_PARAMS: dict = {
 
 _N_SEMI_CAP = 64  # PLACEHOLDER：音高范围半音上限（§1.5 未定死，实测待标定）
 
+# P5-3a：段内相邻帧 f0 跳变上限（40 音分 = 1.2 bin）。按瞬时跳变切段，
+# 不按累计幅度：颤音/吟猱单帧变化小（不切），换音单帧跃迁大（切）。
+# 40 大于 bin 等分点抖动（33.3 音分）、小于内置最窄音级间隔（24-tone 50 音分）。
+_SEG_JUMP_RATIO = 2.0 ** (40.0 / 1200.0)
+
 # 帧内 3 状态观测偏好（0=attack, 1=stable, 2=inter，未归一）
 _STATE_PREF = np.array([0.6, 1.0, 0.4], dtype=np.float64)
+
+# 帧内 3 状态段型标签（与 _STATE_PREF 下标一致；B1-01 段型输出）
+_STATE_LABELS: dict[int, str] = {0: "attack", 1: "stable", 2: "inter"}
+
+#: 段内状态名（_STATE_LABELS 值域）；head/tail 偏离只看具名态的运行（B3-01 a 案）
+
+
+
+def _edge_deviation_cents(
+    f0, t, i: int, j: int, ref_hz: float, *, tail: bool
+) -> float | None:
+    """段首（tail=False）或段末（tail=True）窗口的 f0 中位相对段 f0 中位的音分差。
+
+    B3-01 设计披露 b 案（2026-10-24 修）：**时间窗口口径**，不是 run 口径。
+    窗口 = ``min(0.10s 对应帧数, 段长/3)``，至少 2 帧；取段首/段末窗口内
+    有效 f0 的中位数。run 口径在现 HMM 下首/末 stable run 常覆全段，偏离恒
+    0；窗口口径能捕获起音与收尾的音高偏移，贴合 p.37「头/尾的音高感相对体
+    的音位低/高」。
+
+    只在构造期由段内帧级 ``f0``（原始连续值，未过任何网格）算出，**不新增
+    逐 run f0 字段**；音分差取 ``1200 * log2(窗口中位 / 段中位)``。
+    窗口内无可正 f0 ⇒ ``None``（诚实缺值，禁回退 0.0）。
+    """
+    n = j - i + 1
+    if n <= 0:
+        return None
+    dt = float(t[1] - t[0]) if len(t) > 1 else 0.0
+    win = max(2, min(int(round(0.10 / dt)) if dt > 0 else 2, n // 3 or 1))
+    win = min(win, n)
+    lo, hi = (max(j - win + 1, i), j) if tail else (i, min(i + win - 1, j))
+    vals = f0[lo : hi + 1]
+    vals = vals[np.isfinite(vals) & (vals > 0)]
+    if vals.size == 0:
+        return None
+    return float(1200.0 * np.log2(float(np.median(vals)) / float(ref_hz)))
+
+
+# P5-B3-01b：吟猱段合并（段后处理）。峰峰上限 2 半音，首尾回归差上限 30 音分。
+_MERGE_SPAN_RATIO = 2.0 ** (200.0 / 1200.0)
+_MERGE_RETURN_CENTS = 30.0
+
+
+def _concat_runs(ra, rb):
+    """拼接两段 state_runs；边界同态且帧相接则并为一 run。"""
+    merged = list(ra)
+    for run in rb:
+        if merged and merged[-1][4] == run[4] and merged[-1][1] + 1 == run[0]:
+            prev = merged[-1]
+            merged[-1] = (prev[0], run[1], prev[2], run[3], prev[4])
+        else:
+            merged.append(run)
+    return tuple(merged)
+
+
+def _has_oscillation(vals, *, min_turns: int = 2) -> bool:
+    """段内音高是否往复（吟猱形态）：平滑后方向反转次数 >= min_turns。
+
+    单调跳进/琶音去平台后方向恒定，反转 0 次；吟猱一周期即 2 次。
+    """
+    if vals.size < 6:
+        return False
+    k = min(5, vals.size)
+    smooth = np.convolve(vals, np.ones(k) / k, mode="valid")
+    d = np.diff(smooth)
+    s = np.sign(d)
+    s = s[s != 0]
+    return s.size >= 2 and int(np.count_nonzero(np.diff(s))) >= min_turns
+
+
+def _try_merge_vibrato(a, b, f0, t, cv):
+    """两段可合为同一音内往复则返回合并段，否则 None（条件见调用方 docstring）。"""
+    if not a.state_runs or not b.state_runs:
+        return None
+    dt = float(t[1] - t[0]) if len(t) > 1 else 0.01
+    if b.start_s - a.end_s > 1.5 * dt:
+        return None
+    i = a.state_runs[0][0]
+    j = b.state_runs[-1][1]
+    vals = f0[i : j + 1]
+    vals = vals[np.isfinite(vals) & (vals > 0)]
+    if vals.size < 2 or vals.max() / vals.min() > _MERGE_SPAN_RATIO:
+        return None
+    if not _has_oscillation(vals):
+        return None
+    f0_med = float(np.median(vals))
+    head = _edge_deviation_cents(f0, t, i, j, f0_med, tail=False)
+    tail = _edge_deviation_cents(f0, t, i, j, f0_med, tail=True)
+    return NoteSegment(
+        start_s=a.start_s,
+        end_s=b.end_s,
+        f0_hz=f0_med,
+        midi=int(round(hz_to_midi(f0_med))),
+        conf=float(np.median(cv[i : j + 1])),
+        state=a.state,
+        state_runs=_concat_runs(a.state_runs, b.state_runs),
+        head_deviation_cents=head,
+        tail_deviation_cents=tail,
+    )
+
+
+def _merge_vibrato_segments(segs, f0, t, cv):
+    """把同一音内的往复碎片（吟猱）合并成一段。
+
+    三条件：① 相邻段无静音间隔（<= 1.5 帧）；② 合并段内 f0 峰峰 <= 2 半音；
+    ③ 合并后首尾窗口中位差 <= 30 音分（往复回归）。半音跳进首尾差 100 音分、
+    24-tone 邻级 50 音分，均不满足 ③，故不合并。段型取首段首帧，conf 取合并
+    区间中位。
+    """
+    if len(segs) < 2:
+        return segs
+    out = [segs[0]]
+    for nxt in segs[1:]:
+        merged = _try_merge_vibrato(out[-1], nxt, f0, t, cv)
+        if merged is None:
+            out.append(nxt)
+        else:
+            out[-1] = merged
+    return out
 
 
 @dataclass
 class NoteSegment:
-    """音符段：时间区间 + 段内原始 f0 中位数 + 参考 MIDI + 置信度。"""
+    """音符段：时间区间 + 段内原始 f0 中位数 + 参考 MIDI + 置信度 + 段型标签。
+
+    state_runs（B1-01a）：段内逐帧帧内状态按连续同态压茬后的运行清单，元素
+    =(start_frame, end_frame, start_s, end_s, state_name)；帧为全局帧索引
+    （0 起，相对本次 segment() 输入的 times/f0_hz），秒取 times 原值，态名经
+    _STATE_LABELS 映射（attack/stable/inter）。默认空 tuple = 向后兼容。
+    head_deviation_cents / tail_deviation_cents（B3-01 b 案）：段首/段末时间窗口
+    （min(0.10s, 段长/3)，至少 2 帧）的 f0 中位 − 段 f0 中位的音分差（正 = 高于
+    段中位，负 = 低于）；窗口内无可正 f0 ⇒ None。classification 层只消费本两
+    字段，不改 state_runs 结构。
+    """
 
     start_s: float
     end_s: float
     f0_hz: float
     midi: int
     conf: float
+    state: str = ""
+    state_runs: tuple[tuple[int, int, float, float, str], ...] = ()
+    head_deviation_cents: float | None = None
+    tail_deviation_cents: float | None = None
 
 
 class NoteHMM:
@@ -211,6 +349,10 @@ class NoteHMM:
 
         段 f0_hz = 段内原始 f0 中位数（反量化铁律）；midi 仅参考；
         时长 < min_dur_s 的段丢弃。conf=None 视为全 1。
+        段型 state 取段内首帧的帧内状态（attack/stable/inter）；
+        state_runs 为段内逐帧状态压茬运行清单（B1-01a，详见 NoteSegment）；
+        head_deviation_cents / tail_deviation_cents 取首/末 stable run 对段 f0
+        中位的音分差（B3-01 a 案，无 stable run ⇒ None）。
         """
         t, f0, cv, voiced, lo, hi, x = self._frame_inits(times, f0_hz, conf)
         n = f0.size
@@ -249,25 +391,70 @@ class NoteHMM:
                 cur = int(bp[tt, cur])
 
         # 取段：稳定/起音连续运行构段，音间/静音/音高 bin 变化收束（T-803b：
-        # 相邻异音高无缝切换时 bin 变化即切段，防止混合中位数并段）
+        # 相邻异音高无缝切换时 bin 变化即切段，防止混合中位数并段）。
+        # P5-3a（2026-10-24）：取段容差双条件——① 段内 bin 极差 <= 1；
+        # ② 相邻帧原始 f0 跳变 <= _SEG_JUMP_RATIO（40 音分）。旧条件（逐帧
+        # 同 bin）在频率恰落 bin 等分点时把段切碎致 0 段；只看累计幅度又会
+        # 把颤音/吟猱切碎，故改看**瞬时跳变**：同音内的往复（单帧变化小）
+        # 不切，换音（单帧跃迁大）切。
         i = 0
         while i < n:
             st = path[i]
             if st == self._n_state - 1 or st % bps == 2:
                 i += 1
                 continue
+            # 段型：取段内首帧的帧内状态（path[i] % bps；0=attack/1=stable/2=inter）
+            seg_state = _STATE_LABELS.get(int(st) % bps, "")
             j = i
-            while (
-                j + 1 < n
-                and path[j + 1] != self._n_state - 1
-                and path[j + 1] % bps != 2
-                and path[j + 1] // bps == path[j] // bps
-            ):
+            b_lo = b_hi = int(st) // bps
+            f_prev = float(f0[i]) if np.isfinite(f0[i]) and f0[i] > 0 else np.nan
+            while j + 1 < n:
+                nxt = int(path[j + 1])
+                if nxt == self._n_state - 1 or nxt % bps == 2:
+                    break
+                b = nxt // bps
+                if max(b_hi, b) - min(b_lo, b) > 1:
+                    break
+                fj = float(f0[j + 1])
+                if np.isfinite(fj) and fj > 0:
+                    if np.isfinite(f_prev):
+                        ratio = fj / f_prev
+                        if ratio > _SEG_JUMP_RATIO or ratio < 1.0 / _SEG_JUMP_RATIO:
+                            break
+                    f_prev = fj
+                b_lo, b_hi = min(b_lo, b), max(b_hi, b)
                 j += 1
             f0v = f0[i : j + 1]
             f0v = f0v[np.isfinite(f0v) & (f0v > 0)]
             if f0v.size and (float(t[j]) - float(t[i])) >= min_dur_s:
                 f0_med = float(np.median(f0v))
+                # B1-01a：段内逐帧帧内状态（path[tt] % bps 经 _STATE_LABELS 映射）
+                # 按连续同态压茬成一个 run：(起帧, 讫帧, 起秒, 讫秒, 态名)；帧为
+                # 全局帧索引（0 起，相对本次输入的 times/f0_hz），秒取 times 原值。
+                # 段内帧均非 inter/静音（收束条件）⇒ 态名 ∈ {attack, stable}；
+                # 首运行态名与段级 state（段内首帧口径）逐字相同。
+                runs: list[tuple[int, int, float, float, str]] = []
+                r0 = i
+                run_state = _STATE_LABELS.get(int(path[i]) % bps, "")
+                for tt in range(i + 1, j + 1):
+                    nxt_state = _STATE_LABELS.get(int(path[tt]) % bps, "")
+                    if nxt_state != run_state:
+                        runs.append(
+                            (
+                                r0,
+                                tt - 1,
+                                float(t[r0]),
+                                float(t[tt - 1]),
+                                run_state,
+                            )
+                        )
+                        r0 = tt
+                        run_state = nxt_state
+                runs.append((r0, j, float(t[r0]), float(t[j]), run_state))
+                # B3-01 b 案：段级 head/tail 偏离（段首/段末时间窗口对段 f0 中位
+                # 的音分差）；在取段循环内用已有帧级 f0 算，不新增逐 run f0 字段。
+                head_dev = _edge_deviation_cents(f0, t, i, j, f0_med, tail=False)
+                tail_dev = _edge_deviation_cents(f0, t, i, j, f0_med, tail=True)
                 segs.append(
                     NoteSegment(
                         start_s=float(t[i]),
@@ -275,7 +462,11 @@ class NoteHMM:
                         f0_hz=f0_med,
                         midi=int(round(hz_to_midi(f0_med))),
                         conf=float(np.median(cv[i : j + 1])),
+                        state=seg_state,
+                        state_runs=tuple(runs),
+                        head_deviation_cents=head_dev,
+                        tail_deviation_cents=tail_dev,
                     )
                 )
             i = j + 1
-        return segs
+        return _merge_vibrato_segments(segs, f0, t, cv)

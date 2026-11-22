@@ -37,6 +37,7 @@ from acouscope import (
     __version_suffix as _APP_VERSION_SUFFIX,
 )
 from acouscope.i18n import tr
+from acouscope.ui import theme
 from acouscope.ui.constants import SITE_MAIN_URL, open_site
 
 
@@ -168,7 +169,7 @@ class AboutDialog(QDialog):
         title = QLabel(
             f"<div style='text-align:center;'>"
             f"<span style='font-size:20px; font-weight:600;'>{_APP_NAME}</span>"
-            f"&nbsp;&nbsp;<span style='font-size:13px; color:#6b7280;'>{_APP_NAME_CN}</span>"
+            f"&nbsp;&nbsp;<span style='font-size:13px; color:{theme.colors()['text_sub']};'>{_APP_NAME_CN}</span>"
             f"</div>"
         )
         title.setTextFormat(Qt.TextFormat.RichText)
@@ -176,7 +177,7 @@ class AboutDialog(QDialog):
         layout.addWidget(title)
 
         ver = QLabel(
-            f"<span style='color:#6b7280; font-size:12px;'>"
+            f"<span style='color:{theme.colors()['text_sub']}; font-size:12px;'>"
             f"{tr('about.version')}: {_APP_VERSION} ({_APP_VERSION_SUFFIX})"
             f"</span>"
         )
@@ -215,10 +216,10 @@ class AboutDialog(QDialog):
         author_row = QLabel(
             f"<table width='100%' style='font-size:12px;' cellspacing='0' cellpadding='2'>"
             f"<tr>"
-            f"<td style='color:#6b7280; text-align:right; width:32%; padding-right:8px;'>{tr('about.author_label')}</td>"
+            f"<td style='color:{theme.colors()['text_sub']}; text-align:right; width:32%; padding-right:8px;'>{tr('about.author_label')}</td>"
             f"<td>{tr('about.author_name')}</td>"
             f"</tr><tr>"
-            f"<td style='color:#6b7280; text-align:right; padding-right:8px;'>Copyright</td>"
+            f"<td style='color:{theme.colors()['text_sub']}; text-align:right; padding-right:8px;'>Copyright</td>"
             f"<td>{tr('about.copyright')}</td>"
             f"</tr></table>"
         )
@@ -235,9 +236,9 @@ class AboutDialog(QDialog):
         # ---- 特别鸣谢并献予 ----
         ded = QLabel(
             f"<div style='text-align:center;'>"
-            f"<span style='font-size:12px; color:#6b7280;'>{tr('about.ded_title')}</span><br/>"
+            f"<span style='font-size:12px; color:{theme.colors()['text_sub']};'>{tr('about.ded_title')}</span><br/>"
             f"<span style='font-size:15px; font-weight:600;'>{tr('about.ded_name')}</span><br/>"
-            f"<span style='font-size:11px; color:#6b7280;'>{tr('about.ded_desc')}</span>"
+            f"<span style='font-size:11px; color:{theme.colors()['text_sub']};'>{tr('about.ded_desc')}</span>"
             f"</div>"
         )
         ded.setTextFormat(Qt.TextFormat.RichText)
@@ -259,7 +260,7 @@ class AboutDialog(QDialog):
         import platform as _plt
 
         sys_info = QLabel(
-            f"<table style='font-size:11px; color:#6b7280;' cellspacing='0' cellpadding='1'>"
+            f"<table style='font-size:11px; color:{theme.colors()['text_sub']};' cellspacing='0' cellpadding='1'>"
             f"<tr><td style='text-align:right; padding-right:8px;'>Python:</td><td>{_plt.python_version()}</td></tr>"
             f"<tr><td style='text-align:right; padding-right:8px;'>OS:</td><td>{_plt.system()} {_plt.machine()}</td></tr>"
             f"</table>"

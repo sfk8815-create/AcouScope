@@ -109,13 +109,50 @@ def test_tolerance_robustness_under_jitter():
         cents = np.mod(np.asarray(tuning.degrees, dtype=float) + jitter, 1200.0)
         freqs = np.asarray(cents_to_hz(cents, ref_freq=REF_HZ), dtype=float)
         pcp = build_pcp(freqs, np.ones(freqs.shape))
-        matches = infer_tuning(pcp, top_k=1)
+        # 候选集显式钉住：本保证是 T-921 订立的，彼时若隐式取全表，候选只有当时的四个；
+        # 2026-10-31 新增琴律后，与纯律高度重合的琴律会抢走 top1（见下一条测试实测：
+        # 第 8 轮琴律 0.8889 > 纯律 0.8469）。那是「复合律制与纯律大调机器不可分」的
+        # 实证，属新登记的音乐学事实，不属本保证所指的失稳，故此处显式传 FOUR_WAY。
+        matches = infer_tuning(pcp, top_k=1, template_keys=FOUR_WAY)
         scores.append(matches[0].score)
         if matches[0].template_key == "just_major" and matches[0].score > 0.8:
             stable += 1
     assert stable == rounds, f"±10c 抖动下 top1 稳定次数 {stable}/{rounds}"
     # ±10c 抖动可能把个别音级推到 ±15c 邻域边缘，得分下降但排序不变
     assert min(scores) > 0.8
+
+
+def test_composite_qin_lu_is_indistinguishable_from_just_major_under_jitter():
+    """琴律（复合律制）与纯律大调不可分——「不得据测音断言归属某律」的机器上证据。
+
+    构造：以纯律大调音级为本真、加 ±10 音分抖动（种子 7，20 轮），候选取全表。
+    实测第 8 轮（0 基下标 7）琴律得分 0.8889 反超纯律 0.8469。这正是严守「趋近」
+    口径、不许写「某录音归属某律」的机器侧证据：**不是缺陷，而是结论**。
+    """
+    tuning = get_template("just_major")
+    rng = np.random.default_rng(7)
+    flips: list[tuple[int, str, str, float, float]] = []
+    for index in range(20):
+        jitter = rng.uniform(-10.0, 10.0, size=len(tuning.degrees))
+        cents = np.mod(np.asarray(tuning.degrees, dtype=float) + jitter, 1200.0)
+        freqs = np.asarray(cents_to_hz(cents, ref_freq=REF_HZ), dtype=float)
+        pcp = build_pcp(freqs, np.ones(freqs.shape))
+        matches = infer_tuning(pcp, top_k=4)
+        top = {match.template_key: match.score for match in matches}
+        if matches[0].template_key != "just_major":
+            flips.append(
+                (index, matches[0].template_key, matches[1].template_key,
+                 matches[0].score, matches[1].score)
+            )
+        # 琴律恒列前四：其音级与纯律大调高度重合，本构造即复现身居其位的近邻性
+        assert "qin_lu" in top, top
+    # 至少一轮被琴律抢走 top1（回归守卫：若此断言消失，说明两者的判别性被偶然改变）
+    assert flips, "未复现琴律反超——抖动 seed 或模板集变化，须重核本登记的不可分结论"
+    index, winner, runner, win_score, runner_score = flips[0]
+    assert winner == "qin_lu" and runner == "just_major"
+    assert win_score > runner_score
+    # 两者 margin 很小：赢家与次优只差 0.1 以内 ⇒ 不可读作「判定了某律」
+    assert win_score - runner_score < 0.1, (winner, win_score, runner_score)
 
 
 def test_empty_and_zero_pcp_return_empty_list():

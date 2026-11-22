@@ -55,6 +55,11 @@ _SPONSOR_ALLOWED = {
     (SRC / "ui" / "widgets" / "sponsor_dialog.py").resolve(),
     (TESTS / "test_ui_smoke.py").resolve(),
     (TESTS / "test_sponsor_dialog.py").resolve(),
+    # 2026-11-06 GUI 修复批的两个测试档直接测赞助提醒生命周期（状态键名含
+    # sponsor_reminder_dismissed / sponsor_snooze_until_launch），属被测面本身，
+    # 非对外文案外溢 ⇒ 2026-11-10 补入白名单（清既有红）。
+    (TESTS / "test_gui_fix_a_20261106.py").resolve(),
+    (TESTS / "test_gui_fix_b_20261106.py").resolve(),
 }
 
 

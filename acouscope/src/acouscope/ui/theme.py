@@ -11,10 +11,14 @@
 
 from __future__ import annotations
 
+import atexit
+import shutil
+import tempfile
 import weakref
+from pathlib import Path
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QGuiApplication, QColor, QIcon, QPalette, QPixmap
+from PyQt6.QtGui import QGuiApplication, QColor, QFont, QFontDatabase, QIcon, QPalette, QPixmap
 
 # 主题定义：每套为完整配色角色集（V1 视觉语言 §2.2/§2.3 收敛）。
 # 骨架铁律：9 套共用同一中性阶，差异仅「明/暗 + 单一强调色相」。
@@ -170,6 +174,12 @@ TOKENS: dict = {
         "box_pad_x": 6,      # 读数内嵌框内边距
         "box_pad_y": 2,
     },
+    # 内嵌图元尺寸（复选框指示器 / 下拉与微调箭头）：QSS 中 `::indicator` /
+    # `::down-arrow` 的边长唯一源（禁在 _qss 写字面 px）。
+    "glyph": {
+        "indicator": 14,     # QCheckBox::indicator 边长
+        "arrow": 9,          # 下拉/微调箭头位图边长
+    },
 }
 
 # 设置对话框中的展示顺序（system 在首位）
@@ -253,6 +263,62 @@ def _palette(c: dict) -> QPalette:
     return pal
 
 
+# ----------------------------------------------------------------------
+# QSS 内嵌图元（G2）：QSS 的 `::down-arrow` / `::up-arrow` 只认位图路径，
+# 而仓库 SVG 统一用 `currentColor`（Qt 渲染结果是黑色 → 深色主题下不可见），
+# 故按当前主题的次级文字色预染色 + 落盘 PNG 后再喂给 QSS。
+# 缓存键 = (逻辑名, 色值, 旋转角)；无 QGuiApplication / QtSvg 缺失时返回空串，
+# 由调用方整段省略箭头规则（退化为无箭头，但绝不抛异常）。
+# ----------------------------------------------------------------------
+_glyph_dir: str = ""
+_glyph_cache: dict[tuple, str] = {}
+
+
+def _glyph_png(name: str, color: str, rotate: float = 0.0) -> str:
+    """把 SVG 逻辑图元按 color 染色（可选旋转）渲染成 PNG，返回绝对路径；失败返回 ""。"""
+    key = (name, str(color), float(rotate))
+    hit = _glyph_cache.get(key)
+    if hit is not None:
+        return hit
+    global _glyph_dir
+    path = ""
+    try:
+        src = icon_path(name)
+        if src is not None:
+            text = src.read_text(encoding="utf-8").replace("currentColor", str(color))
+            from PyQt6.QtCore import QByteArray, QRectF
+            from PyQt6.QtGui import QImage, QPainter
+            from PyQt6.QtSvg import QSvgRenderer
+
+            renderer = QSvgRenderer(QByteArray(text.encode("utf-8")))
+            if renderer.isValid():
+                side = 24  # 源 SVG 画布 24×24（QSS 侧再按 glyph 令牌缩放）
+                img = QImage(side, side, QImage.Format.Format_ARGB32)
+                img.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(img)
+                try:
+                    if rotate:
+                        painter.translate(side / 2, side / 2)
+                        painter.rotate(float(rotate))
+                        painter.translate(-side / 2, -side / 2)
+                    renderer.render(painter, QRectF(0, 0, float(side), float(side)))
+                finally:
+                    painter.end()
+                if not _glyph_dir:
+                    _glyph_dir = tempfile.mkdtemp(prefix="acouscope_qss_")
+                    # 每进程只建一个目录；退出时清理，避免 QSS 图元常驻 /tmp。
+                    atexit.register(shutil.rmtree, _glyph_dir, ignore_errors=True)
+                out = Path(_glyph_dir) / (
+                    f"{name}_{str(color).lstrip('#')}_{int(rotate)}.png")
+                if not out.exists():
+                    img.save(str(out), "PNG")
+                path = out.as_posix()
+    except Exception:
+        path = ""
+    _glyph_cache[key] = path
+    return path
+
+
 def _qss(c: dict) -> str:
     """全局 QSS：padding/margin/border-radius/width/height 一律取自 TOKENS，禁散落字面量。"""
     rad = TOKENS["radius"]
@@ -260,14 +326,53 @@ def _qss(c: dict) -> str:
     sp = TOKENS["spacing"]
     ctl = TOKENS["control"]
     el = TOKENS["elevation"]
+    gl = TOKENS["glyph"]
     bd = f"{el['border']}px"                     # 全局唯一描边宽度
     r_sm = f"{rad['sm']}px"
+    # 复选框指示器圆角：3 = spacing.xxs + 描边宽（令牌合成，禁字面量）
+    r_ind = f"{sp['xxs'] + el['border']}px"
     pad = f"{ctl['pad_y']}px {ctl['pad_x']}px"   # 交互控件内边距
     pad_num = f"{sp['xxs']}px {sp['xs']}px"      # 数字框内边距（右留箭头位，窄档）
+    # 下拉/微调箭头位图（SVG 源码用 currentColor，Qt 渲染成黑色 → 深色主题下隐形，
+    # 故按当前主题次级文字色预先染色落盘；不可用时整段箭头规则省略，不抛异常）。
+    arrow_down = _glyph_png("chevron_down", c["text_sub"])
+    arrow_up = _glyph_png("chevron_down", c["text_sub"], 180.0)
+    arrow_qss = ""
+    if arrow_down:
+        arrow_qss += (
+            "QComboBox::down-arrow {"
+            f" image: url({arrow_down});"
+            f" width: {gl['arrow']}px; height: {gl['arrow']}px; }}"
+            "QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {"
+            f" image: url({arrow_down});"
+            f" width: {gl['arrow']}px; height: {gl['arrow']}px; }}"
+        )
+    if arrow_up:
+        arrow_qss += (
+            "QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {"
+            f" image: url({arrow_up});"
+            f" width: {gl['arrow']}px; height: {gl['arrow']}px; }}"
+        )
     return f"""
 QWidget {{ background: {c["bg0"]}; color: {c["text"]}; }}
 QMainWindow, QDialog {{ background: {c["bg0"]}; }}
 QLabel, QCheckBox, QRadioButton {{ background: transparent; }}
+
+/* 复选框指示器（G1）：未勾选态必须有可见描边——原生指示器取调色板色，
+   深色骨架下与控件底同色系 → 完全看不见。此处显式给底/描边/悬停/勾选四态；
+   勾选态用实心 accent 块（仓库无对勾图元资产，QSS 实心块 + 明显色差可判读）。 */
+QCheckBox::indicator {{
+    width: {gl["indicator"]}px; height: {gl["indicator"]}px;
+    border: {bd} solid {c["border"]}; border-radius: {r_ind};
+    background: {c["bg2"]}; }}
+QCheckBox::indicator:hover {{ border-color: {c["text_sub"]}; background: {c["bg3"]}; }}
+QCheckBox::indicator:checked {{
+    background: {c["accent"]}; border-color: {c["accent"]}; }}
+QCheckBox::indicator:checked:hover {{ border-color: {c["accent_text"]}; }}
+QCheckBox::indicator:disabled {{
+    background: {c["bg1"]}; border-color: {c["border"]}; }}
+QCheckBox::indicator:checked:disabled {{
+    background: {c["border_strong"]}; border-color: {c["border_strong"]}; }}
 
 QToolBar {{ background: {c["bg1"]}; border: none;
            border-bottom: {bd} solid {c["border"]};
@@ -286,6 +391,12 @@ QPushButton {{ background: {c["bg2"]}; color: {c["text"]};
               padding: {pad}; }}
 QPushButton:hover {{ background: {c["bg3"]}; }}
 QPushButton:pressed {{ background: {c["accent"]}; color: {c["accent_text"]}; }}
+/* 开关型按钮的「已开启」态（G9）：accent 底 + accent_text 字 + accent 描边，
+   与常态（bg2 底 / border 描边）和悬停态（bg3 底）三态互异。 */
+QPushButton:checked {{
+    background: {c["accent"]}; color: {c["accent_text"]};
+    border: {bd} solid {c["accent"]}; }}
+QPushButton:checked:hover {{ background: {c["accent"]}; color: {c["accent_text"]}; }}
 QPushButton:disabled {{ color: {c["text_faint"]}; }}
 
 QLineEdit, QTextEdit, QPlainTextEdit {{
@@ -299,7 +410,15 @@ QComboBox {{ background: {c["bg2"]}; color: {c["text"]};
             border: {bd} solid {c["border"]}; border-radius: {r_sm};
             padding: {pad}; }}
 QComboBox:focus {{ border: {bd} solid {c["accent"]}; }}
-QComboBox::drop-down {{ border: none; width: {sp["md"]}px; }}
+/* 下拉区（G2）：加左边框 + 悬停底色，使箭头区与输入区可辨（原 border:none
+   只剩一块空白灰块）；箭头位图由 arrow_qss 按当前主题染色给入。 */
+QComboBox::drop-down {{
+    subcontrol-origin: padding; subcontrol-position: top right;
+    width: {sp["md"]}px;
+    border: none; border-left: {bd} solid {c["border"]};
+    border-top-right-radius: {r_sm}; border-bottom-right-radius: {r_sm};
+    background: {c["bg2"]}; }}
+QComboBox::drop-down:hover {{ background: {c["bg3"]}; }}
 QComboBox QAbstractItemView {{
     background: {c["bg1"]}; color: {c["text"]};
     border: {bd} solid {c["border"]};
@@ -311,16 +430,26 @@ QSpinBox, QDoubleSpinBox {{
     border: {bd} solid {c["border"]}; border-radius: {r_sm}; padding: {pad_num};
     selection-background-color: {c["sel_bg"]}; }}
 QSpinBox:focus, QDoubleSpinBox:focus {{ border: {bd} solid {c["accent"]}; }}
+/* 微调按钮（G2）：上/下按钮各自带可见底与描边，并给悬停反馈——原样式下两钮
+   在深色骨架里退化成一块无差别灰块。 */
 QSpinBox::up-button, QDoubleSpinBox::up-button {{
     subcontrol-origin: border; subcontrol-position: top right;
     width: {sp["md"]}px;
     background: {c["bg2"]}; border-left: {bd} solid {c["border"]};
     border-bottom: {bd} solid {c["border"]}; border-top-right-radius: {r_sm}; }}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover {{
+    background: {c["bg3"]}; }}
 QSpinBox::down-button, QDoubleSpinBox::down-button {{
     subcontrol-origin: border; subcontrol-position: bottom right;
     width: {sp["md"]}px;
     background: {c["bg2"]}; border-left: {bd} solid {c["border"]};
     border-bottom-right-radius: {r_sm}; }}
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {{
+    background: {c["bg3"]}; }}
+QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed,
+QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {{
+    background: {c["accent"]}; }}
+{arrow_qss}
 
 QTableWidget, QTableView, QTreeView, QTreeView.view, QListWidget {{
     background: {c["bg1"]}; color: {c["text"]};
@@ -489,14 +618,58 @@ def _parse_family_chain(raw: str) -> list[str]:
     return chain
 
 
+def _installed_family_names() -> tuple[str, ...] | None:
+    """已安装族名；无 QGuiApplication 时字体库不可查，返回 None 保留令牌链。"""
+    if QGuiApplication.instance() is None:
+        return None
+    return tuple(QFontDatabase.families())
+
+
+def _filter_installed(chain: list[str]) -> list[str]:
+    # L4：缺失族进 setFamilies 会触发 qt.qpa.fonts 别名告警且回落不受控
+    installed = _installed_family_names()
+    if installed is None:
+        return chain
+    known = {name.casefold() for name in installed}
+    return [name for name in chain if name.casefold() in known]
+
+
 def ui_font_families() -> list[str]:
-    """UI 正文字族回落链（跨平台具体族名；泛型兜底已剔除）。"""
-    return _parse_family_chain(TOKENS["typography"]["family"])
+    """UI 正文字族回落链（具体族名；泛型剔除 + 按已安装族过滤，保序）。"""
+    return _filter_installed(_parse_family_chain(TOKENS["typography"]["family"]))
 
 
 def ui_mono_families() -> list[str]:
-    """UI 等宽字族回落链（跨平台具体族名；泛型兜底已剔除）。"""
-    return _parse_family_chain(TOKENS["typography"]["mono"])
+    """UI 等宽字族回落链（具体族名；泛型剔除 + 按已安装族过滤，保序）。"""
+    return _filter_installed(_parse_family_chain(TOKENS["typography"]["mono"]))
+
+
+def ui_font() -> QFont:
+    """UI 正文字体（族 = ui_font_families()；字号由调用方按令牌补）。"""
+    font = QFont()
+    chain = ui_font_families()
+    if chain:
+        font.setFamilies(chain)
+    return font
+
+
+def ui_mono_font() -> QFont:
+    """UI 等宽字体（族 = ui_mono_families()；字号/样式由调用方补）。"""
+    font = QFont()
+    chain = ui_mono_families()
+    if chain:
+        font.setFamilies(chain)
+    return font
+
+
+def ui_mono_family_qss() -> str:
+    """QSS font-family 取值（已安装族过滤；无 app 时回落令牌原串）。
+
+    QSS 里写死未安装族同样触发 qt.qpa.fonts 别名告警（真机：SF Mono）。
+    """
+    chain = ui_mono_families()
+    return (", ".join(f"'{name}'" for name in chain)
+            if chain else TOKENS["typography"]["mono"])
 
 
 # ----------------------------------------------------------------------

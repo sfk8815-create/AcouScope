@@ -123,7 +123,9 @@ def test_placeholder_switches_disabled_with_pending_tooltip(window):
     # 启用面（批4a：扩至开关组全 4 钮）：启用 + tooltip 无待启用标记 + 图标非空
     for key, objname, icon_name, tip_key in (
         ("batch_workspace", "toggleBatchWorkspaceBtn", "layers", "action.batch"),
-        ("chart_designer", "toggleChartDesignerBtn", "chart_designer", "toolbar.chart_designer"),
+        # ★ L3 消歧后工作区开关 tooltip 走 overflow.* 键（与对话框入口「图表设计器…」区分）
+        ("chart_designer", "toggleChartDesignerBtn", "chart_designer",
+         "overflow.chart_designer_workspace"),
         ("room_modal", "toggleRoomModalBtn", "room_modal", "toolbar.room_modal"),
         ("room_acoustic", "toggleRoomAcousticBtn", "room_acoustic", "toolbar.room_acoustic"),
     ):

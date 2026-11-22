@@ -64,7 +64,7 @@ class TestCsvHeader:
         export.export_session_csv(p, _meta())
         rows = _read_rows(p)
         assert rows[0] == FIELD_KEYS
-        assert len(FIELD_KEYS) == 12  # FIELD_TERMS 标准键数（元数据标准锁定）
+        assert len(FIELD_KEYS) == 16  # FIELD_TERMS 标准键数（M-8a 起含 DA/T 四项自动/预设，12→16）
 
     def test_custom_keys_appended_after_standard_keys(self, tmp_path):
         """未入 FIELD_TERMS 的自定义键追加在标准键之后（插入序，稳定）。"""
@@ -96,15 +96,25 @@ class TestBareMetadata:
 
 
 class TestRoundTrip:
-    """④⑤ 回读口径与 to_dict() / to_imdi() 一致。"""
+    """④⑤ 回读口径与 to_dict() / to_imdi_session() 一致。"""
 
     @staticmethod
     def _flatten(obj: dict, prefix: str = "") -> dict:
-        """与既有 test_export_formats.TestXmlExport._flatten 同口径。"""
+        """与既有 test_export_formats.TestXmlExport._flatten 同口径（含 Keys/Key 列表）。"""
         out = {}
         for k, v in obj.items():
+            if k.startswith("@") or k == "#text":
+                continue
             p = f"{prefix}.{k}" if prefix else k
-            if isinstance(v, dict):
+            if isinstance(v, list):
+                for item in v:
+                    if isinstance(item, dict) and "@Name" in item:
+                        q = f"{p}.{item['@Name']}"
+                        if "#text" in item:
+                            out[q] = str(item["#text"])
+                    elif isinstance(item, dict):
+                        out.update(TestRoundTrip._flatten(item, p))
+            elif isinstance(v, dict):
                 out.update(TestRoundTrip._flatten(v, p))
             else:
                 out[p] = str(v)
@@ -122,14 +132,14 @@ class TestRoundTrip:
 
     def test_xml_readback_matches_to_imdi(self, tmp_path):
         meta = _meta()
-        meta.set("Note", "自定义字段应无损保留")  # → Session.Additional（保证非空）
+        meta.set("Note", "自定义字段应无损保留")  # → Session/MDGroup/Keys/Key（保证非空）
         p = tmp_path / "session.xml"
         export.export_session_xml(p, meta)
         leaves = export.load_session_xml(p)
-        assert leaves == self._flatten(meta.to_imdi()["IMDI"])
-        assert leaves["Session.ID"] == "/field/AC-2026-001.wav"
-        assert leaves["Session.Resources.SamplingRate"] == "44100"
-        assert leaves["Session.Additional.Note"] == "自定义字段应无损保留"
+        assert leaves == self._flatten(meta.to_imdi_session())
+        assert leaves["Session.Name"] == "/field/AC-2026-001.wav"  # Identifier〔XSD:771〕
+        assert leaves["Session.Resources.MediaFile.Keys.Key.SamplingRate"] == "44100"
+        assert leaves["Session.MDGroup.Keys.Key.Note"] == "自定义字段应无损保留"
 
 
 class TestMainWindowEndToEnd:

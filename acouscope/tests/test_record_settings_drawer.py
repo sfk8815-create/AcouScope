@@ -16,6 +16,7 @@ pytest.importorskip("PyQt6")
 
 from PyQt6.QtWidgets import QDialog, QWidget  # noqa: E402
 
+from acouscope.i18n import tr  # noqa: E402
 from acouscope.ui.widgets.record_settings_dialog import RecordSettingsDialog  # noqa: E402
 
 UI = pathlib.Path(__file__).resolve().parents[1] / "src" / "acouscope" / "ui"
@@ -132,7 +133,7 @@ def test_validation_failure_no_signal(qapp):
     assert acc == []
     assert canc == []
     assert not d.was_accepted()
-    assert "文件名" in d.lbl_note.text()
+    assert d.lbl_note.text() == tr("record_settings.err_need_name")  # G-2b：文案走 i18n
 
 
 def test_was_accepted_flag(qapp, tmp_path):

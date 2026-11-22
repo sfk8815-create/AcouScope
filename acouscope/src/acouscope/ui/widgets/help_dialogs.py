@@ -278,7 +278,7 @@ MANUAL: dict[str, str] = {
 <li><b>日期 / 地点</b>：Date、Location 采录时地。</li>
 <li><b>流派 / 情境</b>：Context-Genre 说明语境与体裁。</li>
 <li><b>技术信息</b>：采样率、位深、格式等随导出一并写入。</li>
-<li><b>字段参考</b>：参考 IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63，正在对照核对中。</li>
+<li><b>字段参考</b>：参考 IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63，字段级对照已完成，并有机器校验闸守护。</li>
 <li><b>自定义映射</b>：可自定义字段与导出目标字段的映射。</li>
 </ul>
 
@@ -362,9 +362,10 @@ MANUAL: dict[str, str] = {
 <li><b>入口</b>：工具 → 音律标尺叠加层（F9），或分析工具栏上的同名按钮；勾选即开、再点即关。</li>
 <li><b>它做什么</b>：把所选律制的音级参考线叠绘到语谱图与音高视图上，用来读微分音与律制偏差。</li>
 <li><b>音律模板</b>：工具 → 音律模板切换，也可选「不显示」；内置多种律制——十二平均律、纯律大调、五度相生七音、1/4 音差中庸全音、中国三分损益十二律、印度 22 shruti 采样、阿拉伯 24 音划分（等程与非等程皆有，不限于十二平均律）。</li>
+<li><b>自定义律制模板</b>：工具 → 管理自定义律制模板…，可新建、编辑、删除、导入与导出；模板保存在用户数据目录，重启后仍出现在「音律模板」子菜单与批量读数下拉；内置八项模板只读。</li>
 <li><b>与参考频率联动</b>：刻度线按 设置 → 偏好设置 → 通用 → A4 参考频率 换算，与音分 / 音名显示同一口径。</li>
 <li><b>与多轨</b>：开启时，多轨对比的差异量化按当前律制给出逐帧音级归属。</li>
-<li><b>限制</b>：只叠加参考线，不改动原始 f0 分析结果；开关与模板选择仅在当前会话内保留，不写入工作区。</li>
+<li><b>限制</b>：只叠加参考线，不改动原始 f0 分析结果；开关与当前模板选择仅在当前会话内保留，不写入工作区；自定义模板本身持久化于用户数据目录。</li>
 <li><b>适用场景</b>：律制研究、微分音与民族音乐的音高分析；与 FFT 频谱一节的「律制与微分音分析」互补——看单帧谱峰用那边，看音高随时间的走向用这里。</li>
 </ul>
 """,
@@ -555,7 +556,7 @@ MANUAL: dict[str, str] = {
 <li><b>日期 / 地點</b>：Date、Location 採錄時地。</li>
 <li><b>流派 / 情境</b>：Context-Genre 說明語境與體裁。</li>
 <li><b>技術資訊</b>：取樣率、位元深度、格式等隨匯出一併寫入。</li>
-<li><b>欄位參考</b>：參考 IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63，正在對照核對中。</li>
+<li><b>欄位參考</b>：參考 IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63，欄位級對照已完成，並有機器校驗閘守護。</li>
 <li><b>自訂對應</b>：可自訂欄位與匯出目標欄位的對應。</li>
 </ul>
 
@@ -639,9 +640,10 @@ MANUAL: dict[str, str] = {
 <li><b>入口</b>：工具 → 音律標尺疊加層（F9），或分析工具列上的同名按鈕；勾選即開、再點即關。</li>
 <li><b>它做什麼</b>：把所選律制的音級參考線疊繪到語譜圖與音高視圖上，用來讀微分音與律制偏差。</li>
 <li><b>音律模板</b>：工具 → 音律模板切換，也可選「不顯示」；內建多種律制——十二平均律、純律大調、五度相生七音、1/4 音差中庸全音、中國三分損益十二律、印度 22 shruti 採樣、阿拉伯 24 音劃分（等程與非等程皆有，不限於十二平均律）。</li>
+<li><b>自訂律制範本</b>：工具 → 管理自訂律制範本…，可新增、編輯、刪除、匯入與匯出；範本保存在使用者資料目錄，重啟後仍出現在「音律範本」子選單與批量讀數下拉；內建八項範本唯讀。</li>
 <li><b>與參考頻率聯動</b>：刻度線按 設定 → 偏好設定 → 一般 → A4 參考頻率 換算，與音分 / 音名顯示同一口徑。</li>
 <li><b>與多軌</b>：開啟時，多軌對比的差異量化按當前律制給出逐幀音級歸屬。</li>
-<li><b>限制</b>：只疊加參考線，不改動原始 f0 分析結果；開關與模板選擇僅在當前會話內保留，不寫入工作區。</li>
+<li><b>限制</b>：只疊加參考線，不改動原始 f0 分析結果；開關與目前範本選擇僅在目前工作階段內保留，不寫入工作區；自訂範本本身持久化於使用者資料目錄。</li>
 <li><b>適用場景</b>：律制研究、微分音與民族音樂的音高分析；與 FFT 頻譜一節的「律制與微分音分析」互補——看單幀譜峰用那邊，看音高隨時間的走向用這裡。</li>
 </ul>
 """,
@@ -832,7 +834,7 @@ MANUAL: dict[str, str] = {
 <li><b>Date / Location</b>: where and when the recording was made.</li>
 <li><b>Context / Genre</b>: Context-Genre describes the context and genre.</li>
 <li><b>Technical info</b>: sample rate, bit depth and format are written alongside on export.</li>
-<li><b>Field references</b>: fields are cross-checked against IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63; the alignment is in progress.</li>
+<li><b>Field references</b>: fields are mapped item by item to IASA-TC 04 / IMDI / GB/T 31219.4 / DA/T 63, with machine-verified gates guarding the mapping.</li>
 <li><b>Custom mapping</b>: you can map your fields to the export target fields.</li>
 </ul>
 
@@ -916,9 +918,10 @@ MANUAL: dict[str, str] = {
 <li><b>Entry</b>: Tools → Tuning Ruler Overlay (F9), or the button of the same name on the Analysis toolbar; check it to switch the overlay on, click again to switch it off.</li>
 <li><b>What it does</b>: overlays the scale-degree reference lines of the chosen tuning on the spectrogram and pitch views, so you can read microtones and tuning deviations.</li>
 <li><b>Tuning templates</b>: Tools → Tuning Template offers 12-tone equal temperament, 5-limit just major, the 3/2 fifth-chain diatonic, 1/4-comma meantone, the Chinese twelve-lü (sanfen sunyi) set, 22-shruti and 24-tone equal divisions, plus "Do not show" — equal and unequal divisions alike, not just 12-TET.</li>
+<li><b>Custom tuning templates</b>: Tools → Manage Custom Tuning Templates… to add, edit, delete, import and export; templates are stored in the user data directory and reappear in the Tuning Template submenu and the batch-readout dropdown after restart; the eight built-in templates remain read-only.</li>
 <li><b>Follows the reference pitch</b>: the lines are computed from Settings → Preferences → General → A4 reference (Hz), the same basis used for cents and note-name readouts.</li>
 <li><b>With multitrack</b>: while the overlay is on, multitrack difference statistics attribute each frame to a degree of the current tuning.</li>
-<li><b>Limits</b>: the overlay only draws reference lines and never changes the raw f0 results; the switch and template choice live in the current session only and are not written to the workspace.</li>
+<li><b>Limits</b>: the overlay only draws reference lines and never changes the raw f0 results; the switch and the current template choice live in the current session only and are not written to the workspace; custom templates themselves persist in the user data directory.</li>
 <li><b>Use cases</b>: tuning research and pitch analysis of microtonal or traditional musics; complements the "tuning and microtonal analysis" note in the FFT Spectrum section — use that one for the peaks of a single frame, this one for how pitch moves over time.</li>
 </ul>
 """,
@@ -926,19 +929,26 @@ MANUAL: dict[str, str] = {
 
 
 def _format_shortcuts(text: str) -> str:
-    """将手册中的 {sc_*} 占位符替换为平台快捷键（macOS 显示 Cmd）。"""
-    from acouscope.ui.shortcuts import sc, is_macos
+    """将手册中的 {sc_*} 占位符替换为平台快捷键。
+
+    G12：macOS 用户面一律用符号（Ctrl→⌘ / Meta→⌃ / Alt→⌥ / Shift→⇧，Qt 的
+    macOS 语义），其它平台保持原样；正文里的字面键位串同样在渲染期过一遍
+    `display_key`（源文案不动，故既有内容守卫按源码钉的行一律不变）。
+    """
+    from acouscope.ui.shortcuts import display_key, is_macos
 
     def d(key: str) -> str:
-        s = sc(key)
-        return s.replace("Meta+", "Cmd+") if is_macos() else s
+        # 与设置页快捷键表同口径：entry.current_key 是绑定口径原串（Ctrl+O），
+        # display_key 直接把 Ctrl→⌘。若先过 sc()，macOS 会把 Ctrl 翻成 Meta，
+        # 再显示成 ⌃O（手册 ⌃O / 设置表 ⌘O 的口径分裂）。
+        return display_key(key)
 
     # {sc_redo}：action_redo 使用 QKeySequence.StandardKey.Redo，macOS 实际为 Cmd+Shift+Z，
     # 而 Windows/Linux 为 Ctrl+Y。此前固定映射 Ctrl+Y（macOS 显示 Cmd+Y）与真实值不一致，
     # 此处按平台真实值输出（T-1057 授权修补）。
-    redo = "Cmd+Shift+Z" if is_macos() else "Ctrl+Y"
+    redo = "⌘⇧Z" if is_macos() else "Ctrl+Y"
 
-    return text.format(
+    out = text.format(
         sc_open=d("Ctrl+O"),
         sc_undo=d("Ctrl+Z"),
         sc_redo=redo,
@@ -951,6 +961,13 @@ def _format_shortcuts(text: str) -> str:
         sc_export=d("Ctrl+E"),
         sc_settings=d("Ctrl+,"),
     )
+    # 正文里的字面键位（"Ctrl+M" / "Shift+Space" / "Cmd+Q" …）同样转成平台
+    # 显示符号：display_key 覆盖绑定口径修饰词，Cmd+ 是手册里的口语写法，
+    # 单独归一到 ⌘，避免同一篇手册 ⌃/⌘/Cmd+ 三种写法混排。
+    out = display_key(out)
+    if is_macos():
+        out = out.replace("Cmd+", "⌘")
+    return out
 
 
 class _HelpDialog(QWidget):

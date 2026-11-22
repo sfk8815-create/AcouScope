@@ -23,7 +23,9 @@ from PyQt6.QtWidgets import (
     QFileDialog,
 )
 
+from acouscope.i18n import tr
 from acouscope.ui import theme
+from acouscope.ui.widgets.spectrogram import NarrowColorBar
 from acouscope.ui.widgets.time_axis import apply_time_axis
 from acouscope.ui.widgets.toast import show_toast
 
@@ -64,6 +66,62 @@ GLOBAL_FEATURE_LABELS = {
 }
 
 FEATURE_COUNT = 5
+
+# H5①：MFCC 热图色图优先序——cividis（低亮度/感知均匀/顶端不刺眼）→ 回退 viridis。
+# 逐名先取 pyqtgraph 内置色图，缺则取 matplotlib 同名色图，全程不抛。
+_MFCC_CMAP_PREFERENCE = ("cividis", "viridis")
+_CMAP_LUT_LEVELS = 256
+
+
+def _colormap_lut(names) -> "np.ndarray | None":
+    """按优先序取色图 LUT；全部不可用时返回 None（调用方保持既有色图）。
+
+    不抛异常：pyqtgraph / matplotlib 色图缺失、版本差异均静默跳过下一候选。
+    """
+    for name in names:
+        for loader in (
+            lambda n=name: pg.colormap.get(n),
+            lambda n=name: pg.colormap.getFromMatplotlib(n),
+        ):
+            try:
+                cmap = loader()
+                if cmap is None:
+                    continue
+                return cmap.getLookupTable(0.0, 1.0, _CMAP_LUT_LEVELS)
+            except Exception:  # noqa: BLE001 — 缺色图/后端差异一律跳过
+                continue
+    return None
+
+
+def _mfcc_display_levels(data) -> tuple[float, float]:
+    """MFCC 热图稳健显示范围（单一数据源：mfcc_img / bar_img / colorbar 共用）。
+
+    旧态 ``np.percentile(data, [2, 98])``：数据含 NaN 时返回 nan；或被常量/
+    静音帧主导时 2/98 分位塌成同值 → 退化兜底把 hi 抬成 lo+1 → 绝大多数
+    像素 > hi 被钳到 LUT 顶端，热图整块纯亮黄（饱和），分布完全读不出。
+
+    新态：① 剔除 NaN/Inf 后 ``np.nanpercentile`` 抗非有限值；② 以中位数
+    ±(p98-p2, IQR) 展开，满足 ``lo <= median <= hi`` 且 ``hi > lo``、覆盖
+    IQR（全零/常值/单元素矩阵下 lo 可与 median 相等，故非严格不等式）；
+    ③ IQR 退化（常量/大量重复）或非有限时回退 min-max 拉伸；④ 强制 ``hi > lo``。
+    返回 (lo, hi)，调用方只算一次供三处共用，热图至少呈现多个色阶。
+    """
+    arr = np.asarray(data, dtype=float)
+    finite = arr[np.isfinite(arr)]
+    if finite.size == 0:
+        return 0.0, 1.0
+    p2, p25, p50, p75, p98 = np.nanpercentile(finite, [2, 25, 50, 75, 98])
+    iqr = float(p75 - p25)
+    dmin, dmax = float(finite.min()), float(finite.max())
+    span = max(float(p98 - p2), iqr, 1e-6)
+    lo = min(float(p2), float(p50) - 0.5 * span)
+    hi = max(float(p98), float(p50) + 0.5 * span)
+    if iqr <= 1e-9 or not (np.isfinite(lo) and np.isfinite(hi)) or hi <= lo:
+        # 退化：常量/重复值主导 → min-max 拉伸，覆盖全部有限数据
+        lo, hi = dmin, dmax
+    if hi <= lo:
+        hi = lo + 1.0
+    return float(lo), float(hi)
 
 
 def feature_colors() -> dict[str, str]:
@@ -118,7 +176,7 @@ class TimbreWidget(QWidget):
         # 信息栏
         info_bar = QHBoxLayout()
         info_bar.setContentsMargins(6, 4, 6, 4)
-        self.lbl_title = QLabel("音色特征分析")
+        self.lbl_title = QLabel(tr("timbre.title"))
         self.lbl_title.setStyleSheet(
             f"font-weight: bold; font-size: {theme.TOKENS['typography']['body']}px;")
         info_bar.addWidget(self.lbl_title)
@@ -313,12 +371,15 @@ class TimbreWidget(QWidget):
         _apply_canvas_theme(self.mfcc_plot)
         layout.addWidget(self.mfcc_plot, stretch=1)
 
-        # 色条
-        self.mfcc_colorbar = pg.PlotWidget()
-        self.mfcc_colorbar.setMaximumWidth(30)
+        # 色条（M2：总宽 = 左轴 30 + 渐变 14，渐变不再被轴压没、刻度不叠字）
+        self.mfcc_colorbar = NarrowColorBar(44)
+        self.mfcc_colorbar.setMaximumWidth(44)
         self.mfcc_colorbar.hideAxis("bottom")
         self.mfcc_colorbar.getAxis("left").setWidth(30)
         self.mfcc_colorbar.getAxis("left").setStyle(tickTextOffset=5)
+        # H5b：MFCC 系数不是分贝——色标轴标签直接用「系数值」（i18n 三语），
+        # 不再借用左轴 units 位显示成「dB (系数值)」（dB 是错标）。
+        self.mfcc_colorbar.setLabel("left", tr("timbre.colorbar.unit"))
         _apply_canvas_theme(self.mfcc_colorbar, "bg2")
         layout.addWidget(self.mfcc_colorbar, stretch=0)
 
@@ -445,8 +506,11 @@ class TimbreWidget(QWidget):
         self._update_global_table(global_features)
 
         self.lbl_info.setText(
-            f"{mfcc.shape[1]} 阶 MFCC · {len(times)} 帧 · "
-            f"HNR 均值 {np.mean(hnr) if len(hnr) else 0:.1f} dB"
+            tr("timbre.status.mfcc_summary").format(
+                order=mfcc.shape[1],
+                frames=len(times),
+                hnr=f"{np.mean(hnr) if len(hnr) else 0:.1f}",
+            )
         )
 
     def _update_mfcc(self):
@@ -464,10 +528,8 @@ class TimbreWidget(QWidget):
         self.mfcc_img.setRect(t_lo, 0, max(t_hi - t_lo, 1e-6), n_coef)
         self.mfcc_plot.setYRange(0, n_coef, padding=0.02)
 
-        # 色阶：按 2%~98% 分位避免离群值压缩对比度
-        lo, hi = np.percentile(data, [2, 98])
-        if hi <= lo:
-            hi = lo + 1.0
+        # 色阶：稳健动态范围（单一数据源；lo,hi 只算一次，供 img/bar/colorbar 共用）
+        lo, hi = _mfcc_display_levels(data)
         self.mfcc_img.setLevels((float(lo), float(hi)))
 
         # 色条（垂直渐变）
@@ -477,13 +539,14 @@ class TimbreWidget(QWidget):
         self.mfcc_bar_img.setRect(0, lo, 1, hi - lo)
         self.mfcc_colorbar.setYRange(lo, hi, padding=0)
 
-        try:
-            cmap = pg.colormap.get("viridis")
-        except Exception:
-            cmap = pg.colormap.getFromMatplotlib("viridis")
-        lut = cmap.getLookupTable(0.0, 1.0, 256)
-        self.mfcc_img.setLookupTable(lut)
-        self.mfcc_bar_img.setLookupTable(lut)
+        # H5①：色图换低亮度、感知均匀、顶端不刺眼的 cividis（深色主题下 viridis
+        # 顶端亮黄在旧 2–98 分位 levels 饱和时几乎整片铺满，刺眼）。取值链：
+        # pg 内置 cividis → matplotlib cividis → 回退 viridis（全程不抛）。
+        # 色图优先序与 LUT 生成逻辑一字未动；levels 改走 _mfcc_display_levels。
+        lut = _colormap_lut(_MFCC_CMAP_PREFERENCE)
+        if lut is not None:
+            self.mfcc_img.setLookupTable(lut)
+            self.mfcc_bar_img.setLookupTable(lut)
 
     def _update_hnr(self):
         """更新 HNR 曲线。"""

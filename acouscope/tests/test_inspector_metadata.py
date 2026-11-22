@@ -57,14 +57,15 @@ def zh():
 class TestMetadataEditorUi:
     """UI 结构/文案：标准下拉、说明区、标注、i18n、六组标题护栏。"""
 
-    def test_standard_combo_three_items_and_desc_switch(self, qapp, zh):
+    def test_standard_combo_four_items_and_desc_switch(self, qapp, zh):
         panel = InspectorPanel()
         combo = panel.meta_standard_combo
-        assert combo.count() == 3
+        assert combo.count() == 4
         texts = [combo.itemText(i) for i in range(combo.count())]
         assert texts[0] == tr("inspector.meta.std_dat")
         assert texts[1] == tr("inspector.meta.std_gbt")
         assert texts[2] == tr("inspector.meta.std_custom")
+        assert texts[3] == tr("inspector.meta.std_imdi")
         assert "不指定" in texts[2]
 
         # 切换 → 说明区随动（断言含关键要点）
@@ -77,6 +78,9 @@ class TestMetadataEditorUi:
         combo.setCurrentIndex(2)
         assert "自定义" in panel.lbl_meta_desc.text()
         assert "田野研究" in panel.lbl_meta_desc.text()
+        # 第四项 IMDI（M-4）：说明区
+        combo.setCurrentIndex(3)
+        assert panel.lbl_meta_desc.text() == tr("inspector.meta.desc_imdi")
 
     def test_custom_note_label_present(self, qapp, zh):
         from PyQt6.QtWidgets import QLabel
@@ -88,7 +92,7 @@ class TestMetadataEditorUi:
         assert notes[0].text() == "自定义扩展（非标准元素）"
 
     def test_meta_field_labels_cover_field_keys(self, qapp):
-        # 每个字段键都有编辑框（12 键全覆盖）
+        # 手填 12 键集有编辑框（M-8a 的自动四项不入手填表，见 M-8a 设计约定）
         panel = InspectorPanel()
         for key in (
             "SamplingRate", "BitDepth", "Format", "Channels", "Duration",
@@ -117,9 +121,11 @@ class TestMetadataEditorUi:
             "inspector.meta.std_dat",
             "inspector.meta.std_gbt",
             "inspector.meta.std_custom",
+            "inspector.meta.std_imdi",
             "inspector.meta.desc_dat",
             "inspector.meta.desc_gbt",
             "inspector.meta.desc_custom",
+            "inspector.meta.desc_imdi",
             "inspector.meta.sampling_rate",
             "inspector.meta.bit_depth",
             "inspector.meta.format",
@@ -203,6 +209,7 @@ class TestMetadataLoadSave:
         # A：填题名 + DA/T
         panel.show_file_metadata(str(a))
         panel.meta_edits["Title"].setText("甲档案")
+        panel.meta_edits["Creator"].setText("张三")
         panel.meta_standard_combo.setCurrentIndex(0)
         panel.btn_meta_save.click()
 
@@ -279,3 +286,161 @@ class TestMetadataEdgeCases:
         assert panel.meta_active is True
         assert panel.meta_edits["SamplingRate"].text() == "8000"
         assert panel.btn_meta_save.isEnabled() is False
+
+
+class TestMetadataRequiredByStandard:
+    """M-4b-2：检查器保存接必填集（缺必填拦盘 / 空集标准照旧 / Date 两形格式）。"""
+
+    def test_empty_required_standards_save_as_before(self, qapp, two_wavs, zh):
+        """三家空集标准（custom/GBT/IMDI）：空表保存照旧成功（空集=现行为零变化）。
+
+        注：Date 自动预填为文件 mtime（%Y-%m-%d %H:%M），属 M-4b 补令两形之一
+        （M14「件级应含日期与时间」）→ 不触格式警告，状态行照旧 saved。
+        """
+        a, _b = two_wavs
+        mgr = ProjectManager()
+        panel = InspectorPanel()
+        panel.set_manager(mgr)
+        panel.show_file_metadata(str(a))
+        for code, idx in (("custom", 2), ("GBT31219.4", 1), ("IMDI", 3)):
+            panel.meta_standard_combo.setCurrentIndex(idx)
+            panel.btn_meta_save.click()
+            pf = mgr.get_file(str(a))
+            assert pf.metadata["_standard"] == code  # 空集不拦、照旧写盘
+            assert pf.metadata["SamplingRate"] == "8000"
+            assert panel.lbl_meta_status.text() == tr("inspector.meta.saved")
+
+    def test_dat63_missing_format_blocked(self, qapp, two_wavs, zh):
+        """DAT63 缺 Format → 不写盘且状态行含缺项中文名（焦点回缺项）。"""
+        a, _b = two_wavs
+        mgr = ProjectManager()
+        panel = InspectorPanel()
+        panel.set_manager(mgr)
+        panel.show_file_metadata(str(a))
+        panel.meta_edits["Format"].setText("")  # 抹掉自动预填
+        panel.meta_edits["Title"].setText("甲档案")
+        panel.meta_standard_combo.setCurrentIndex(0)  # DAT63
+        panel.btn_meta_save.click()
+
+        pf = mgr.get_file(str(a))
+        assert "_standard" not in pf.metadata  # 未写盘
+        assert "Title" not in pf.metadata
+        status = panel.lbl_meta_status.text()
+        assert "格式" in status  # 缺项中文名（FIELD_TERMS.label_zh）
+        assert status != tr("inspector.meta.saved")
+
+    def test_dat63_complete_saves(self, qapp, two_wavs, zh):
+        """DAT63 填齐 6 必填 → 写盘成功（预填 Date 属两形之一 → saved）。"""
+        a, _b = two_wavs
+        mgr = ProjectManager()
+        panel = InspectorPanel()
+        panel.set_manager(mgr)
+        panel.show_file_metadata(str(a))
+        panel.meta_edits["Title"].setText("甲档案")
+        panel.meta_edits["Creator"].setText("张三")
+        panel.meta_standard_combo.setCurrentIndex(0)  # DAT63
+        panel.btn_meta_save.click()
+
+        pf = mgr.get_file(str(a))
+        assert pf.metadata["_standard"] == "DAT63"
+        assert pf.metadata["Title"] == "甲档案"
+        assert pf.metadata["Creator"] == "张三"
+        assert pf.metadata["Format"] == "WAV"  # 自动预填随保存落盘
+        assert panel.lbl_meta_status.text() == tr("inspector.meta.saved")
+
+    def test_date_format_two_forms(self, qapp, two_wavs, zh):
+        """Date 两形：自家预填形（2026-10-13 22:04）→ saved；两形皆不合（2026-13-45）→ 仍存且格式提示。"""
+        a, _b = two_wavs
+        mgr = ProjectManager()
+        panel = InspectorPanel()
+        panel.set_manager(mgr)
+        panel.show_file_metadata(str(a))
+        # 反向保护（护住 M-4b 补令 〇-6-3 放宽）：日期+时间形合法 → saved 而非 format_warn
+        panel.meta_edits["Date"].setText("2026-10-13 22:04")
+        panel.btn_meta_save.click()  # 默认 custom（空集）
+        pf = mgr.get_file(str(a))
+        assert pf.metadata["Date"] == "2026-10-13 22:04"
+        assert panel.lbl_meta_status.text() == tr("inspector.meta.saved")
+        # 两形皆不合 → 仍保存（不阻断真实数据）且状态行为格式提示
+        panel.meta_edits["Date"].setText("2026-13-45")
+        panel.btn_meta_save.click()
+        pf = mgr.get_file(str(a))
+        assert pf.metadata["Date"] == "2026-13-45"
+        status = panel.lbl_meta_status.text()
+        assert status != tr("inspector.meta.saved")
+        assert "YYYY-MM-DD" in status
+
+
+class TestMetaStatusLabelLocalized:
+    """M-4b-3：检查器状态行字段名改用本地化标签（zh_TW 不嵌简体、en 不嵌中文）。
+
+    守卫 missing_required / format_warn 两处 fields 拼装改走 tr(_META_LABEL_KEY…)，
+    并结构守卫 inspector_panel 源码不再出现 _META_LABEL_ZH / label_zh（简体源）。
+    """
+
+    def test_missing_required_label_localized(self, qapp, two_wavs):
+        """DAT63 只填 Title → 拦盘；状态行字段名随 locale 本地化。
+
+        zh_TW：含繁体「責任者/傳承人」且不含简体「创作者/传承人」；
+        en_US：含「Creator / Inheritor」且整行零汉字（CJK 统一表意文字区间）。
+        """
+        import re
+
+        a, _b = two_wavs
+
+        def _status_only_title(lang):
+            prev = get_language()
+            set_language(lang)
+            try:
+                mgr = ProjectManager()
+                panel = InspectorPanel()
+                panel.set_manager(mgr)
+                panel.show_file_metadata(str(a))
+                panel.meta_edits["Title"].setText("甲档案")
+                panel.meta_standard_combo.setCurrentIndex(0)  # DAT63
+                panel.btn_meta_save.click()
+                return panel.lbl_meta_status.text()
+            finally:
+                set_language(prev)
+
+        status_tw = _status_only_title("zh_TW")
+        assert "責任者/傳承人" in status_tw
+        assert "创作者" not in status_tw
+        assert "传承人" not in status_tw
+
+        status_en = _status_only_title("en_US")
+        assert "Creator / Inheritor" in status_en
+        assert re.search(r"[\u4e00-\u9fff]", status_en) is None
+
+    def test_format_warn_label_localized(self, qapp, two_wavs):
+        """护 format_warn——zh_TW 下 Date 非法值 → 状态行字段名本地化。
+
+        含繁体「攝錄時間」、不含简体「摄录时间」。
+        """
+        a, _b = two_wavs
+        prev = get_language()
+        set_language("zh_TW")
+        try:
+            mgr = ProjectManager()
+            panel = InspectorPanel()
+            panel.set_manager(mgr)
+            panel.show_file_metadata(str(a))
+            panel.meta_standard_combo.setCurrentIndex(2)  # custom（空必填集 → 直达格式检查）
+            panel.meta_edits["Date"].setText("2026-13-45")  # 两形皆不合
+            panel.btn_meta_save.click()
+            status = panel.lbl_meta_status.text()
+        finally:
+            set_language(prev)
+        assert "攝錄時間" in status
+        assert "摄录时间" not in status
+
+    def test_no_hardcoded_simplified_labels(self):
+        """结构守卫：inspector_panel 源码不得再现 _META_LABEL_ZH 与 label_zh（防退回旧形）。"""
+        import inspect
+
+        from acouscope.ui.widgets.panels import inspector_panel
+
+        src = inspect.getsource(inspector_panel)
+        assert "_META_LABEL_ZH" not in src
+        assert "label_zh" not in src
+

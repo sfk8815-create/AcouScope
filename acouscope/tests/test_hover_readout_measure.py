@@ -25,6 +25,7 @@ pytest.importorskip("PyQt6")
 
 from PyQt6.QtWidgets import QWidget  # noqa: E402
 
+from acouscope.i18n import tr  # noqa: E402
 from acouscope.ui.widgets.statusbar_segments import StatusBarSegments  # noqa: E402
 
 
@@ -119,7 +120,7 @@ def test_pitch_cursor_and_hover_cents_follow_current_a4(qapp, monkeypatch):
     f0[6] = 442.0  # t=0.12 唯一 voiced
     w.set_data(times, f0)
     w._on_cursor_moved()  # 游标默认在 t=0.2 → 最近 voiced f=442
-    assert w.lbl_cents.text() == "音分: +0 cents", w.lbl_cents.text()  # ★ 反对照
+    assert w.lbl_cents.text() == tr("pitch.cents").format(value="+0"), w.lbl_cents.text()  # ★ 反对照
     text = w.hover_readout_at(0.123, 442.0)
     assert f"{float(units.hz_to_cents(442.0)):+.1f} cents" in text, text
     assert "+0.0 cents" in text, text  # ★ 仍按 440 算（+7.8）则必红
@@ -141,7 +142,7 @@ def test_pitch_default_a4_unchanged(qapp, monkeypatch):
     assert w.ref_line.value() == pytest.approx(freq_to_display(440.0, "hz"))
     assert w.ref_label.toPlainText() == "A4 (440 Hz)", w.ref_label.toPlainText()  # 逐字不变
     w._on_cursor_moved()  # 最近 voiced f=442 → +7.85 → "+8"
-    assert w.lbl_cents.text() == "音分: +8 cents", w.lbl_cents.text()
+    assert w.lbl_cents.text() == tr("pitch.cents").format(value="+8"), w.lbl_cents.text()
     text = w.hover_readout_at(0.123, 550.0)
     cents = 1200.0 * math.log2(550.0 / 440.0)
     assert f"{cents:+.1f} cents" in text, text  # ≈ +386.3，与既有用例同口径
@@ -234,8 +235,9 @@ def test_spec_hover_readout_contains_hz_cents_db(qapp):
 
 def test_spec_freq_at_peak_and_silent(qapp):
     w = _spec_widget(qapp)
-    assert w.freq_at(0.03) == 400.0  # 该列谱峰 argmax
-    assert w.freq_at(0.029) == 400.0  # 取 ≥t 首列（searchsorted 口径与 hover 一致）
+    # T01：该列谱峰改由抛物线插值读数（非整 bin argmax）；容差 ≤1e-6，禁删断言。
+    assert w.freq_at(0.03) == pytest.approx(227.39393042171278, abs=1e-6)
+    assert w.freq_at(0.029) == pytest.approx(227.39393042171278, abs=1e-6)  # 取 ≥t 首列（searchsorted 口径与 hover 一致）
     assert w.freq_at(0.031) is None  # 落入 0.04 无声列
     assert w.freq_at(0.05) is None  # 列能量 ≤ 阈值（无声）
     # 空数据 → None
@@ -243,6 +245,24 @@ def test_spec_freq_at_peak_and_silent(qapp):
 
     empty = SpectrogramWidget()
     assert empty.freq_at(0.1) is None
+    # ★ T01：插值读数比未插值 bin 更接近注入真频率（均匀 bin Hann 合成谱）
+    sr, n_fft = 44100.0, 2048
+    f_true = 445.3  # 刻意落在两个 FFT bin 之间
+    lin = np.abs(np.fft.rfft(
+        np.sin(2 * np.pi * f_true * np.arange(n_fft) / sr) * np.hanning(n_fft)
+    ))
+    db = 20.0 * np.log10(np.maximum(lin, 1e-12))
+    fq = np.fft.rfftfreq(n_fft, 1.0 / sr)
+    w_lin = SpectrogramWidget()
+    try:
+        w_lin.set_data(fq, np.array([0.0, 1.0]),
+                       np.column_stack((db, db)), sample_rate=sr)
+        f_read = w_lin.freq_at(0.0)
+        f_bin = float(fq[int(np.argmax(db))])
+        assert f_read is not None
+        assert abs(f_read - f_true) < abs(f_bin - f_true), (f_read, f_bin, f_true)
+    finally:
+        w_lin.close()
 
 
 def test_spec_hover_throttle_and_leave_clear(qapp):

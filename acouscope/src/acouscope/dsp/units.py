@@ -112,8 +112,9 @@ def cents_to_hz(cents: np.ndarray | float, ref_freq: float | None = None) -> np.
 def hz_to_mel(freq_hz: np.ndarray | float) -> np.ndarray | float:
     """Hz → Mel（心理声学音高标度）。
 
-    使用 O'Shaughnessy (1975) 公式：
-    m = 2595 * log10(1 + f/700)
+    采用常见的 mel 折算式 m = 2595 * log10(1 + f/700)。
+    ★ 码内旧注自称 O'Shaughnessy (1975)，本轮外部取证未取到可核条目 ⇒ 出处待核，
+    见 02_References/BIBLIOGRAPHY.md §十二 E-12（对外正文不得写「依据 O'Shaughnessy」）
     """
     freq_hz = np.asarray(freq_hz, dtype=float)
     return 2595.0 * np.log10(1.0 + freq_hz / 700.0)

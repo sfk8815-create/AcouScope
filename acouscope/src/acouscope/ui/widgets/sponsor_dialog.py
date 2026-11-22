@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
-"""极温和赞助致谢对话框（开源化后的启动问候；第 5 次启动起、此后每次启动均弹，非推广）。
+"""极温和赞助致谢对话框（开源化后的启动问候；第 5 次启动起弹、可节流，非推广）。
 
 形态（项目负责人定稿；T-1110 反转 #3 后语义）：
 - QDialog **非模态**（``setModal(False)`` + ``show()``，**禁 ``exec()``**），Esc 可关闭；
 - 无强制等待、不采集设备标识、不影响任何功能；
-- 自动弹条件 = 第 5 次启动起、此后每次启动均弹（计数依据见 :mod:`acouscope.state`）；
-- 停弹**只**由「已支持，不再提醒」永久生效，只写入 ``app_state.json``
+- 自动弹条件 = 第 5 次启动起弹；「继续使用」节流 5 次启动后再弹
+  （计数与节流依据见 :mod:`acouscope.state`）；
+- 永久停弹**只**由「已支持，不再提醒」生效，只写入 ``app_state.json``
   （见 :mod:`acouscope.state`），与旧许可状态文件完全切割。
 
 GUI 白名单登记：``内部记录/knowledge/GUI_dialog_inventory.md``（本类新增一行）。
@@ -26,7 +27,10 @@ from PyQt6.QtWidgets import (
 )
 
 from acouscope.i18n import tr
-from acouscope.state import set_sponsor_reminder_dismissed
+from acouscope.state import (
+    set_sponsor_reminder_dismissed,
+    snooze_sponsor_reminder,
+)
 
 #: 二维码显示边长（逻辑尺寸；整数参数交给 QPixmap.scaled，样式表内无长度字面量）
 QR_CODE_SIZE = 180
@@ -131,7 +135,11 @@ class SponsorDialog(QDialog):
     # 交互
     # ------------------------------------------------------------------
     def _on_continue(self) -> None:
-        """「继续使用」：直接关闭（不写任何状态）。"""
+        """「继续使用」：节流 5 次启动后关闭（写失败不阻塞关闭）。"""
+        try:
+            snooze_sponsor_reminder(5)
+        except Exception:  # noqa: BLE001 — 状态写入永不阻塞关闭
+            pass
         self.close()
 
     def _on_dismiss(self) -> None:

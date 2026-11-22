@@ -7,7 +7,7 @@
 
 核心设计问题（项目负责人）：**如何批量减少输入量又保证填报质量**。三步页：
 1. 范围与标准：复用框架文件集区带入的文件；明示 N（勾选）/新登记 X/已入档 Y；
-   标准下拉 3 项 + 说明区（文案照抄，i18n 键与 T-912 检查器元数据区**复用同一批键**，
+   标准下拉 4 项 + 说明区（文案照抄，i18n 键与 T-912 检查器元数据区**复用同一批键**，
    避免双份维护、保证两处口径逐字一致）。
 2. 批量字段：共同字段一次填写 → 应用全部文件；技术元数据**逐文件自动提取、只读**；
    题名三种方式（文件名/统一前缀+文件名/逐条编辑）；标识符按规则自动生成（含序号）。
@@ -53,6 +53,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from acouscope.annotation.metadata import fmt_hms, required_for_standard
 from acouscope.audio.io import AudioIO
 from acouscope.i18n import tr
 from acouscope.ui import theme
@@ -66,6 +67,7 @@ _STANDARDS = (
     ("DAT63", "inspector.meta.std_dat", "inspector.meta.desc_dat"),
     ("GBT31219.4", "inspector.meta.std_gbt", "inspector.meta.desc_gbt"),
     ("custom", "inspector.meta.std_custom", "inspector.meta.desc_custom"),
+    ("IMDI", "inspector.meta.std_imdi", "inspector.meta.desc_imdi"),
 )
 _DEFAULT_STANDARD = "custom"
 
@@ -76,6 +78,16 @@ _MANUAL_KEYS = (
     "Recorder", "Location", "GenreContext", "ActorRole",
 )
 _FIELD_KEYS = _MANUAL_KEYS + _TECH_KEYS
+
+# 必填键 → 本地化标签键（复用 T-912 检查器元数据区，禁双份维护）
+_REQUIRED_LABEL_KEY = {
+    "Title": "inspector.meta.title",
+    "Creator": "inspector.meta.creator",
+    "Identifier": "inspector.meta.identifier",
+    "Date": "inspector.meta.date",
+    "Format": "inspector.meta.format",
+    "Duration": "inspector.meta.duration",
+}
 
 # 题名方式（下拉顺序）
 _TITLE_MODE_FILE = 0
@@ -101,14 +113,6 @@ _PLACEHOLDER = "—"
 def module_name() -> str:
     """模块名（当前语言）。"""
     return tr(MODULE_NAME_KEY)
-
-
-def _fmt_hms(seconds) -> str:
-    """时长（秒）→ hh:mm:ss（DA/T M17 口径；负数截 0）。"""
-    total = max(0, int(round(float(seconds))))
-    hours, rem = divmod(total, 3600)
-    minutes, secs = divmod(rem, 60)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def _file_mtime(p: Path) -> datetime | None:
@@ -166,6 +170,8 @@ class MetadataBatchModule(BaseBatchModule):
         # 逐行题名微调（path → 文本）；空文本 = 回退默认题名（兜底）
         self._title_overrides: dict[str, str] = {}
         self._last_results: list[dict] = []
+        # minor-2：预校验读到的技术参数按路径缓存，apply 复用（每文件解码 3 次 → 2 次）
+        self._pending_tech: dict[str, dict] = {}
         self._page = _PAGE_SCOPE
 
         # 控件引用（build_config_ui 后有效）
@@ -584,8 +590,9 @@ class MetadataBatchModule(BaseBatchModule):
                     row, _COL_SUMMARY,
                     _readonly(QTableWidgetItem(self._summary_text(path, index))),
                 )
-                warn = QTableWidgetItem(self._warn_text())
-                if self._missing_required():
+                missing = self._missing_required(path, index, tech)
+                warn = QTableWidgetItem(self._warn_text(missing))
+                if missing:
                     # 必填缺失高亮：语义色令牌（禁硬编码 hex）
                     warn.setForeground(
                         QBrush(QColor(theme.TOKENS["semantic"]["error"]))
@@ -649,15 +656,59 @@ class MetadataBatchModule(BaseBatchModule):
             f"{tr('batch.meta.standard_label')}={self._standard_code()}",
         ])
 
-    def _missing_required(self) -> bool:
-        """必填缺失（当前仅责任者/传承人）——决定核对清单高亮与执行拦截。"""
-        return not self._state["creator"].strip()
+    def _missing_required(
+        self, path: Path | None = None, index: int = 1, tech: dict | None = None
+    ) -> list[str]:
+        """必填缺失键列表（空列表 = 无缺）。
 
-    def _warn_text(self) -> str:
-        """空字段警告（当前仅必填责任者；缺失将拦截执行）。"""
-        if not self._missing_required():
+        口径与检查器保存（inspector_panel._on_meta_save）一致：按当前标准的机读
+        必填集 required_for_standard() 核对将写入的值。DAT63 = 六键全量；
+        GB/T / IMDI / custom 必填集为空 → 只剩责任者（全局硬拦截，任何标准都拦）。
+        Title/Identifier 有兜底永不为空，实际新增暴露面 = Date/Format/Duration 的
+        自动填充失败（stat 失败 → Date 空；AudioIO 失败 → Format/Duration 空）。
+        """
+        missing: list[str] = []
+        if not self._state["creator"].strip():
+            missing.append("Creator")
+        if path is not None:
+            fields = self._fields_for(path, index, tech)
+            for key in required_for_standard(self._standard_code()):
+                if key not in missing and not str(fields.get(key, "")).strip():
+                    missing.append(key)
+        return missing
+
+    def _label_list(self, keys: list[str]) -> str:
+        """必填键 → 本地化标签串（复用检查器元数据区标签键）。"""
+        return ", ".join(tr(_REQUIRED_LABEL_KEY.get(k, k)) for k in keys)
+
+    def _warn_text(self, missing: list[str]) -> str:
+        """逐行警告文案：无缺 → 占位符；仅责任者 → 既有文案；其余逐键点名。"""
+        if not missing:
             return _PLACEHOLDER
-        return tr("batch.meta.warn_creator")
+        if missing == ["Creator"]:
+            return tr("batch.meta.warn_creator")
+        return tr("batch.meta.warn_missing_fields").format(
+            fields=self._label_list(missing)
+        )
+
+    def _fields_for(self, path: Path, index: int, tech: dict | None = None) -> dict:
+        """该文件将写入的字段（apply 与核对清单共用，禁两套口径）。
+
+        tech 由调用方传入可免二次解码（AudioIO 每文件只读一次）。
+        """
+        if tech is None:
+            tech = self._read_tech(path)
+        return {
+            "Title": self._title_for(path),
+            "Creator": self._state["creator"].strip(),
+            "Identifier": self._identifier_for(index),
+            "Date": self._date_for(path),
+            "Recorder": self._state["recorder"].strip(),
+            "Location": self._state["location"].strip(),
+            "GenreContext": self._state["genre"].strip(),
+            "ActorRole": self._state["actor_role"].strip(),
+            **tech,
+        }
 
     def _read_tech(self, path: Path) -> dict:
         """复用 audio/io.py 读取技术参数（禁新写解码器）；失败回空 dict（不抛）。"""
@@ -670,7 +721,7 @@ class MetadataBatchModule(BaseBatchModule):
             "BitDepth": str(info.bit_depth),
             "Format": str(info.format),
             "Channels": str(info.channels),
-            "Duration": _fmt_hms(info.duration),
+            "Duration": fmt_hms(info.duration),
         }
 
     # ------------------------------------------------------------------
@@ -707,7 +758,12 @@ class MetadataBatchModule(BaseBatchModule):
             self._ws.exitRequested.emit()
 
     def _on_apply(self) -> None:
-        """应用并完成：必填校验 → 框架执行 apply（结果入框架报告区）→ 回常规页。"""
+        """应用并完成：必填校验 → 框架执行 apply（结果入框架报告区）→ 回常规页。
+
+        责任者空 = 硬拦截（不写盘、回第 2 步、焦点回责任者）；
+        其余必填缺失（DAT63 的 Date/Format/Duration 自动填充失败）= 逐行失败，
+        warn_label 明示缺失键但**不退出**（批量语义容忍单文件失败）。
+        """
         if not self._state["creator"].strip():
             if self.warn_label is not None:
                 self.warn_label.setText(tr("batch.meta.blocked"))
@@ -718,6 +774,14 @@ class MetadataBatchModule(BaseBatchModule):
         if self._ws is None:
             return
         self._goto(_PAGE_REVIEW)  # 执行前刷新核对清单（最终摘要）
+        missing_keys: list[str] = []
+        self._pending_tech = {}
+        for i, raw in enumerate(self.current_paths(), start=1):
+            tech = self._read_tech(Path(raw))
+            self._pending_tech[raw] = tech
+            for key in self._missing_required(Path(raw), i, tech):
+                if key not in missing_keys:
+                    missing_keys.append(key)
         self._ws.run_active()     # 框架调本模块 apply，逐文件结果写入框架报告区
         ok = sum(1 for r in self._last_results if r.get("ok"))
         fail = len(self._last_results) - ok
@@ -725,7 +789,14 @@ class MetadataBatchModule(BaseBatchModule):
         if self.status_label is not None:
             self.status_label.setText(summary)
         if self.warn_label is not None:
-            self.warn_label.clear()
+            if missing_keys:
+                self.warn_label.setText(
+                    tr("batch.meta.warn_missing_fields").format(
+                        fields=self._label_list(missing_keys)
+                    )
+                )
+            else:
+                self.warn_label.clear()
         self._toast(summary)
         self._ws.exitRequested.emit()
 
@@ -774,6 +845,7 @@ class MetadataBatchModule(BaseBatchModule):
             "ActorRole": self._state["actor_role"].strip(),
         }
         standard = self._standard_code()
+        required = required_for_standard(standard)
         total = len(paths)
         results: list[dict] = []
         for index, raw in enumerate(paths, start=1):
@@ -782,16 +854,32 @@ class MetadataBatchModule(BaseBatchModule):
                 tr("batch.meta.progress").format(i=index, n=total, name=path.name)
             )
             try:
-                pf = manager.get_file(raw)
-                if pf is None:
-                    pf = manager.add_file(raw, label=path.name)
                 fields = dict(shared)
                 fields.update({
                     "Title": self._title_for(path),
                     "Identifier": self._identifier_for(index),
                     "Date": self._date_for(path),
                 })
-                fields.update(self._read_tech(path))
+                tech = self._pending_tech.pop(raw, None)
+                if tech is None:
+                    tech = self._read_tech(path)
+                fields.update(tech)
+                # 必填缺失（DAT63 六键）：逐文件失败并点名，不静默丢弃、不阻他件
+                missing = [
+                    k for k in required if not str(fields.get(k, "")).strip()
+                ]
+                if missing:
+                    results.append({
+                        "path": raw,
+                        "ok": False,
+                        "reason": tr("batch.meta.err_fields_missing").format(
+                            fields=self._label_list(missing)
+                        ),
+                    })
+                    continue
+                pf = manager.get_file(raw)
+                if pf is None:
+                    pf = manager.add_file(raw, label=path.name)
                 merged = {
                     k: v for k, v in pf.metadata.items()
                     if k not in _FIELD_KEYS and k != "_standard"
@@ -802,5 +890,6 @@ class MetadataBatchModule(BaseBatchModule):
                 results.append({"path": raw, "ok": True, "reason": ""})
             except Exception as exc:  # noqa: BLE001 — 单文件失败不中断整批
                 results.append({"path": raw, "ok": False, "reason": str(exc)})
+        self._pending_tech.clear()
         self._last_results = results
         return results

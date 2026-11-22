@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/license-GPL--3.0--only-blue" alt="ライセンス: GPL-3.0-only">
   <img src="https://img.shields.io/badge/python-3.10%2B-green" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey" alt="プラットフォーム">
-  <img src="https://img.shields.io/badge/version-0.99.20260925_Beta-orange" alt="バージョン 0.99.20260925（Beta）">
+  <img src="https://img.shields.io/badge/version-0.99.20261011_Beta-orange" alt="バージョン 0.99.20261011（Beta）">
 </p>
 
 <p align="center">
@@ -107,6 +107,77 @@ FFT / STFT / ピッチ追跡 / フォルマント抽出 / 音色特徴といっ�
 - 音声編集：波形ウィンドウでの区間編集
 - 169 件のローテーション Tips（操作のヒントと研究ユーモア）
 
+### 論文図の書き出し（3 プリセット）
+
+- **入口** —— アプリケーション内：**ファイル ▸ 書き出し ▸ 論文図の書き出し…**；コマンドラインでは
+  `python -m acouscope.visualization.figures --preset paper_A …`（`--preset` は
+  `paper_A` / `paper_B` / `paper_C` のいずれか）。
+- **プリセット ↔ 汎用グラフ** —— `paper_A` → `segment_curve`（1 区間の波形＋区間中央値に対するセント）、
+  `paper_B` → `type_oscillation`（形態 × 往復度のファセット）、`paper_C` → `reference_comparison`
+  （複数の律制参照系の比較）。
+- **出版パラメータは固定** —— **300 dpi PNG ＋ ベクタ PDF**。サイズやトリミングを推測することはありません。
+- **キャプションは利用者が書く** —— 図のキャプションは利用者が執筆します。プラットフォームはキャプションも
+  結論の文も書きません。
+- **アンカーオフセット** —— `paper_C` には**アンカーオフセット**が必要です（演奏実践または文献から与えられ、
+  プラットフォームは推測しない）。アンカーが無ければ図は作られません。実際に標本化した窓は
+  `window_start_s`（窓グリッドに揃えた実値）として戻り値に記録されるため、窓を変えれば数値も変わります。
+
+### 精度キャリブレーションの書き出し
+
+- **入口** —— `analysis.calibration_export.calibration_report(...)`。`export_calibration_json()` /
+  `export_calibration_csv()` で JSON / CSV に書き出します。
+- **3 つの状態は決して混同しない** —— `measured`（参照音が提供され実際に測定した）、
+  `pending`（**参照音を提供していない ⇒ キャリブレーション値を出さない**）、`chain_only`（合成信号は
+  チェーンの検証だけであり、キャリブレーションと呼んではならない）。
+- **パラメータスナップショットと結合** —— すべての報告書はパラメータスナップショット
+  `analysis_params_snapshot` を保持するため、キャリブレーション値がパラメータから切り離されて引用される
+  ことはありません。
+- **参照真値が無ければ主張も無い** —— 参照真値（D バンド A4 参照音）が提供されないかぎり状態は常に
+  `pending` であり、プラットフォームはいかなる精度保証の類いの主張もしません。
+
+### メタデータ項目表
+
+- **入口** —— `annotation.export.profile_field_table()`。`export_profile_field_table_json()` /
+  `export_profile_field_table_csv()` で書き出します。
+- **4 つの profile** —— `DAT63` / `GBT31219.4` / `IMDI` / `custom`。
+- **機械検査** —— `check_profile_field_table()` が空リストを返せば、項目表と実行時の検証が一致している
+  ことを意味します。
+- **書き出し層自身が生成し、書き写さない** —— 項目表は書き出し層が自ら生成するため、表と書き出しが
+  食い違うことはありません。読み手は **CSV ヘッダを基準に列を取ります**（v2 以降は `ref_mode` 列を含む）。
+
+### 主音推定: 二段階と二つの基準
+
+- `fit_tonic_from_audio(...)` のデータ取得の基準は固定です：**0–30 s の窓**、**HMM を通さない**
+  （フレームごとの f0 を直接フィット）、**`isfinite(f0)&f0>0` のフレームだけを取る** —— 0 埋めも補間も
+  行いません。
+- アンカーオフセットは呼び出し側が与えます。**アンカーが無い**場合は同時探索（`stage="joint"`）に戻り、
+  その `margin` はしばしば 0 になります。その結果は**確定した主音として扱ってはなりません**。
+- `degree_rows_both(model, tuning=..., fit=...)` は `absolute` と `main_tone` の 2 組の行を 1 回で
+  **別々のキーで**返します。2 組を 1 つにまとめることは禁止されています。
+
+### 腔格タイプ分布・許容差宣言・実行識別子
+
+- **入口** —— `analysis.readout.run_batch(cases, out_dir=...)`；CLI：
+  `python -m acouscope.analysis.readout --cases cases.json --out DIR [--figure-out DIR]`。
+  四例は**呼び出し側が指定**し、プラットフォームには具体的な録音を内蔵しません。
+- **τ はプラットフォームが宣言** —— `analysis.type_distribution.tau_declaration()` が
+  `TAU_CENTS_PLACEHOLDER` を読みます。値が `None` のとき `tau_status` は
+  `unspecified_sign_based`（未校正、符号で判定）。利用者は τ を注入して
+  校正済みと偽ることはできません。
+- **走査用 τ ≠ 校正済み τ** —— 走査件は `tau_status_by_tau` を持ち、数値の走査値は
+  すべて `assumed_for_scan` と記録され、`calibrated` とは書きません。
+- **フィールド面（各件）** —— `run_id`／`tau_cents`／`tau_status`／`segment_source`
+  （分段器＋パラメータ快照＋窓格子）／`counts_per_recording`
+  （上趋／下趋／平直／未分類 ＋ 合計）／`ref_mode`（`absolute`／`main_tone`）、
+  ほか `reference_hz`／`reference_status` と `label_gloss`。
+- **実行識別子は内容アドレス方式** —— `run_id` = sha256（入力リスト × パラメータ面
+  × 分段快照 × τ／基準面）[:16]。タイムスタンプではないため、同じ入力・同じ
+  パラメータで再実行すれば同じ id が再現されます —— 図と表が同じ実行由来であると
+  主張できる根拠です。
+
+- **GUI 入口** — 「分析 ▸ バッチ読み出し実行…」。ダイアログはパラメータを集めて spec を作るだけで、実行は**タスクセンター**に投げてワーカースレッドで行います（窓単位の確定進捗・協調的キャンセル）。CLI と同じ `cases.json` を「リスト読込…」で読み込めば、同じ `run_id` を再現します。
+
+
 ## インストール
 
 ### ソースから実行
@@ -146,6 +217,12 @@ poetry install --with dev
 # 回帰テスト（pytest）
 poetry run pytest --ignore tests/test_realtime_panel.py
 ```
+
+#### ファイル単位でのテスト実行
+
+全テストを 1 プロセスで走らせると Qt のケースでネイティブクラッシュが起きます。そのため本リポジトリには
+`scripts/run_tests_per_file.sh` が同梱されています: テストファイルごとに独立した pytest プロセスを使い、
+ファイル単位の集計と収集数の照合も出力します。
 
 ## 動作環境
 
@@ -196,7 +273,7 @@ AcouScope/
 
 ## ロードマップ
 
-- **v0.99.20260925（Beta、現行）** —— 9 つの解析エンジン、3 言語インターフェース、テーマシステム、出版水準の書き出し；4 プラットフォームのインストーラー正式配布は準備中 —— 本ベータは意図的にコード署名／公証を行っていません。初回起動で止まった場合は公式サイト「問題が起きたときの対処法」の案内に従ってください
+- **v0.99.20261011（Beta、現行）** —— 9 つの解析エンジン、インターフェースは英語・簡体字・繁体字環境に完全対応（韓国語・日本語は部分対応、引き続き整備中）、テーマシステム、出版水準の書き出し；4 プラットフォームのインストーラーは正式配布済み、そのままダウンロード可能 —— 本ベータは意図的にコード署名／公証を行っていません。初回起動で止まった場合は公式サイト「問題が起きたときの対処法」の案内に従ってください
 - **v1.0** —— バッチ処理、プラグイン機構、定 Q 変換／ウェーブレット変換、正式リリース
 
 ## 謝辞

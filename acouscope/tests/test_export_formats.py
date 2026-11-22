@@ -29,7 +29,7 @@ def _meta(**overrides) -> SessionMetadata:
         fmt="WAV",
         channels=1,
         duration_s=123.456,
-        custom_note="自定义字段应无损保留",  # 非 FIELD_TERMS 键 → Additional
+        custom_note="自定义字段应无损保留",  # 非 FIELD_TERMS 键 → Session/MDGroup/Keys/Key
     )
     kw.update(overrides)
     return SessionMetadata.from_audio(**kw)
@@ -105,8 +105,18 @@ class TestXmlExport:
     def _flatten(d, prefix=""):
         out = {}
         for k, v in d.items():
+            if k.startswith("@") or k == "#text":
+                continue
             p = f"{prefix}.{k}" if prefix else k
-            if isinstance(v, dict):
+            if isinstance(v, list):
+                for item in v:
+                    if isinstance(item, dict) and "@Name" in item:
+                        q = f"{p}.{item['@Name']}"
+                        if "#text" in item:
+                            out[q] = str(item["#text"])
+                    elif isinstance(item, dict):
+                        out.update(TestXmlExport._flatten(item, p))
+            elif isinstance(v, dict):
                 out.update(TestXmlExport._flatten(v, p))
             else:
                 out[p] = str(v)
@@ -117,14 +127,15 @@ class TestXmlExport:
         p = tmp_path / "session.xml"
         meta = _meta()
         export_session_xml(p, meta)
-        assert load_session_xml(p) == self._flatten(meta.to_imdi()["IMDI"])
+        assert load_session_xml(p) == self._flatten(meta.to_imdi_session())
 
-    def test_xml_extra_field_in_additional(self, tmp_path):
-        """无损：非标准槽位字段（custom_note）进 Session.Additional 且可回读。"""
+    def test_xml_extra_field_in_mdgroup_keys(self, tmp_path):
+        """无损：非字典字段（custom_note）进 Session/MDGroup/Keys/Key 且可回读。"""
         p = tmp_path / "extra.xml"
         export_session_xml(p, _meta())
         leaves = load_session_xml(p)
-        assert leaves["Session.Additional.custom_note"] == "自定义字段应无损保留"
-        assert leaves["Session.Name"] == "苗族飞歌采集"
-        assert leaves["Session.Actor.FullName"] == "张三"
-        assert leaves["Session.Resources.SamplingRate"] == "44100"
+        assert leaves["Session.MDGroup.Keys.Key.custom_note"] == "自定义字段应无损保留"
+        assert leaves["Session.Name"] == "AC-2026-001"  # Identifier → 短名〔XSD:771〕
+        assert leaves["Session.Title"] == "苗族飞歌采集"
+        assert leaves["Session.MDGroup.Actors.Actor.FullName"] == "张三"
+        assert leaves["Session.Resources.MediaFile.Keys.Key.SamplingRate"] == "44100"

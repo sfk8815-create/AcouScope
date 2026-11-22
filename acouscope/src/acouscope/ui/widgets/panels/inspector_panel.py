@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -40,6 +41,18 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from acouscope.annotation.metadata import (
+    FIELD_TERMS,
+    MORPHOLOGY_CAVITY_TYPES,
+    MORPHOLOGY_NOTE,
+    MORPHOLOGY_STORAGE_KEY,
+    check_format,
+    check_morphology_fields,
+    fmt_hms,
+    morphology_to_text,
+    normalize_morphology,
+    required_for_standard,
+)
 from acouscope.audio.io import AudioIO
 from acouscope.i18n import tr
 from acouscope.ui import theme
@@ -57,7 +70,7 @@ _PH_PLAYBACK = "0.000 / 0.000 s"
 # ----------------------------------------------------------------------
 # T-912 档案元数据编辑区常量
 # 字段键 = ProjectFile.metadata 键（同 FIELD_TERMS.key，mapping §三）；
-# 控制键 "_standard" 记录所选著录标准（DAT63 / GBT31219.4 / custom）。
+# 控制键 "_standard" 记录所选著录标准（DAT63 / GBT31219.4 / custom / IMDI）。
 # ----------------------------------------------------------------------
 
 # 字段分组（顺序即 UI 行顺序）
@@ -88,16 +101,9 @@ _META_STANDARDS = (
     ("DAT63", "inspector.meta.std_dat", "inspector.meta.desc_dat"),
     ("GBT31219.4", "inspector.meta.std_gbt", "inspector.meta.desc_gbt"),
     ("custom", "inspector.meta.std_custom", "inspector.meta.desc_custom"),
+    ("IMDI", "inspector.meta.std_imdi", "inspector.meta.desc_imdi"),
 )
 _META_DEFAULT_STD = "custom"
-
-
-def _fmt_hms(seconds: float) -> str:
-    """时长（秒）→ hh:mm:ss 显示口径（DA/T M17；负数截 0）。"""
-    total = max(0, int(round(float(seconds))))
-    hours, rem = divmod(total, 3600)
-    minutes, secs = divmod(rem, 60)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 def _file_stat_mtime(p: Path) -> datetime | None:
@@ -114,6 +120,18 @@ def _fmt_file_mtime(p: Path) -> str:
     return dt.strftime("%Y-%m-%d %H:%M") if dt is not None else ""
 
 
+def _stored_morphology(stored: dict) -> dict:
+    """metadata 里的 ``_morphology`` JSON 文本 → 形态学块（坏文本 ⇒ 空块）。"""
+    raw = (stored or {}).get(MORPHOLOGY_STORAGE_KEY)
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return {}
+    return normalize_morphology(parsed) if isinstance(parsed, dict) else {}
+
+
 def _default_identifier(p: Path) -> str:
     """标识符/档号默认生成规则（DA/T M5/M6 自动捕获口径；可校正）。
 
@@ -121,6 +139,51 @@ def _default_identifier(p: Path) -> str:
     """
     dt = _file_stat_mtime(p)
     return f"{p.stem}-{dt:%Y%m%d}" if dt is not None else p.stem
+
+
+class _ElidedValueLabel(QLabel):
+    """只读摘要行：ElideRight 收口 + tooltip 全文（M5）。
+
+    旧态 G6 换行在单行预算里把末字硬切（真机「· W」「0:08」），既无省略号
+    也无全文出口；音频摘要保持单行，宽度不足以 … 收口。
+    """
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._full_text = text
+        self.setWordWrap(False)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored,
+                           QSizePolicy.Policy.Preferred)
+        self.setToolTip(text)
+        self._apply_elide()
+
+    def set_full_text(self, text: str) -> None:
+        self._full_text = text or ""
+        self.setToolTip(self._full_text)
+        self._apply_elide()
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt 命名)
+        super().resizeEvent(event)
+        self._apply_elide()
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt 命名)
+        # 首次 show 的 resizeEvent 早于 isVisible 生效，补一次收口。
+        super().showEvent(event)
+        self._apply_elide()
+
+    def _apply_elide(self) -> None:
+        # 未显示时无真实视口，保留全文（读数/D4 单测按文本断言）；show 后由
+        # resizeEvent 按实际宽度收口。
+        if not self.isVisible():
+            if super().text() != self._full_text:
+                super().setText(self._full_text)
+            return
+        avail = max(8, self.width() - 2)
+        shown = self.fontMetrics().elidedText(
+            self._full_text, Qt.TextElideMode.ElideRight, avail
+        )
+        if super().text() != shown:
+            super().setText(shown)
 
 
 class InspectorPanel(QWidget):
@@ -152,17 +215,25 @@ class InspectorPanel(QWidget):
             line.setFixedHeight(sp["xxs"])
             layout.addWidget(line)
 
-        def _group(title_text: str, value_text: str) -> QLabel:
+        def _group(title_text: str, value_text: str,
+                   elide: bool = False) -> QLabel:
             _divider()
             title = QLabel(title_text, self)
             title.setObjectName("inspectorGroupTitle")
-            value = QLabel(value_text, self)
+            value = (_ElidedValueLabel(value_text, self) if elide
+                     else QLabel(value_text, self))
             value.setObjectName("inspectorValue")
             # 数值标签水平策略 Ignored：读数文本随 .3f 跨数字位（9.999→10.000）
             # 宽度变化 → sizeHint 上抛 PanelContainer minimumSizeHint → QSplitter
             # 重排右栏 = 拖红针时检查器抖动。Ignored 让布局忽略其水平 sizeHint，
             # 宽度填满栏宽、不反推面板最小宽（文本左对齐，视觉不变）。
-            value.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            # G6：栏宽不足时**换行**而不是整段吃掉标点（原为单行裁切，长值
+            # 「分析位置 4.000s · 窗口 …」只剩前半句）。垂直策略随换行改为
+            # Preferred，让布局按 heightForWidth 给第二行高度；水平仍 Ignored
+            # （不反推最小宽，抖动守卫不变）。
+            value.setWordWrap(not elide)
+            value.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                QSizePolicy.Policy.Preferred)
             layout.addWidget(title)
             layout.addWidget(value)
             return value
@@ -172,7 +243,7 @@ class InspectorPanel(QWidget):
         self.lbl_selection = _group(tr("inspector.selection"), _PH_SELECTION)
         self.lbl_analysis = _group(tr("inspector.analysis"), _PH_VIEW)
         self.lbl_playback = _group(tr("inspector.playback"), _PH_PLAYBACK)
-        self.lbl_audio = _group(tr("inspector.audio"), _PH_VIEW)
+        self.lbl_audio = _group(tr("inspector.audio"), _PH_VIEW, elide=True)
 
         # ---- T-327 Pε：选区区间统计（只读文本 + 复制；main_window 点击即算后写入）----
         _divider()
@@ -185,14 +256,25 @@ class InspectorPanel(QWidget):
         self.btn_copy_stats.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_copy_stats.setEnabled(False)
         self.btn_copy_stats.clicked.connect(self._copy_stats)
+        # T05：区间统计测量记录导出（与复制并列的独立入口；回调由 main_window
+        # 注入，未注入时禁用、零副作用）。既有 btn_copy_stats 行为逐字不变。
+        self.btn_export_stats = QPushButton(tr("region_stats.export"), self)
+        self.btn_export_stats.setObjectName("btn_export_stats")
+        self.btn_export_stats.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_export_stats.setEnabled(False)
+        self.btn_export_stats.clicked.connect(self._export_stats)
+        self._export_stats_callback = None
         stats_head.addWidget(title_stats)
         stats_head.addStretch(1)
         stats_head.addWidget(self.btn_copy_stats)
+        stats_head.addWidget(self.btn_export_stats)
         layout.addLayout(stats_head)
         self.lbl_region_stats = QLabel(_PH_VIEW, self)
         self.lbl_region_stats.setObjectName("inspectorValue")
+        # G6：同读数分组口径——长统计文本换行显示（禁单行裁切吃掉数值/标点）
+        self.lbl_region_stats.setWordWrap(True)
         self.lbl_region_stats.setSizePolicy(
-            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
         )
         layout.addWidget(self.lbl_region_stats)
 
@@ -223,7 +305,7 @@ class InspectorPanel(QWidget):
             "}"
             "#inspectorValue {"
             f"  color: {c['text']}; "
-            f"  font-family: {ty['mono']}; "
+            f"  font-family: {theme.ui_mono_family_qss()}; "
             f"  font-size: {ty['caption']}px;"
             # T-1047：读数内嵌框（等宽数值 + 数值色 text 亮于说明色 text_sub）
             f"  background: {c['bg2']}; "
@@ -246,16 +328,29 @@ class InspectorPanel(QWidget):
             f"  font-size: {ty['caption']}px;"
             "  font-style: italic;"
             "}"
-            "QLineEdit#metaLineEdit, QComboBox#metaStandardCombo {"
+            "QLineEdit#metaLineEdit, QComboBox#metaStandardCombo, "
+            "QLineEdit#morphCavityPosition, QLineEdit#morphNotePosition, "
+            "QLineEdit#morphAnnotator, QLineEdit#morphMethod, "
+            "QLineEdit#morphTemplate, QLineEdit#morphConfidence, "
+            "QComboBox#morphCavityTypeCombo {"
             f"  background: transparent; "
             f"  color: {c['text']}; "
             f"  border: {elev['border']}px solid {c['border']}; "
             f"  border-radius: {rad['sm']}px; "
             f"  padding: {sp['xxs']}px;"
             "}"
-            # T-1047：键值网格的「值」一律等宽（数值层级同设置页读数框）
+            # T-1047：键值网格的「值」一律等宽（数值层级同设置页读数框）。
+            # R3-5：metaLineEdit 单独成规则（内含等宽字链），供参数控件规范
+            # 判据逐条校验；背景/边框/颜色等属性继续由上面的合并规则覆盖，
+            # 样式效果等价，其它控件的样式覆盖范围不变。
             "QLineEdit#metaLineEdit {"
-            f"  font-family: {ty['mono']};"
+            f"  font-family: {theme.ui_mono_family_qss()};"
+            "}"
+            "QLineEdit#morphCavityPosition, "
+            "QLineEdit#morphNotePosition, QLineEdit#morphAnnotator, "
+            "QLineEdit#morphMethod, QLineEdit#morphTemplate, "
+            "QLineEdit#morphConfidence {"
+            f"  font-family: {theme.ui_mono_family_qss()};"
             "}"
         )
 
@@ -285,7 +380,7 @@ class InspectorPanel(QWidget):
         self.lbl_playback.setText(f"{current:.3f} / {total:.3f} s")
 
     def set_audio_info(self, text: str) -> None:
-        self.lbl_audio.setText(text or _PH_VIEW)
+        self.lbl_audio.set_full_text(text or _PH_VIEW)
 
     def set_region_stats(self, text: str | None) -> None:
         """T-327 Pε：写入选区统计只读文本；None 回占位并禁用复制。"""
@@ -298,13 +393,32 @@ class InspectorPanel(QWidget):
         if text and text != _PH_VIEW:
             QApplication.clipboard().setText(text)
 
+    def set_export_stats_callback(self, fn) -> None:
+        """T05：注入「导出测量记录」回调（main_window._export_measurement_record）。
+
+        fn 为可调用对象时启用导出按钮；None/缺省则禁用并有零副作用。
+        不改既有 set_region_stats / _copy_stats 的行为（复制按钮仍由
+        set_region_stats 独立控制）。
+        """
+        self._export_stats_callback = fn
+        self.btn_export_stats.setEnabled(callable(fn))
+
+    def _export_stats(self) -> None:
+        """点击「导出统计」→ 调用注入的回调（未注入时静默、零副作用）。"""
+        fn = self._export_stats_callback
+        if fn is not None:
+            fn()
+
     def reset(self) -> None:
-        """五个标签全部回占位（invalidate 时调用）。"""
+        """视图/选区/分析回占位；文件属性（播放位置/音频）保留不清（D4）。
+
+        lbl_playback / lbl_audio 是文件属性，不随分析视图失效而失效，
+        故 reset 不再将二者回占位，避免被 main_window:_invalidate_analysis_views
+        误清。
+        """
         self.lbl_view.setText(_PH_VIEW)
         self.lbl_selection.setText(_PH_SELECTION)
         self.lbl_analysis.setText(_PH_VIEW)
-        self.lbl_playback.setText(_PH_PLAYBACK)
-        self.lbl_audio.setText(_PH_VIEW)
         self.set_region_stats(None)
 
     # ------------------------------------------------------------------
@@ -389,6 +503,9 @@ class InspectorPanel(QWidget):
         self._meta_append_rows(form, _META_CUSTOM_KEYS)
         box.addLayout(form)
 
+        # ---- W-14-07：中国音乐形态学扩展字段组（独立于四标准槽位）----
+        self._build_morphology_area(box)
+
         layout.addWidget(self.meta_box)
         self.meta_box.hide()
 
@@ -414,6 +531,97 @@ class InspectorPanel(QWidget):
             self.meta_edits[key] = edit
             form.addRow(lab, edit)
 
+    # ---- W-14-07：中国音乐形态学字段组 --------------------------------
+
+    def _build_morphology_area(self, box: QVBoxLayout) -> None:
+        """形态学扩展字段组（腔位／腔格／乐位／腔核标注＋4 子字段）。
+
+        与四标准槽位**分开**：本组值写进文件 metadata 的 ``_morphology`` 键
+        （JSON 文本），导出层据此单列 ``morphology`` 块/列/段；不并入 DAT63／
+        GBT／IMDI 任一槽位。空值＝未标注（不臆造）。
+        """
+        sp = theme.TOKENS["spacing"]
+        self.morph_box = QWidget(self.meta_box)
+        self.morph_box.setObjectName("morphologyBox")
+        inner = QVBoxLayout(self.morph_box)
+        inner.setContentsMargins(0, 0, 0, 0)
+        inner.setSpacing(sp["xs"])
+
+        inner.addWidget(SectionHeader(tr("w14.morph.group"), self.morph_box))
+        note = QLabel(tr("w14.morph.note"), self.morph_box)
+        note.setObjectName("morphNote")
+        note.setWordWrap(True)
+        note.setToolTip(MORPHOLOGY_NOTE)
+        inner.addWidget(note)
+
+        form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setSpacing(sp["xxs"])
+
+        self.morph_edits: dict[str, QLineEdit] = {}
+        for key, label_key, name in (
+            ("CavityPosition", "w14.morph.cavity_position", "morphCavityPosition"),
+            ("NotePosition", "w14.morph.note_position", "morphNotePosition"),
+        ):
+            edit = QLineEdit(self.morph_box)
+            edit.setObjectName(name)
+            self.morph_edits[key] = edit
+            form.addRow(QLabel(tr(label_key), self.morph_box), edit)
+
+        self.morph_cavity_combo = QComboBox(self.morph_box)
+        self.morph_cavity_combo.setObjectName("morphCavityTypeCombo")
+        self.morph_cavity_combo.addItem(tr("w14.morph.empty_enum"), "")
+        for value in MORPHOLOGY_CAVITY_TYPES:
+            self.morph_cavity_combo.addItem(value, value)
+        form.addRow(QLabel(tr("w14.morph.cavity_type"), self.morph_box), self.morph_cavity_combo)
+
+        for key, label_key, name in (
+            ("annotator", "w14.morph.annotator", "morphAnnotator"),
+            ("method", "w14.morph.method", "morphMethod"),
+            ("template", "w14.morph.template", "morphTemplate"),
+            ("confidence", "w14.morph.confidence", "morphConfidence"),
+        ):
+            edit = QLineEdit(self.morph_box)
+            edit.setObjectName(name)
+            self.morph_edits[key] = edit
+            form.addRow(QLabel(tr(label_key), self.morph_box), edit)
+
+        inner.addLayout(form)
+        box.addWidget(self.morph_box)
+
+    def morphology_values(self) -> dict:
+        """当前形态学字段 → 块（空串不入块；confidence 解析失败留原文供校验报错）。"""
+        raw: dict = {
+            "CavityPosition": self.morph_edits["CavityPosition"].text().strip(),
+            "CavityType": str(self.morph_cavity_combo.currentData() or ""),
+            "NotePosition": self.morph_edits["NotePosition"].text().strip(),
+        }
+        annotation = {
+            key: self.morph_edits[key].text().strip()
+            for key in ("annotator", "method", "template", "confidence")
+            if self.morph_edits[key].text().strip()
+        }
+        if annotation:
+            raw["CavityCoreAnnotation"] = annotation
+        return normalize_morphology(raw)
+
+    def set_morphology(self, values) -> None:
+        """回填形态学字段（缺值清空，不臆造）。"""
+        block = normalize_morphology(values or {})
+        for key in ("CavityPosition", "NotePosition"):
+            self.morph_edits[key].setText(str(block.get(key) or ""))
+        cavity = str(block.get("CavityType") or "")
+        index = self.morph_cavity_combo.findData(cavity)
+        self.morph_cavity_combo.setCurrentIndex(max(0, index))
+        annotation = block.get("CavityCoreAnnotation") or {}
+        for key in ("annotator", "method", "template", "confidence"):
+            value = annotation.get(key)
+            self.morph_edits[key].setText("" if value is None else str(value))
+
+    def morphology_problems(self) -> list[str]:
+        """形态学校验问题清单（空 = 通过）。"""
+        return check_morphology_fields(self.morphology_values())
+
     def _meta_standard_index(self, code: str) -> int:
         """代码 → 下拉下标；未知/缺失回默认（custom）。"""
         for i, (c, _l, _d) in enumerate(_META_STANDARDS):
@@ -427,6 +635,14 @@ class InspectorPanel(QWidget):
         if data is not None:
             return str(data)
         return _META_DEFAULT_STD
+
+    def _meta_standard_label(self) -> str:
+        """当前标准的下拉展示名（M-4b 缺失提示用；未知码回退代码串）。"""
+        code = self._meta_standard_code()
+        for c, label_key, _desc in _META_STANDARDS:
+            if c == code:
+                return tr(label_key)
+        return code
 
     def _on_meta_standard_changed(self, index: int) -> None:
         """标准切换 → 说明区随动（§说明区文案照抄 i18n，禁改写）。"""
@@ -446,6 +662,8 @@ class InspectorPanel(QWidget):
         if not active:
             self._meta_path = None
             self.btn_meta_save.setEnabled(False)
+            if hasattr(self, "morph_edits"):
+                self.set_morphology({})  # 换档即清，禁跨档残留
 
     def set_manager(self, manager) -> None:
         """注入 ProjectManager（登记/保存依赖；接线方在项目切换后调用）。"""
@@ -487,13 +705,16 @@ class InspectorPanel(QWidget):
             "BitDepth": str(info.bit_depth),
             "Format": str(info.format),
             "Channels": str(info.channels),
-            "Duration": _fmt_hms(info.duration),
+            "Duration": fmt_hms(info.duration),
             "Date": _fmt_file_mtime(p),
             "Identifier": _default_identifier(p),
         }
         for key, edit in self.meta_edits.items():
             val = stored.get(key, "") or defaults.get(key, "")
             edit.setText(val)
+
+        # W-14-07：形态学块回读（JSON 文本；坏文本 ⇒ 清空，不臆造）
+        self.set_morphology(_stored_morphology(stored))
 
         # _standard 回显下拉（无/未知 → custom 默认）
         code = stored.get("_standard") or _META_DEFAULT_STD
@@ -534,23 +755,65 @@ class InspectorPanel(QWidget):
         return dict(pf.metadata) if pf is not None else {}
 
     def _on_meta_save(self) -> None:
-        """保存：写该文件 ProjectFile.metadata + _standard（空值不写入）。"""
+        """保存：写该文件 ProjectFile.metadata + _standard（空值不写入）。
+
+        M-4b-2 两道检查（顺序固定）：
+        ① 必填拦截——按当前标准的机读必填集（required_for_standard，DAT63 六键全量）
+           核对表单值，有缺 → 状态行提示 + 焦点回第一个缺失控件 + 不写盘；
+        ② 格式警告——check_format 不合的已填字段只提示不阻断（不拦真实数据，
+           理由见设计约定 M-4b §〇-4）。
+        """
         if self._meta_path is None or self._meta_manager is None:
             return
         pf = self._meta_manager.get_file(self._meta_path)
         if pf is None:
             return
-        fields = {
+        values = {
             key: edit.text().strip()
             for key, edit in self.meta_edits.items()
             if edit.text().strip()
         }
+        # ① 必填拦截（有缺 → 不写盘；焦点回第一个缺失控件）
+        missing = [
+            t.key for t in FIELD_TERMS
+            if t.key in required_for_standard(self._meta_standard_code())
+            and not values.get(t.key)
+        ]
+        if missing:
+            self.lbl_meta_status.setText(
+                tr("inspector.meta.missing_required").format(
+                    standard=self._meta_standard_label(),
+                    fields="、".join(tr(_META_LABEL_KEY.get(k, k)) for k in missing),
+                )
+            )
+            self.meta_edits[missing[0]].setFocus()
+            return
+        # ①b W-14-07 形态学扩展块：结构/取值不合 ⇒ 不写盘（与必填拦截同口径）
+        morphology = self.morphology_values()
+        problems = check_morphology_fields(morphology)
+        if problems:
+            self.lbl_meta_status.setText(
+                tr("w14.morph.invalid").format(problems="；".join(problems))
+            )
+            return
         merged = {
             k: v
             for k, v in pf.metadata.items()
-            if k not in _META_FIELD_KEYS and k != "_standard"
+            if k not in _META_FIELD_KEYS
+            and k not in ("_standard", MORPHOLOGY_STORAGE_KEY)
         }
-        merged.update(fields)
+        merged.update(values)
         merged["_standard"] = self._meta_standard_code()
+        # 空块 ⇒ 写空串（清掉旧值），保存面与校验面同源
+        merged[MORPHOLOGY_STORAGE_KEY] = morphology_to_text(morphology)
         pf.metadata = merged
-        self.lbl_meta_status.setText(tr("inspector.meta.saved"))
+        # ② 格式警告（不合只提示、不阻断——真实数据照存）
+        bad = [k for k, v in values.items() if check_format(k, v)]
+        if bad:
+            self.lbl_meta_status.setText(
+                tr("inspector.meta.format_warn").format(
+                    fields="、".join(tr(_META_LABEL_KEY.get(k, k)) for k in bad),
+                )
+            )
+        else:
+            self.lbl_meta_status.setText(tr("inspector.meta.saved"))

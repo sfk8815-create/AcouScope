@@ -10,8 +10,9 @@ T-1012 真机反馈修订（ARCH §六）：
   （theme 语义色），单击切换折叠/展开、拖拽仍可调宽。选型理由：离屏实测
   (1) 子件放在 0 宽父级内会被裁剪不可见；(2) 直接向 QSplitter setParent 添加
   子件会被其视为新 pane（count()/sizes() 污染）——两路「面板外挂」均不可行。
-- 展开宽度按内容 sizeHint 自适应（clamp [220, 520]）；用户手动拖拽后以用户
-  值为准（_manual_width，持久化不变）。
+- 展开宽度按内容 sizeHint 自适应（clamp [220, 520]，且不低于内容可读保底宽
+  _AUTO_FIT_MIN_W）；用户手动拖拽后以用户值为准（_manual_width，持久化不变），
+  但下限不低于内容的 minimumSizeHint 宽（H1：内容切换即抬宽，只升不降）。
 - 左栏默认收起（restore 无记录时 collapsed=True）；右栏默认展开（检查器）。
 - 布局状态（sizes + 折叠态）持久化到 get_data_dir()/"ui_layout.json"；
   save/restore 全程静默：布局读写永不影响应用（缺失/损坏/不可写均不抛）。
@@ -30,8 +31,11 @@ from acouscope.ui import theme
 from acouscope.ui.widgets.panels import PanelContainer
 from acouscope.utils.config import get_data_dir
 
-# 展开宽度自适应范围 / 中央画布最小保留宽（QWIDGETSIZE_MAX）
+# 展开宽度自适应范围 / 内容可读保底宽 / 中央画布最小保留宽（QWIDGETSIZE_MAX）
 _AUTO_MIN_W = 220
+# H1①：内容切换后的「可读保底宽」——恢复出的旧宽/手动宽再小也要抬到该值，
+# 否则设置页两列、快捷键表会被右缘整片裁掉（离屏实测只剩一列残条）。
+_AUTO_FIT_MIN_W = 380
 _AUTO_MAX_W = 520
 _MIN_CENTER_W = 60
 _MAX_WIDTH = 16777215
@@ -45,6 +49,8 @@ _GRIP_BAR_W = 2.0    # ‖ 竖杠宽 2px
 _GRIP_BAR_H = 14.0   # ‖ 竖杠高 14px（圆角 1）
 _GRIP_TOTAL_W = 20.0  # 总宽 = 6 + 3 + 2 + 3 + 6
 _GRIP_CLAMP = 7       # 光标 Y clamp 上下边距（防抓被裁切/越界）
+# 内容包壳解套上限（正常为 1 层 QScrollArea；设上限防环状父链死循环）
+_MAX_UNWRAP_DEPTH = 3
 # 初始/恢复参考比例（左默认收起 0 / 中 / 右）；仅在无记录兜底时使用
 _DEFAULT_SIZES = [0, 760, 300]
 _DEFAULT_SIZES_TOTAL = sum(_DEFAULT_SIZES)
@@ -56,15 +62,75 @@ def _default_layout_path() -> Path:
     return get_data_dir() / _LAYOUT_FILENAME
 
 
+def _inner_widget(host):
+    """容器内唯一子控件（无布局/无子件 → None）。"""
+    layout = host.layout() if host is not None else None
+    if layout is None or layout.count() == 0:
+        return None
+    item = layout.itemAt(0)
+    return item.widget() if item is not None else None
+
+
+def _unwrap_scroll(widget):
+    """解开 QScrollArea 包壳（侧栏内容一律经 _wrap_side_scroll 包一层）。
+
+    不解壳时量到的是包壳自身的极小 sizeHint（离屏实测 194），而真实内容页
+    （设置页 485）整片被裁——这正是 H1 的根因。
+    """
+    from PyQt6.QtWidgets import QScrollArea
+
+    for _ in range(_MAX_UNWRAP_DEPTH):
+        if not isinstance(widget, QScrollArea):
+            break
+        inner = widget.widget()
+        if inner is None:
+            break
+        widget = inner
+    return widget
+
+
+def _current_page(panel: PanelContainer):
+    """面板内容区里「当前可见页」：解开包壳后若为 QStackedWidget 取其当前页。"""
+    area = _unwrap_scroll(_inner_widget(panel.panelContent) or panel.panelContent)
+    current = getattr(area, "currentWidget", None)
+    if callable(current):
+        page = current()
+        if page is not None:
+            return page
+    return area
+
+
+def _content_widths(panel: PanelContainer) -> tuple:
+    """当前内容页的 (preferred, minimum) 宽（取页与内容区两者的较大值）。
+
+    量为空时返回 (0, 0)，由调用方回落到保底常量。
+    """
+    pref = floor = 0
+    for widget in (_current_page(panel), panel.panelContent):
+        if widget is None:
+            continue
+        try:
+            pref = max(pref, int(widget.sizeHint().width()))
+        except Exception:  # noqa: BLE001 — 度量失败不阻断布局
+            pass
+        try:
+            floor = max(floor, int(widget.minimumSizeHint().width()))
+        except Exception:  # noqa: BLE001
+            pass
+    return pref, floor
+
+
 def _auto_width(panel: PanelContainer) -> int:
-    """按当前内容 preferred 宽度估算展开宽度（clamp 到 [_AUTO_MIN_W, _AUTO_MAX_W]）。"""
-    content = panel.panelContent
-    hint = content.sizeHint().width()
-    if hint <= 0:
-        hint = content.minimumSizeHint().width()
-    if hint <= 0:
-        hint = _AUTO_MIN_W
-    return int(min(_AUTO_MAX_W, max(_AUTO_MIN_W, hint)))
+    """按当前内容所需宽度估算展开宽度。
+
+    H1①：下限抬到「内容可读保底宽」_AUTO_FIT_MIN_W（内容再窄也保证设置页
+    两列/快捷键表整表可读），上限仍是 _AUTO_MAX_W。
+    """
+    hint, floor = _content_widths(panel)
+    need = max(hint, floor)
+    if need <= 0:
+        need = _AUTO_FIT_MIN_W
+    return int(min(_AUTO_MAX_W, max(_AUTO_MIN_W, max(need, _AUTO_FIT_MIN_W))))
 
 
 def _splitter_of(panel: PanelContainer):
@@ -309,11 +375,35 @@ def _collapse_slot(panel: PanelContainer) -> None:
         pass
 
 
+def _target_width(panel: PanelContainer) -> int:
+    """展开目标宽：手动拖拽值优先（H1②），否则走内容自适应（H1①）。
+
+    - 无手动宽：`min(max(内容 preferred 宽, _AUTO_FIT_MIN_W), _AUTO_MAX_W)`；
+    - 有手动宽：尊重用户值，但下限抬到内容 `minimumSizeHint().width()`
+      （用户拖得再窄，也不把内容压到不可读），上限仍 `_AUTO_MAX_W`。
+    """
+    manual = getattr(panel, "_manual_width", None)
+    _pref, floor = _content_widths(panel)
+    # 「手动拖过」= _manual_width 非 None 且 > 0（0 是折叠/拖到零的记账值，
+    # 不是用户想要的展开宽，按无手动宽处理）。
+    if isinstance(manual, int) and manual > 0:
+        return int(min(_AUTO_MAX_W, max(int(manual), floor)))
+    return _auto_width(panel)
+
+
 def _expand_slot(panel: PanelContainer) -> None:
-    """展开：解除宽度限制并按内容自适应恢复宽度（手动拖拽值优先）。"""
+    """展开：解除宽度限制并按内容自适应恢复宽度（手动拖拽值优先）。
+
+    H1：目标宽算完后**只升不降**——当前宽已够内容用时不再收窄，避免切页把
+    用户/窗口给出的宽度改小（内容变宽时才抬，见 `_target_width`）。
+    """
     try:
         sp = _splitter_of(panel)
-        panel.setMaximumWidth(_MAX_WIDTH)
+        # 既有外部上限（main_window 的侧栏 28% 收口）必须原样保留：本函数只解除
+        # 「折叠」写入的 0 上限，不越过外部策略上限（否则切页会把栏宽顶破 28%）。
+        prev_max = int(panel.maximumWidth())
+        capped = 0 < prev_max < _MAX_WIDTH
+        panel.setMaximumWidth(prev_max if capped else _MAX_WIDTH)
         if sp is None or sp.count() != 3:
             return
         idx = sp.indexOf(panel)
@@ -321,10 +411,11 @@ def _expand_slot(panel: PanelContainer) -> None:
             return
         other_idx = 2 if idx == 0 else 0
         sizes = [max(0, int(s)) for s in sp.sizes()]
-        target = _auto_width(panel)
-        manual = getattr(panel, "_manual_width", None)
-        if isinstance(manual, int) and manual >= _AUTO_MIN_W:
-            target = min(_AUTO_MAX_W, manual)
+        target = _target_width(panel)
+        if capped:
+            target = min(target, prev_max)
+        if sizes[idx] >= target:
+            return  # 已够宽：不动布局（禁把宽度改小，H1 只抬不压）
         other_w = sizes[other_idx]
         free = sum(sizes) - other_w
         center = free - target
@@ -404,13 +495,15 @@ def build_workspace_splitter(center_widget) -> dict:
 
 
 def fit_panel_width(panel: PanelContainer) -> None:
-    """内容切换后宽度自适应（展开态且非用户手动宽度时生效）。"""
+    """内容切换后宽度自适应（H1）。
+
+    展开态一律走 `_expand_slot`：手动宽由 `_target_width` 优先取用，但仍受
+    「内容 minimumSizeHint 下限」约束（H1②）——此前手动宽直接早退，导致
+    手动拖窄后再切设置页，内容被右缘裁掉。
+    """
     try:
         sp = _splitter_of(panel)
         if sp is None or panel.is_collapsed():
-            return
-        manual = getattr(panel, "_manual_width", None)
-        if isinstance(manual, int) and manual >= _AUTO_MIN_W:
             return
         _expand_slot(panel)
     except Exception:  # noqa: BLE001 — 布局操作永不抛
@@ -484,6 +577,41 @@ def restore_workspace(ws: dict, path=None) -> None:
                 and all(isinstance(s, int) and not isinstance(s, bool) for s in sizes)
             ):
                 clean = [max(0, int(s)) for s in sizes]
+                # F1（真机 GUI 审计）：恢复时对三栏施加内容可读下限，杜绝病态
+                # 窄栏被持久化后原样恢复（实测 ui_layout.json 曾写入
+                # [194, 560, 146]——右栏内容组约 606px 被硬裁到 147px，
+                # 「复制」「导出测量记录…」按钮永远 offscreen，窗口拉宽后
+                # 侧栏仍保持病态窄值）。左右各 ≥ _AUTO_MIN_W、中央 ≥ 320；
+                # 先抬到下界（下限优先），若抬完总和超出「保存时的可用总宽」，
+                # 再只按各栏高于下界的富余部分等比缩减，绝不把任何一栏
+                # 压回下界以下。save_workspace 一字未改，round-trip 不变。
+                _min_center_restore_w = 320
+                _restore_mins = [_AUTO_MIN_W, _min_center_restore_w, _AUTO_MIN_W]
+                _available = sum(clean)
+                raised = [max(clean[i], _restore_mins[i]) for i in range(3)]
+                _overflow = sum(raised) - _available
+                if _overflow > 0 and _available >= sum(_restore_mins):
+                    _slack = [raised[i] - _restore_mins[i] for i in range(3)]
+                    _slack_total = sum(_slack)
+                    if _slack_total > 0:
+                        _cuts = [(_overflow * _slack[i]) // _slack_total
+                                 for i in range(3)]
+                        raised = [raised[i] - _cuts[i] for i in range(3)]
+                        # 整除法可能留 1~2px 余量：从富余最大的栏位继续扣，
+                        # 保证缩减后总和恰好回到可用宽且各栏仍 ≥ 下界。
+                        _residual = sum(raised) - _available
+                        for _i in sorted(
+                            range(3),
+                            key=lambda j: raised[j] - _restore_mins[j],
+                            reverse=True,
+                        ):
+                            if _residual <= 0:
+                                break
+                            _take = min(_residual,
+                                        raised[_i] - _restore_mins[_i])
+                            raised[_i] -= _take
+                            _residual -= _take
+                clean = raised
                 # 未布局时 setSizes 按当前宽等比缩放：先把 splitter 宽设为保存总宽+手柄，
                 # 使恢复的绝对像素值不被缩放（嵌入窗口后由布局按比例重算）
                 try:

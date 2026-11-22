@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from acouscope.i18n import tr
 from acouscope.ui import theme
 
 AUTO_LABEL = "自动（按语言推荐）"
@@ -44,10 +45,7 @@ class ChartFontDialog(QWidget):
         layout.setContentsMargins(sp["sm"], sp["sm"], sp["sm"], sp["sm"])
         layout.setSpacing(sp["sm"])
 
-        layout.addWidget(QLabel(
-            "西文/数字字体与中文字体分开设置，应用于全部导出图表与 3D 视图。\n"
-            "「自动」时按界面语言选择推荐字体。"
-        ))
+        layout.addWidget(QLabel(tr("chart_font.hint_scope")))
 
         form = QFormLayout()
 
@@ -75,14 +73,11 @@ class ChartFontDialog(QWidget):
 
         layout.addLayout(form)
 
-        self.preview = QLabel("Aa 440 Hz · Harmonics · 谐波列 · 语谱图")
+        self.preview = QLabel(tr("chart_font.preview_sample"))
         self.preview.setObjectName("chartFontPreview")
         layout.addWidget(self.preview)
 
-        layout.addWidget(QLabel(
-            "提示：学术图表常用 Times New Roman（西文）+ 宋体/苹方（中文）；"
-            "设置会持久化，重启后保留。"
-        ))
+        layout.addWidget(QLabel(tr("chart_font.hint_academic")))
         layout.addStretch(1)
 
         # 初值装载期间屏蔽信号，避免构造即触发一次 fontChanged

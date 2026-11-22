@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "standards": [
+    {
+      "id": "iso16_1975",
+      "reference": "ISO 16:1975",
+      "a4_hz": 440.0,
+      "group": "formal",
+      "authority": "ISO/TC 43 Acoustics",
+      "label": {
+        "en_US": "ISO 16:1975 — Standard tuning frequency (A4 = 440 Hz)",
+        "zh_CN": "ISO 16:1975 标准调音频率（A4 = 440 Hz）",
+        "zh_TW": "ISO 16:1975 標準調音頻率（A4 = 440 Hz）",
+        "ko_KR": "ISO 16:1975 표준 조율 주파수(A4 = 440 Hz)",
+        "ja_JP": "ISO 16:1975 標準調律周波数（A4 = 440 Hz）"
+      },
+      "source_refs": [
+        "ISO_16_1975_iso_official_record.rss",
+        "ISO_16_1975_abstract_catalog.html",
+        "ISO_16_1975_ru_cover_preview.pdf"
+      ],
+      "evidence": "ISO official RSS: stage 90.93 reviewed 2022-09-30, TC/SC ISO/TC 43, ICS 17.140.01. ISO abstract archive: 'Specifies the frequency for the note A in the treble stave and shall be 440 Hz' with +/-0.5 Hz tuning accuracy.",
+      "caveat": "Full normative text is paid; only official catalogue record, abstract archive and public cover preview are stored."
+    },
+    {
+      "id": "gbt3451_1982",
+      "reference": "GB/T 3451-1982",
+      "a4_hz": 440.0,
+      "group": "formal",
+      "authority": "国家标准局 / 全国声学标准化技术委员会",
+      "label": {
+        "en_US": "GB/T 3451-1982 — Standard tuning frequency (A4 = 440 Hz)",
+        "zh_CN": "GB/T 3451-1982 标准调音频率（A4 = 440 Hz）",
+        "zh_TW": "GB/T 3451-1982 標準調音頻率（A4 = 440 Hz）",
+        "ko_KR": "GB/T 3451-1982 표준 조율 주파수(A4 = 440 Hz)",
+        "ja_JP": "GB/T 3451-1982 標準調律周波数（A4 = 440 Hz）"
+      },
+      "source_refs": [
+        "GB_T_3451_1982_offstd_record.html",
+        "GB_T_3451_1982_samr_status.html",
+        "GB_T_3451_1982_catalog.html",
+        "GB_T_3451_1982_scope_catalog.html"
+      ],
+      "evidence": "Official openstd.samr.gov.cn catalogue record for GB/T 3451-1982 '标准调音频率 / Standard tuning frequency', issued 1982-12-31, effective 1983-10-01, currently active; the standard is a non-equivalent adoption of ISO 16:1975 (440 Hz).",
+      "caveat": "Official full-text PDF unavailable locally (TLS name mismatch); catalogue records and scope archives only. The 440 Hz value follows the ISO 16 adoption relation."
+    },
+    {
+      "id": "iso_r16_1955",
+      "reference": "ISO/R 16:1955",
+      "a4_hz": 440.0,
+      "group": "formal",
+      "authority": "ISO (Recommendation, superseded)",
+      "label": {
+        "en_US": "ISO/R 16:1955 — Earlier ISO recommendation (A4 = 440 Hz)",
+        "zh_CN": "ISO/R 16:1955 早期 ISO 建议（A4 = 440 Hz）",
+        "zh_TW": "ISO/R 16:1955 早期 ISO 建議（A4 = 440 Hz）",
+        "ko_KR": "ISO/R 16:1955 초기 ISO 권고(A4 = 440 Hz)",
+        "ja_JP": "ISO/R 16:1955 初期 ISO 勧告（A4 = 440 Hz）"
+      },
+      "source_refs": [
+        "ISO_16_1975_abstract_catalog.html"
+      ],
+      "evidence": "ISO 16:1975 catalogue overview: 'ISO 16 replaced the earlier ISO Recommendation R 16-1955 with technically identical specifications'.",
+      "caveat": "Withdrawn recommendation; retained for historical comparison only."
+    },
+    {
+      "id": "london_1939",
+      "reference": "London International Conference, 1939",
+      "a4_hz": 440.0,
+      "group": "formal",
+      "authority": "International conference recommendation",
+      "label": {
+        "en_US": "London 1939 — International pitch agreement (A4 = 440 Hz)",
+        "zh_CN": "1939 伦敦国际会议（A4 = 440 Hz）",
+        "zh_TW": "1939 倫敦國際會議（A4 = 440 Hz）",
+        "ko_KR": "1939 런던 국제 회의(A4 = 440 Hz)",
+        "ja_JP": "1939 ロンドン国際会議（A4 = 440 Hz）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html"
+      ],
+      "evidence": "Archived Concert pitch article: the 1939 London international conference agreed A = 440 Hz, later codified by ISO 16.",
+      "caveat": "Conference recommendation, not an ISO publication."
+    },
+    {
+      "id": "stuttgart_1834",
+      "reference": "Stuttgart Conference / Scheibler, 1834",
+      "a4_hz": 440.0,
+      "group": "historical",
+      "authority": "Scheibler tonometer proposal",
+      "label": {
+        "en_US": "Stuttgart 1834 — Scheibler C264 / A440 proposal",
+        "zh_CN": "1834 斯图加特会议 Scheibler 方案（A4 = 440 Hz）",
+        "zh_TW": "1834 斯圖加特會議 Scheibler 方案（A4 = 440 Hz）",
+        "ko_KR": "1834 슈투트가르트 회의 Scheibler 안(A4 = 440 Hz)",
+        "ja_JP": "1834 シュトゥットガルト会議 Scheibler 案（A4 = 440 Hz）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html",
+        "Ellis_1878_French_Diapason_Normal_Nature.txt"
+      ],
+      "evidence": "Archived Concert pitch article: the 1834 Stuttgart Conference recommended C264 (A440) based on Scheibler's tonometer; Ellis (1878) discusses forks of 440 double vibrations compared with the French diapason normal.",
+      "caveat": "Historical proposal, not a published standard."
+    },
+    {
+      "id": "diapason_normal_1859",
+      "reference": "Diapason normal (France, 1859)",
+      "a4_hz": 435.0,
+      "group": "historical",
+      "authority": "French national pitch standard (historical)",
+      "label": {
+        "en_US": "Diapason normal 1859 — French national standard (A4 = 435 Hz)",
+        "zh_CN": "1859 法国 diapason normal（A4 = 435 Hz）",
+        "zh_TW": "1859 法國 diapason normal（A4 = 435 Hz）",
+        "ko_KR": "1859 프랑스 diapason normal(A4 = 435 Hz)",
+        "ja_JP": "1859 フランス diapason normal（A4 = 435 Hz）"
+      },
+      "source_refs": [
+        "Ellis_1878_French_Diapason_Normal_Nature.pdf",
+        "Ellis_1878_French_Diapason_Normal_Nature.txt",
+        "Concert_pitch_wikipedia_2026.html"
+      ],
+      "evidence": "Ellis, Nature 1878: 'Pitch of the French Diapason Normal ... 435 vib. doubles' and comparison with Scheibler's 440 fork. Archived Concert pitch article: the 16 February 1859 law set A above middle C at 435 Hz, the first large-scale pitch standardisation.",
+      "caveat": "Historical national standard, superseded; not an ISO standard."
+    },
+    {
+      "id": "scientific_pitch_430_54",
+      "reference": "Scientific / philosophical pitch (C4 = 256 Hz)",
+      "a4_hz": 430.54,
+      "group": "historical",
+      "authority": "Mathematical proposal (Sauveur / 19th century)",
+      "label": {
+        "en_US": "Scientific pitch C4 = 256 Hz (A4 ≈ 430.54 Hz)",
+        "zh_CN": "科学音高 C4 = 256 Hz（A4 ≈ 430.54 Hz）",
+        "zh_TW": "科學音高 C4 = 256 Hz（A4 ≈ 430.54 Hz）",
+        "ko_KR": "과학적 음높이 C4 = 256 Hz(A4 ≈ 430.54 Hz)",
+        "ja_JP": "科学的音高 C4 = 256 Hz（A4 ≈ 430.54 Hz）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html"
+      ],
+      "evidence": "Archived Concert pitch article: 'scientific pitch fixes middle C at 256 Hz ... which places the A above it at approximately 430.54 Hz in equal temperament tuning'.",
+      "caveat": "Historical mathematical proposal; the exact equal-tempered value is 256*2^(9/12) = 430.5389646 Hz, rounded here to 430.54 Hz."
+    },
+    {
+      "id": "verdi_432",
+      "reference": "A = 432 Hz (Verdi / philosophical pitch)",
+      "a4_hz": 432.0,
+      "group": "historical",
+      "authority": "Historical proposal / modern alternative tuning",
+      "label": {
+        "en_US": "Verdi / A = 432 Hz",
+        "zh_CN": "威尔第音高 / A = 432 Hz",
+        "zh_TW": "威爾第音高 / A = 432 Hz",
+        "ko_KR": "베르디 음높이 / A = 432 Hz",
+        "ja_JP": "ヴェルディ音高 / A = 432 Hz"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html",
+        "Tunable_concert_pitch_reference.html"
+      ],
+      "evidence": "Archived Concert pitch article discusses A = 432 Hz as an alternative standard; Tunable concert pitch reference lists 432 Hz with a full chromatic frequency table.",
+      "caveat": "Not a published standards document; no ISO 16 relationship."
+    },
+    {
+      "id": "baroque_415",
+      "reference": "Baroque / period-instrument convention A = 415 Hz",
+      "a4_hz": 415.0,
+      "group": "historical",
+      "authority": "Modern HIP performance convention",
+      "label": {
+        "en_US": "Baroque convention A = 415 Hz (exact semitone down: 415.305 Hz)",
+        "zh_CN": "巴洛克惯例 A = 415 Hz（精确低半音 415.305 Hz）",
+        "zh_TW": "巴洛克慣例 A = 415 Hz（精確低半音 415.305 Hz）",
+        "ko_KR": "바로크 관습 A = 415 Hz(정확한 반음 아래 415.305 Hz)",
+        "ja_JP": "バロック慣例 A = 415 Hz（正確な半音下 415.305 Hz）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html",
+        "Tunable_concert_pitch_reference.html"
+      ],
+      "evidence": "Archived Concert pitch article: 'Many modern ensembles who specialize in the performance of Baroque music have agreed on a standard of A = 415 Hz. An exact equal-tempered semitone lower than 440 Hz would be 415.305 Hz, though this is rounded to the nearest integer'.",
+      "caveat": "Performance convention, not a standards publication."
+    },
+    {
+      "id": "handel_422_5",
+      "reference": "Handel tuning fork, 1740 (A = 422.5 Hz)",
+      "a4_hz": 422.5,
+      "group": "historical",
+      "authority": "Measured historical artefact",
+      "label": {
+        "en_US": "Handel 1740 fork A = 422.5 Hz",
+        "zh_CN": "亨德尔 1740 音叉 A = 422.5 Hz",
+        "zh_TW": "韓德爾 1740 音叉 A = 422.5 Hz",
+        "ko_KR": "헨델 1740 튜닝 포크 A = 422.5 Hz",
+        "ja_JP": "ヘンデル 1740 音叉 A = 422.5 Hz"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html"
+      ],
+      "evidence": "Archived Concert pitch article: 'a 1740 tuning fork associated with Handel is pitched at A = 422.5 Hz'.",
+      "caveat": "Measured artefact, not a standard."
+    },
+    {
+      "id": "orchestral_442",
+      "reference": "Modern orchestral A = 442 Hz",
+      "a4_hz": 442.0,
+      "group": "orchestral",
+      "authority": "Orchestral practice / published acoustics reference",
+      "label": {
+        "en_US": "Orchestral A = 442 Hz (Europe / research default)",
+        "zh_CN": "乐团惯例 A = 442 Hz（欧洲 / 研究常用）",
+        "zh_TW": "樂團慣例 A = 442 Hz（歐洲／研究常用）",
+        "ko_KR": "오케스트라 관습 A = 442 Hz(유럽 / 연구 기본값)",
+        "ja_JP": "オーケストラ慣例 A = 442 Hz（欧州／研究既定値）"
+      },
+      "source_refs": [
+        "Feichtner_2024_pitch_standard_table.pdf",
+        "Concert_pitch_wikipedia_2026.html",
+        "Tunable_concert_pitch_reference.html"
+      ],
+      "evidence": "Feichtner (2024) dissertation, p.27/p.50: MIDI conversion uses 442 Hz with note 69 as A4, and 'The decision to set the pitch standard to 442 Hz was the result of the listing of the pitch standard frequencies of the most famous orchestras (Table 2)'. Wikipedia archive: 1964 survey found US orchestras at 441/442 Hz; Tunable reference lists 442 Hz.",
+      "caveat": "Orchestral convention, explicitly NOT an ISO standard."
+    },
+    {
+      "id": "orchestral_443",
+      "reference": "Modern orchestral A = 443 Hz",
+      "a4_hz": 443.0,
+      "group": "orchestral",
+      "authority": "Orchestral practice (e.g. Berlin Philharmonic)",
+      "label": {
+        "en_US": "Orchestral A = 443 Hz (German / Austrian practice)",
+        "zh_CN": "乐团惯例 A = 443 Hz（德奥体系）",
+        "zh_TW": "樂團慣例 A = 443 Hz（德奧體系）",
+        "ko_KR": "오케스트라 관습 A = 443 Hz(독일 / 오스트리아)",
+        "ja_JP": "オーケストラ慣例 A = 443 Hz（独墺系）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html",
+        "Tunable_concert_pitch_reference.html"
+      ],
+      "evidence": "Archived Concert pitch article: 'Some orchestras, like the Berlin Philharmonic, now use a slightly lower pitch (443 Hz) than their highest previous standard (445 Hz)'; Tunable reference lists 443 Hz.",
+      "caveat": "Orchestral convention, explicitly NOT an ISO standard."
+    },
+    {
+      "id": "orchestral_444",
+      "reference": "Modern orchestral A = 444 Hz",
+      "a4_hz": 444.0,
+      "group": "orchestral",
+      "authority": "Continental European orchestral practice",
+      "label": {
+        "en_US": "Orchestral A = 444 Hz (continental Europe)",
+        "zh_CN": "乐团惯例 A = 444 Hz（欧洲大陆）",
+        "zh_TW": "樂團慣例 A = 444 Hz（歐洲大陸）",
+        "ko_KR": "오케스트라 관습 A = 444 Hz(유럽 대륙)",
+        "ja_JP": "オーケストラ慣例 A = 444 Hz（欧州大陸）"
+      },
+      "source_refs": [
+        "Concert_pitch_wikipedia_2026.html"
+      ],
+      "evidence": "Archived Concert pitch article: 1987 New York Times survey quoted as 'the A of most symphony and opera orchestras today ranges between 440 and 444'.",
+      "caveat": "Orchestral convention, explicitly NOT an ISO standard."
+    }
+  ]
+}

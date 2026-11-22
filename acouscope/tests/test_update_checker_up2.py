@@ -2,12 +2,14 @@
 """UP-2：应用内「检查更新」（只通知）守卫。
 
 覆盖：① 三纯函数（``is_update_available`` 走 ``versioning.is_newer`` **同一对象**）
-② 六码映射五态 ③ 每日节流（同日一次；手动入口绕过节流）④ 开关持久化 + 未决策语义
-⑤ 主窗接线端到端（帮助菜单序 + ``disabled``/``ok`` 两态 statusBar 文案 + 未决策零 fetch）。
+② 六码映射五态 ③ 每日节流（同日一次；手动入口绕过节流）
+④ 开关持久化 + 缺键默认关闭（C·2026-11-06，取消首次运行征询）
+⑤ 主窗接线端到端（帮助菜单序 + ``disabled``/``ok`` 两态 statusBar 文案
++ 缺键默认关闭零 fetch、零弹框、开启后恢复）。
 
 ★ 全档**零真实网络**：一律 monkeypatch ``update_checker.urlopen``（替身响应）；
 ★ 禁在测档调 ``apply_theme``（防污染后续 GUI 度量族）；★ 未 show 主窗、不弹真模态
-（首次征询经 ``main_window.QMessageBox`` 替身）。
+（C·2026-11-06：首次运行征询已删除，源码 AST 零引用由专属档钉死）。
 """
 import sys
 import urllib.error
@@ -30,7 +32,7 @@ from acouscope.utils import versioning  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# 替身：urlopen 响应 / 网络 / 征询对话框（零真实网络、零真模态）
+# 替身：urlopen 响应 / 网络（零真实网络、零真模态）
 # ---------------------------------------------------------------------------
 
 
@@ -76,39 +78,6 @@ def _net(data=None, raw=None, exc=None) -> _Net:
     if raw is not None:
         return _Net(_Resp(raw))
     return _Net(_Resp(json.dumps(data).encode("utf-8")))
-
-
-class _FakeBox:
-    """``QMessageBox`` 替身（仅首次征询用；计数实例化以断「只问一次」）。"""
-
-    built = 0
-    answer = 2
-
-    class Icon:
-        Question = "question"
-
-    class StandardButton:
-        Yes = 1
-        No = 2
-
-    def __init__(self, parent=None):
-        self.parent = parent
-        _FakeBox.built += 1
-
-    def setIcon(self, *a):
-        pass
-
-    def setWindowTitle(self, *a):
-        pass
-
-    def setText(self, *a):
-        pass
-
-    def setStandardButtons(self, *a):
-        pass
-
-    def exec(self):
-        return _FakeBox.answer
 
 
 def _window(qapp):
@@ -224,7 +193,7 @@ def test_daily_throttle_and_manual_bypass(qapp, monkeypatch, tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# ④ 开关持久化往返 + 未决策（键缺失 ⇒ None）+ 设置面板开关行
+# ④ 开关持久化往返 + 缺键默认关闭（C·2026-11-06）+ 设置面板开关行
 # ---------------------------------------------------------------------------
 
 
@@ -235,8 +204,9 @@ def test_switch_persistence_and_undecided(qapp, monkeypatch, tmp_path):
         lambda *a, **k: (False, []),
     )
 
-    # 未决策：两键缺失
-    assert state.is_update_check_enabled() is None
+    # 缺键：默认关闭（C·2026-11-06），两键均未写盘
+    state.save_state({})
+    assert state.is_update_check_enabled() is False
     assert state.get_last_update_check_date() is None
 
     # 往返：False ⇒ 不跑；True ⇒ 恢复
@@ -246,21 +216,22 @@ def test_switch_persistence_and_undecided(qapp, monkeypatch, tmp_path):
     assert state.set_update_check_enabled(True) is True
     assert state.is_update_check_enabled() is True
 
-    # 设置面板开关行：存在且变更即时落盘
+    # 设置面板开关行：缺键默认关闭 ⇒ 复选框不勾选；用户勾选开启 ⇒ 即时落盘恢复
     from acouscope.ui.widgets.settings_dialog import SettingsDialog
 
+    state.save_state({})                     # 回到缺键（默认关闭）
     dlg = SettingsDialog()
     try:
         assert hasattr(dlg, "chk_update_check")
-        assert dlg.chk_update_check.isChecked() is True
-        dlg.chk_update_check.setChecked(False)
-        assert state.is_update_check_enabled() is False
+        assert dlg.chk_update_check.isChecked() is False
+        dlg.chk_update_check.setChecked(True)
+        assert state.is_update_check_enabled() is True
     finally:
         dlg.deleteLater()
 
 
 # ---------------------------------------------------------------------------
-# ⑤ 主窗接线端到端：菜单序 + disabled/ok 两态 statusBar + 未决策零 fetch
+# ⑤ 主窗接线端到端：菜单序 + disabled/ok 两态 statusBar + 缺键零 fetch / 开启后恢复
 # ---------------------------------------------------------------------------
 
 
@@ -316,35 +287,35 @@ def test_main_window_wiring(qapp, monkeypatch, tmp_path):
         assert run_check(net) == tr("update.malformed")
         assert net.calls == 1
 
-        # ③-6 未决策 ⇒ 零 fetch，先征询；答「否」落 False、答「是」落 True（各只问一次）
-        monkeypatch.setattr("acouscope.ui.main_window.QMessageBox", _FakeBox)
+        # ③-6（C·2026-11-06）缺键默认关闭 ⇒ 零弹框、零 fetch、disabled 文案；
+        # 不写 update_check_enabled / last_update_check_date（不落盘、不征询）
         state.save_state({})
-        assert state.is_update_check_enabled() is None
-        _FakeBox.built = 0
-        _FakeBox.answer = _FakeBox.StandardButton.No
+        assert state.is_update_check_enabled() is False
         net = _net(data={"version": "9999.0"})
         assert run_check(net) == tr("update.disabled")
         assert net.calls == 0
-        assert state.is_update_check_enabled() is False
-        assert _FakeBox.built == 1
+        assert "update_check_enabled" not in state.load_state()
+        assert state.get_last_update_check_date() is None
 
-        state.save_state({})
-        _FakeBox.built = 0
-        _FakeBox.answer = _FakeBox.StandardButton.Yes
-        net = _net(data={"version": "9999.0", "notes_url": notes})
-        run_check(net)
-        assert state.is_update_check_enabled() is True
-        assert net.calls == 1
-        assert _FakeBox.built == 1
-
-        # ③-8 二次运行不再弹；自动路径同日节流 ⇒ 零 fetch
-        assert state.should_run_update_check() is True   # 占掉今日名额
-        _FakeBox.built = 0
+        # ③-6'（C·2026-11-06）自动路径同样零 fetch、零写盘（首行短路）
         net = _net(data={"version": "9999.0"})
         monkeypatch.setattr(uc, "urlopen", net)
         window._on_check_updates(manual=False)
         assert net.calls == 0
-        assert _FakeBox.built == 0
+        assert state.get_last_update_check_date() is None
+
+        # ③-8（C·2026-11-06）用户去设置里开启 ⇒ 恢复：恰一次 fetch + ok 文案；
+        # 自动路径当日首次 True、同日二次 False（UP-2 节流保留）
+        state.set_update_check_enabled(True)
+        net = _net(data={"version": "9999.0", "notes_url": notes})
+        msg = run_check(net)
+        assert "9999.0" in msg
+        assert net.calls == 1
+        assert state.should_run_update_check() is True   # 占掉今日名额
+        net = _net(data={"version": "9999.0"})
+        monkeypatch.setattr(uc, "urlopen", net)
+        window._on_check_updates(manual=False)
+        assert net.calls == 0
     finally:
         window.close()
 

@@ -72,15 +72,21 @@ _META_KEYS = [
     "batch.meta.standard_label", "batch.meta.warn_creator",
     "batch.meta.blocked", "batch.meta.err_creator_required",
     "batch.meta.err_no_manager", "batch.meta.applied", "batch.meta.progress",
+    # G-1：DAT63 必填缺失（核对清单逐行警告 + apply 逐文件失败理由）
+    "batch.meta.warn_missing_fields", "batch.meta.err_fields_missing",
 ]
 
 # 复用 T-912 检查器元数据区的键（两处文案逐字一致，禁双份维护）
 _REUSED_KEYS = [
     "inspector.meta.std_dat", "inspector.meta.std_gbt", "inspector.meta.std_custom",
+    "inspector.meta.std_imdi",
     "inspector.meta.desc_dat", "inspector.meta.desc_gbt", "inspector.meta.desc_custom",
+    "inspector.meta.desc_imdi",
     "inspector.meta.custom_note", "inspector.meta.creator", "inspector.meta.date",
     "inspector.meta.title", "inspector.meta.identifier", "inspector.meta.location",
     "inspector.meta.genre_context", "inspector.meta.actor_role",
+    # G-1：必填缺失理由复用技术字段标签（Format/Duration）
+    "inspector.meta.format", "inspector.meta.duration",
 ]
 
 
@@ -151,12 +157,13 @@ class TestScopeStep:
             "batch.meta.scope_summary"
         ).format(n=3, new=2, archived=1)
 
-    def test_standard_combo_three_items_and_desc_switch(self, wired, zh):
+    def test_standard_combo_four_items_and_desc_switch(self, wired, zh):
         ws, mod, manager, wavs = wired
         combo = mod.standard_combo
-        assert combo.count() == 3
-        codes = [combo.itemData(i) for i in range(3)]
-        assert codes == ["DAT63", "GBT31219.4", "custom"]
+        assert combo.count() == 4
+        codes = [combo.itemData(i) for i in range(4)]
+        assert codes == ["DAT63", "GBT31219.4", "custom", "IMDI"]
+        assert combo.itemText(3) == tr("inspector.meta.std_imdi")
         # 说明区随下拉切换（文案照抄 i18n，含关键要点）
         combo.setCurrentIndex(0)
         assert "录音录像类电子档案元数据方案" in mod.desc_label.text()
@@ -168,6 +175,10 @@ class TestScopeStep:
         assert "田野研究" in mod.desc_label.text()
         # 状态跟随（apply 落盘用）
         assert mod._standard_code() == "custom"
+        # 第四项 IMDI（M-4）：说明区 + 落盘代码
+        combo.setCurrentIndex(3)
+        assert mod.desc_label.text() == tr("inspector.meta.desc_imdi")
+        assert mod._standard_code() == "IMDI"
 
     def test_step_navigation_three_pages(self, wired, zh):
         ws, mod, manager, wavs = wired
@@ -351,6 +362,109 @@ class TestRequiredCreator:
         assert got == [1]
         for p in ws.included_paths():
             assert manager.get_file(p) is None  # 取消不改动
+
+
+# ---------------------------------------------------------------------------
+# ④-b 必填对齐（G-1）：DAT63 六键在批量路径生效——自动填充失败不静默
+# ---------------------------------------------------------------------------
+
+
+class TestRequiredDat63:
+    """DAT63 必填集（Identifier/Title/Creator/Date/Format/Duration）批量拦截。
+
+    Title/Identifier 有兜底永不为空，故实际暴露面 = Date/Format/Duration 的
+    自动填充失败（stat 失败 / AudioIO 失败）。custom/GBT/IMDI 必填集为空，
+    同条件下必须照旧全 ok（现行为零变化）。
+    """
+
+    @staticmethod
+    def _select_dat63(mod) -> None:
+        mod.standard_combo.setCurrentIndex(mod._standard_index("DAT63"))
+        assert mod._standard_code() == "DAT63"
+
+    @staticmethod
+    def _by_name(results) -> dict:
+        return {Path(r["path"]).name: r for r in results}
+
+    def test_dat63_missing_date_fails_only_that_file(self, wired, zh, monkeypatch):
+        """Date 自动填充失败（stat 失败）→ 该件 ok=False 且理由点名日期，他件照过。"""
+        ws, mod, manager, wavs = wired
+        self._select_dat63(mod)
+        mod.creator_edit.setText("传承人甲")
+
+        from acouscope.ui.widgets import batch_metadata_module as bmm
+
+        real = bmm._fmt_file_date
+        monkeypatch.setattr(
+            bmm, "_fmt_file_date",
+            lambda p: "" if Path(p).name == wavs[1].name else real(p),
+        )
+        ws.run_active()
+        by = self._by_name(mod._last_results)
+        assert by[wavs[1].name]["ok"] is False
+        assert tr("inspector.meta.date") in by[wavs[1].name]["reason"]
+        assert by[wavs[0].name]["ok"] is True
+        assert by[wavs[2].name]["ok"] is True
+        # 失败件被跳过（不登记、不写坏），他件已落盘
+        assert manager.get_file(str(wavs[1])) is None
+        assert manager.get_file(str(wavs[0])).metadata["_standard"] == "DAT63"
+
+    def test_dat63_missing_format_fails_only_that_file(self, wired, zh, monkeypatch):
+        """Format/Duration 自动填充失败（AudioIO 失败）→ 该件 ok=False 且两键同报。"""
+        ws, mod, manager, wavs = wired
+        self._select_dat63(mod)
+        mod.creator_edit.setText("传承人甲")
+
+        real = mod._read_tech
+        monkeypatch.setattr(
+            mod, "_read_tech",
+            lambda p: {} if Path(p).name == wavs[0].name else real(p),
+        )
+        ws.run_active()
+        by = self._by_name(mod._last_results)
+        assert by[wavs[0].name]["ok"] is False
+        reason = by[wavs[0].name]["reason"]
+        assert tr("inspector.meta.format") in reason
+        assert tr("inspector.meta.duration") in reason
+        assert by[wavs[1].name]["ok"] is True
+        assert by[wavs[2].name]["ok"] is True
+        assert manager.get_file(str(wavs[0])) is None
+
+    def test_custom_standard_not_blocked_by_empty_fields(self, wired, zh, monkeypatch):
+        """custom 必填集为空 → 同条件（Date/技术字段全空）照旧全 ok（现行为零变化）。"""
+        ws, mod, manager, wavs = wired
+        assert mod._standard_code() == "custom"
+        mod.creator_edit.setText("传承人甲")
+
+        from acouscope.ui.widgets import batch_metadata_module as bmm
+
+        monkeypatch.setattr(bmm, "_fmt_file_date", lambda p: "")
+        monkeypatch.setattr(mod, "_read_tech", lambda p: {})
+        ws.run_active()
+        assert all(r["ok"] is True for r in mod._last_results)
+        assert mod._missing_required(Path(wavs[0]), 1) == []
+
+    def test_on_apply_reads_tech_twice_per_file(self, wired, zh, monkeypatch):
+        """minor-2：_on_apply 全链路每文件 _read_tech 恰 2 次（核对清单刷新 1 + 预校验/apply 共用 1）。
+
+        旧行为 = 3 次（刷新、预校验、apply 各一次）⇒ 本例在旧代码下必红。
+        """
+        ws, mod, manager, wavs = wired
+        self._select_dat63(mod)
+        mod.creator_edit.setText("传承人甲")
+        calls: list[str] = []
+        real = mod._read_tech
+
+        def counting(p):
+            calls.append(Path(p).name)
+            return real(p)
+
+        monkeypatch.setattr(mod, "_read_tech", counting)
+        mod._on_apply()
+        assert len(calls) == 2 * len(wavs), (
+            f"_read_tech 调用 {len(calls)} 次，应为 {2 * len(wavs)}"
+            "（每文件：核对清单刷新 1 + 预校验/apply 共用 1；旧双读行为为 3 倍）"
+        )
 
 
 # ---------------------------------------------------------------------------

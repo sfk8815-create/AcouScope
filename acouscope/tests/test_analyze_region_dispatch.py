@@ -98,7 +98,7 @@ class TestValidation:
         monkeypatch.setattr(pitch_mod, "detect_pyin", _fake_detect_pyin(calls))
         monkeypatch.setattr(
             "acouscope.analysis.pitch_grid.build_pitch_grid",
-            lambda times, f0, conf, mode: ("GRID", times),
+            lambda times, f0, conf, mode, **kwargs: ("GRID", times),
         )
         toasts = []
         monkeypatch.setattr(
@@ -180,7 +180,7 @@ class TestPitchRegion:
         monkeypatch.setattr(pitch_mod, "detect_pyin", _fake_detect_pyin(calls))
         monkeypatch.setattr(
             "acouscope.analysis.pitch_grid.build_pitch_grid",
-            lambda times, f0, conf, mode: ("GRID", times),
+            lambda times, f0, conf, mode, **kwargs: ("GRID", times),
         )
         return calls
 
@@ -387,7 +387,7 @@ class TestDefaultPathUnchanged:
         monkeypatch.setattr(pitch_mod, "detect_pyin", _fake_detect_pyin(calls))
         monkeypatch.setattr(
             "acouscope.analysis.pitch_grid.build_pitch_grid",
-            lambda times, f0, conf, mode: ("GRID", times),
+            lambda times, f0, conf, mode, **kwargs: ("GRID", times),
         )
         _set_tab(window, 3)
         window._on_pitch_analysis()

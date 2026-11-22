@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """FileBrowser：文件管理器（左抽屉内容组件，T-910）。
 
-显示**项目文件夹的所有文件**（本目录平铺；子目录导航属 T-915 候选，不列目录行）：
-- 支持格式（`audio/io.py AudioIO.SUPPORTED_FORMATS`）→ 正常前景色；
-  不支持格式 → 次级灰（theme `sub` 角色，禁硬编码 hex）。
+显示**项目文件夹内的音频与项目文件**（本目录平铺；子目录导航属 T-915 候选，
+不列目录行）：
+- 白名单 = 音频（`audio/io.py AudioIO.SUPPORTED_FORMATS` 全集）∪ 项目文件
+  （`.acouproj`）；其余类型不入列。
+- 音频 → 正常前景色；`.acouproj` → 次级灰（theme `sub` 角色，禁硬编码 hex）。
 - 选中/多选信号（下游契约）：
   - 点选单个 → `fileSelected(path)`（T-912 检查器据此加载单文件元数据）
   - 多选（Ctrl/Shift）→ `selectionChanged(paths)`（T-913/T-914 批处理文件集）
@@ -48,6 +50,18 @@ _IN_PROJECT_MARK = "✓"
 # item data role：UserRole+0 = 绝对路径 str；UserRole+1 = 是否支持格式 bool
 _ROLE_PATH = Qt.ItemDataRole.UserRole
 _ROLE_SUPPORTED = Qt.ItemDataRole.UserRole + 1
+
+# 类型图标（走既有 get_icon 体系：音频 / 项目 / 其他）
+_PROJECT_SUFFIX = ".acouproj"
+
+
+def _type_icon(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in AudioIO.SUPPORTED_FORMATS:
+        return "volume"
+    if suffix == _PROJECT_SUFFIX:
+        return "save"
+    return "files"
 
 
 class FileBrowser(QWidget):
@@ -136,16 +150,20 @@ class FileBrowser(QWidget):
             if directory is None or not directory.is_dir():
                 self._show_empty(True)
                 return
-            self._show_empty(False)
             for entry in sorted(directory.iterdir(), key=lambda p: p.name.lower()):
                 if not entry.is_file():
                     continue  # 本任务只列本目录文件（子目录导航属 T-915）
                 path = entry.resolve()
-                supported = path.suffix.lower() in AudioIO.SUPPORTED_FORMATS
+                suffix = entry.suffix.lower()
+                if suffix not in AudioIO.SUPPORTED_FORMATS and suffix != _PROJECT_SUFFIX:
+                    continue  # 白名单：只列音频 + 项目文件（D11-b）
+                supported = suffix in AudioIO.SUPPORTED_FORMATS
                 item = QListWidgetItem(path.name)
                 item.setData(_ROLE_PATH, str(path))
                 item.setData(_ROLE_SUPPORTED, supported)
+                item.setIcon(theme.get_icon(_type_icon(path)))
                 self.list.addItem(item)
+            self._show_empty(self.list.count() == 0)
             self._mark_in_project()
             # 尽力恢复选中（仅命中现存路径者）
             existing = {self._path_of(i) for i in range(self.list.count())}

@@ -170,9 +170,15 @@ def test_refresh_does_not_revive_removed_attachment(qapp, monkeypatch):
 
 
 def test_main_window_calls_refresh_in_analysis_changed():
+    """★ 2026-11-10 订正：调用点已由 `_on_analysis_changed` 抽入视图切换共用收尾
+    `_sync_analysis_view_chrome`（该函数仍由 _on_analysis_changed 调用），
+    断言锚点随迁；三处门控条件不变。"""
     src = _MAIN_WINDOW.read_text(encoding="utf-8")
-    start = src.index("def _on_analysis_changed")
-    body = src[start:src.index("def ", start + len("def _on_analysis_changed"))]
+    caller = src.index("def _on_analysis_changed")
+    caller_body = src[caller:src.index("def ", caller + len("def _on_analysis_changed"))]
+    assert "_sync_analysis_view_chrome(" in caller_body, "收尾函数须仍由切换入口调用"
+    start = src.index("def _sync_analysis_view_chrome")
+    body = src[start:src.index("def ", start + len("def _sync_analysis_view_chrome"))]
     # 门控：仅当 _ai_panel 存在且右栏当前页 = AI 宿主（镜像 set_view_name 范式）
     assert "panel_ai.refresh_attached_view()" in body
     assert 'getattr(self, "_ai_panel", None)' in body

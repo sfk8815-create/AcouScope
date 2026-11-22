@@ -2,7 +2,8 @@
 """RMVPE ONNX 后端 — 复音人声音高提取。
 
 RMVPE_BACKEND_V1 — clean-room 封装，依据论文：
-- "RMVPE: A Robust Model for Vocal Pitch Estimation in Polyphonic Music", ISMIR 2023
+- "RMVPE: A Robust Model for Vocal Pitch Estimation in Polyphonic Music", INTERSPEECH 2023, pp. 5421-5425,
+  doi:10.21437/Interspeech.2023-528（ISCA；预印本为 arXiv:2306.15412，2023-06-27 提交）
 
 模型架构：MelSpec(128, 16kHz) → DeepUNet → 360-class salience → local average cents → 连续 Hz
 反量化：local average cents（9-bin 加权平均），禁止直接取 argmax bin。

@@ -17,8 +17,8 @@ import numpy as np
 from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PyQt6.QtWidgets import (
-    QButtonGroup, QHBoxLayout, QLabel, QPushButton, QScrollArea, QToolButton,
-    QVBoxLayout, QWidget,
+    QButtonGroup, QHBoxLayout, QLabel, QPushButton, QScrollArea, QTabWidget,
+    QToolButton, QVBoxLayout, QWidget,
 )
 
 from acouscope.i18n import tr
@@ -29,6 +29,11 @@ from acouscope.ui.widgets.multitrack.align import (
 )
 from acouscope.ui.widgets.multitrack.compare_present import (
     MODE_GRID, MODE_SINGLE, PITCH_KIND, ComparePresentWidget,
+)
+from acouscope.ui.widgets.multitrack.analysis_source import MEASURE_KIND
+from acouscope.ui.widgets.multitrack.measure_summary import rows_from_cache
+from acouscope.ui.widgets.multitrack.measure_table import (
+    MEASURE_TAB_KEY, MeasureTableWidget,
 )
 from acouscope.ui.widgets.multitrack.track_header import (
     ROW_HEIGHT, TrackHeaderColumn, track_color,
@@ -585,7 +590,23 @@ class MultitrackPanel(QWidget):
         self.compare_view.selectionChanged.connect(self._on_compare_selection)
         self.compare_view.viewRangeChanged.connect(self._on_compare_view_range)
         self.compare_view.modeChanged.connect(lambda *_: self._sync_present_buttons())
-        outer.addWidget(self.compare_view, 1)
+
+        # 测量结果表与对比视图分两页（一次动作 → 并发多量纲 + F0 → 结果表刷新）
+        self.present_tabs = QTabWidget(self)
+        self.present_tabs.setObjectName("multitrackPresentTabs")
+        self.compare_view.setObjectName("multitrackCompareView")
+        self.present_tabs.addTab(self.compare_view, tr("multitrack.compare.title"))
+        self.measure_table = MeasureTableWidget(self)
+        self.present_tabs.addTab(
+            self.measure_table, tr(MEASURE_TAB_KEY)
+        )
+        self.present_tabs.setCurrentIndex(0)
+        outer.addWidget(self.present_tabs, 1)
+
+        self.measure_table.measureRequested.connect(self.measure_all)
+        self.measure_table.exportRequested.connect(
+            lambda: self.export_measurements()
+        )
 
         self.view.playheadMoved.connect(self._on_playhead)
         self.view.selectionChanged.connect(lambda *_: self._on_selection())
@@ -612,6 +633,8 @@ class MultitrackPanel(QWidget):
         """轨道集合变化后重建轨道头并同步波形区。"""
         if self._session is None:
             return
+        n_tracks = max(1, len(self._session.tracks()))
+        self.scroll.setMinimumHeight(n_tracks * ROW_HEIGHT)
         self.header_column.rebuild(self._session)
         self._connect_headers()
         self.view.reset_view_range()
@@ -668,6 +691,45 @@ class MultitrackPanel(QWidget):
         """按当前会话 + 缓存重建呈现（轨集 / 对齐偏移 / 结果变化后调用）。"""
         self.compare_view.set_session(self._session)
         self.compare_view.refresh()
+        self.refresh_measurements()
+
+    def refresh_measurements(self) -> None:
+        """从缓存读取测量结果，刷新测量结果表。"""
+        self.measure_table.set_rows(
+            rows_from_cache(self._session, self._cache)
+        )
+
+    def measure_all(self):
+        """测量全部：一次动作触发并发多量纲 + F0（经 analyze_all 路由）。"""
+        return self.analyze_all(kind=MEASURE_KIND)
+
+    def export_measurements(self, path=None):
+        """导出测量结果 CSV。path=None 时弹保存框；path 给定则直接写（测试用）。"""
+        rows = self.measure_table.rows()
+        if not rows:
+            self._toast(tr("multitrack.measure.empty"), level="warning")
+            return None
+        if path is None:
+            from PyQt6.QtWidgets import QFileDialog
+            target, _ = QFileDialog.getSaveFileName(
+                self,
+                tr("multitrack.measure.export"),
+                "multitrack_measurements.csv",
+                "CSV (*.csv)",
+            )
+            if not target:
+                return None
+        else:
+            target = path
+        if not target.lower().endswith(".csv"):
+            target = target + ".csv"
+        try:
+            n = self.measure_table.export_csv(target)
+        except Exception as e:
+            self._toast(tr("multitrack.measure.done"), level="warning")
+            return None
+        self._toast(tr("multitrack.measure.done"))
+        return n
 
     def analyze_all(self, *, kind: str = PITCH_KIND, runner=None):
         """逐轨分析（T-1008 调度）：结果入多轨缓存域后刷新呈现；返回句柄列表。
@@ -694,9 +756,24 @@ class MultitrackPanel(QWidget):
             # done 统计 / toast / refresh / 返回句柄均移交宿主（宿主在 on_done
             # 调 panel.refresh_presentation()）；返回值即投递回调的返回值。
             return deliver(plan, kind, cache)
-        handles = run_analysis_on_tracks(
-            plan.resolve(), kind, cache=cache, runner=runner
-        )
+        sources = plan.resolve()
+        if kind == MEASURE_KIND:
+            # 并发多量纲测量 → 串行补 F0（失败不影响）
+            h1 = run_analysis_on_tracks(
+                sources, MEASURE_KIND, cache=cache, runner=runner,
+                max_concurrency=min(4, max(1, len(sources))),
+            )
+            try:
+                run_analysis_on_tracks(
+                    sources, "pitch", cache=cache, runner=runner
+                )
+            except Exception:  # noqa: BLE001 - pitch 失败不影响测量
+                pass
+            handles = h1
+        else:
+            handles = run_analysis_on_tracks(
+                sources, kind, cache=cache, runner=runner
+            )
         done = sum(1 for handle in handles if handle.ok)
         if done:
             self._toast(tr("multitrack.compare.analyzed").format(n=done))

@@ -231,10 +231,16 @@ def test_inspector_open_requested_signal(inspector):
 
 
 def test_section_header_landed_in_inspector(inspector):
-    """检查器档案元数据区标题走共用构件 SectionHeader。"""
+    """检查器档案元数据区标题走共用构件 SectionHeader。
+
+    ★ 2026-11-10 订正：W-14-07 起检查器内有**两个** SectionHeader（档案元数据 +
+    形态学字段组），原 `len(headers) == 1` 自那时起为陈旧断言（全量回归暴露）。
+    改为按标题定位，判据反而更精确：目标标题必须恰为一个 SectionHeader 实例。
+    """
     headers = inspector.findChildren(SectionHeader)
-    assert len(headers) == 1
-    assert headers[0].title() == tr("inspector.metadata")
+    meta = [h for h in headers if h.title() == tr("inspector.metadata")]
+    assert len(meta) == 1, [h.title() for h in headers]
+    assert all(isinstance(h, SectionHeader) for h in headers)
 
 
 def test_section_header_landed_in_settings(qapp, monkeypatch):
